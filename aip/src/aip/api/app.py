@@ -51,6 +51,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         routes_review,
         routes_settings,
         routes_train,
+        routes_families,
         routes_station,
         routes_web,
     )
@@ -63,5 +64,6 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
     app.include_router(routes_review.router)
     app.include_router(routes_settings.router)
     app.include_router(routes_train.router)
+    app.include_router(routes_families.router)
     app.include_router(routes_web.router)
     return app

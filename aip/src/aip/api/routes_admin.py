@@ -6,7 +6,11 @@ import json
 import sqlite3
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+import csv
+import io
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -134,8 +138,8 @@ def _active_version(conn: sqlite3.Connection, model_id: int) -> sqlite3.Row | No
 @router.get("/codes/{code}/detail")
 def code_detail(code: str, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     row = conn.execute(
-        "SELECT id, code, family, part, seq, active, created_at"
-        " FROM product_code WHERE code = ?",
+        "SELECT p.id, p.code, p.family_id, f.name AS family, p.part, p.seq, p.active, p.created_at"
+        " FROM product_code p LEFT JOIN family f ON f.id = p.family_id WHERE p.code = ?",
         (code,),
     ).fetchone()
     if row is None:
@@ -351,6 +355,30 @@ def restore_case(case_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> 
     return {"id": case_id, "archived": False}
 
 
+@router.get("/export/dataset")
+def export_dataset(
+    family: str | None = None,
+    verdict: str | None = None,
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> Response:
+    """按族导出训练集清单（不含图片本体，只给路径与标签）。"""
+    rows = cases_mod.list_cases(conn, family=family, verdict=verdict, limit=500)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["id", "code", "part_no", "verdict", "reason", "source", "adjudicator", "crop_path", "created_at"])
+    for c in rows:
+        writer.writerow([c.id, c.code, c.part_no or "", c.verdict, c.reason or "",
+                         c.source, c.adjudicator, c.crop_path, c.created_at])
+    name = f"dataset-{family or 'all'}.csv"
+    # HTTP 头只能是 latin-1，中文族名按 RFC 5987 编码
+    quoted = quote(name, safe="")
+    return Response(
+        content="\ufeff" + buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quoted}"},
+    )
+
+
 @router.get("/cases/conflicts")
 def list_conflicts(conn: sqlite3.Connection = Depends(get_conn)) -> list[dict]:
     rows = conn.execute(
@@ -386,6 +414,7 @@ def list_cases(
     verdict: str | None = None,
     source: str | None = None,
     part_no: str | None = None,
+    family: str | None = None,
     conflict: bool | None = None,
     include_archived: bool = False,
     limit: int = 50,
@@ -399,6 +428,7 @@ def list_cases(
         verdict=verdict,
         source=source,
         part_no=part_no,
+        family=family,
         conflict=conflict,
         include_archived=include_archived,
         limit=limit,

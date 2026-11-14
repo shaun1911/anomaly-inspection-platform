@@ -24,6 +24,7 @@ STAGES = ("candidate", "shadow", "assist", "disabled")
 class CodeIn(BaseModel):
     code: str = Field(min_length=1, max_length=64)
     family: str | None = None
+    family_id: int | None = None
     part: str | None = None
     seq: str | None = None
 
@@ -67,13 +68,26 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     return {k: row[k] for k in row.keys()}
 
 
+def _resolve_family_id(conn: sqlite3.Connection, name: str | None) -> int | None:
+    """族名 → id；不存在则建。族是实体，编码只能挂已有或新建的族。"""
+    if not name or not str(name).strip():
+        return None
+    clean = str(name).strip()
+    row = conn.execute("SELECT id FROM family WHERE name = ?", (clean,)).fetchone()
+    if row is not None:
+        return int(row["id"])
+    cur = conn.execute("INSERT INTO family (name) VALUES (?)", (clean,))
+    return int(cur.lastrowid)
+
+
 @router.post("/codes", status_code=201)
 def create_code(body: CodeIn, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     with tx(conn):
+        family_id = body.family_id if body.family_id is not None else _resolve_family_id(conn, body.family)
         try:
             cur = conn.execute(
-                "INSERT INTO product_code (code, family, part, seq) VALUES (?, ?, ?, ?)",
-                (body.code, body.family, body.part, body.seq),
+                "INSERT INTO product_code (code, family_id, part, seq) VALUES (?, ?, ?, ?)",
+                (body.code, family_id, body.part, body.seq),
             )
         except sqlite3.IntegrityError as exc:
             raise HTTPException(
@@ -87,15 +101,19 @@ def create_code(body: CodeIn, conn: sqlite3.Connection = Depends(get_conn)) -> d
 def list_codes(
     include_archived: bool = False, conn: sqlite3.Connection = Depends(get_conn)
 ) -> list[dict]:
-    sql = "SELECT * FROM product_code"
+    sql = (
+        "SELECT p.*, f.name AS family FROM product_code p"
+        " LEFT JOIN family f ON f.id = p.family_id"
+    )
     if not include_archived:
-        sql += " WHERE archived_at IS NULL"
-    rows = conn.execute(sql + " ORDER BY code").fetchall()
+        sql += " WHERE p.archived_at IS NULL"
+    rows = conn.execute(sql + " ORDER BY p.code").fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
 class CodePatch(BaseModel):
     family: str | None = None
+    family_id: int | None = None
     part: str | None = None
     seq: str | None = None
 
@@ -110,10 +128,13 @@ def patch_code(
 ) -> dict:
     """编码字符串不可改，只能改族/零件/序号这些描述字段。"""
     with tx(conn):
+        family_id = body.family_id
+        if family_id is None and body.family is not None:
+            family_id = _resolve_family_id(conn, body.family)
         cur = conn.execute(
-            "UPDATE product_code SET family = COALESCE(?, family),"
+            "UPDATE product_code SET family_id = COALESCE(?, family_id),"
             " part = COALESCE(?, part), seq = COALESCE(?, seq) WHERE code = ?",
-            (body.family, body.part, body.seq, code),
+            (family_id, body.part, body.seq, code),
         )
         if cur.rowcount == 0:
             raise LookupError(f"未知编码: {code}")

@@ -248,9 +248,13 @@ async function renderWorkbench() {
 let showArchived = false;
 
 async function renderCatalog() {
-  const [codes, bindings, models] = await Promise.all([
-    api("/api/codes?include_archived=" + showArchived), api("/api/bindings"), api("/api/models")
+  const [codes, bindings, models, families] = await Promise.all([
+    api("/api/codes?include_archived=" + showArchived), api("/api/bindings"), api("/api/models"),
+    api("/api/families")
   ]);
+  const famModels = await Promise.all(
+    families.map(f => api(`/api/families/${f.id}/models`).catch(() => null))
+  );
   const byCode = {};
   bindings.filter(b => !b.active_to).forEach(b => byCode[b.code] = b);
 
@@ -282,7 +286,10 @@ async function renderCatalog() {
       <h2>新建编码</h2>
       <div class="form">
         <div><label for="nc_code">编码（不可改）</label><input id="nc_code" required placeholder="AB-1234-01"></div>
-        <div><label for="nc_family">族</label><input id="nc_family" placeholder="支架"></div>
+        <div><label for="nc_family">族（选已有或输入新族名）</label>
+          <input id="nc_family" list="familyList" placeholder="支架类">
+          <datalist id="familyList">${families.map(f => `<option value="${esc(f.name)}">`).join("")}</datalist>
+        </div>
         <div><label for="nc_part">零件</label><input id="nc_part" placeholder="全型"></div>
         <div><button class="act" id="btnNewCode">建编码</button></div>
       </div>
@@ -292,6 +299,22 @@ async function renderCatalog() {
         <div><label for="nm_name">名称</label><input id="nm_name" placeholder="支架-全型"></div>
         <div><button class="act" id="btnNewModel">建模型</button></div>
       </div>
+    </section>
+
+    <section>
+      <h2>产品族</h2>
+      ${families.length === 0 ? `<div class="empty">还没有族。新建编码时填一个族名即可自动创建。</div>` : `
+      <table><caption class="sr-only">产品族</caption>
+        <thead><tr><th scope="col">族</th><th scope="col">编码数</th><th scope="col">模型</th><th scope="col">一致性</th></tr></thead>
+        <tbody>${families.map((f, i) => {
+          const fm = famModels[i];
+          const modelsText = fm && fm.model_ids.length ? fm.model_ids.map(id => "M" + id).join(", ") : '<span class="muted">未绑定</span>';
+          return `<tr>
+            <td>${esc(f.name)}</td><td>${f.code_count}</td><td>${modelsText}</td>
+            <td>${!fm || fm.model_ids.length <= 1 ? '<span class="tag ok">一致</span>'
+              : '<span class="tag ng">分裂</span> <span class="muted">' + esc(fm.note) + "</span>"}</td>
+          </tr>`;
+        }).join("")}</tbody></table>`}
     </section>
 
     <section>

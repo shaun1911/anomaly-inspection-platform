@@ -140,6 +140,7 @@ def list_cases(
     verdict: str | None = None,
     source: str | None = None,
     part_no: str | None = None,
+    family: str | None = None,
     conflict: bool | None = None,
     include_archived: bool = False,
     limit: int = 50,
@@ -147,6 +148,11 @@ def list_cases(
 ) -> list[Case]:
     clauses: list[str] = []
     params: list[object] = []
+    family_join = ""
+    if family is not None:
+        family_join = " LEFT JOIN family f ON f.id = p.family_id"
+        clauses.append("f.name = ?")
+        params.append(family)
     if code is not None:
         clauses.append("p.code = ?")
         params.append(code)
@@ -174,7 +180,7 @@ def list_cases(
     params.extend([max(1, min(limit, 500)), max(0, offset)])
     rows = conn.execute(
         "SELECT c.*, p.code FROM case_item c JOIN product_code p ON p.id = c.product_code_id"
-        f"{where} ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?",
+        f"{family_join}{where} ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?",
         params,
     ).fetchall()
     return [_to_case(r) for r in rows]
