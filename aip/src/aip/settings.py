@@ -38,6 +38,10 @@ SPECS: tuple[Spec, ...] = (
     Spec("train.window_start", "训练", "夜间窗口开始", "time", "01:00", "HH:MM", None, None),
     Spec("train.window_end", "训练", "夜间窗口结束", "time", "05:00", "HH:MM", None, None),
     Spec("train.max_minutes", "训练", "单次训练最长（分钟）", "int", 240, "超时视为失败", 10, 720),
+    Spec("retention.crop_days", "存储", "判定裁片保留天数", "int", 30,
+         "判例与待复核证据不受此限制", 1, 3650),
+    Spec("retention.smoke_days", "存储", "冒烟图保留天数", "int", 7,
+         "试判图只用于核对，可短保留", 1, 365),
     Spec("gate.min_side", "守门", "裁片最小边长（px）", "int", 32, "低于则拒绝", 8, 2048),
     Spec("gate.min_brightness", "守门", "亮度下限", "float", 10.0, "0–255", 0.0, 255.0),
     Spec("gate.max_brightness", "守门", "亮度上限", "float", 245.0, "0–255", 0.0, 255.0),
@@ -63,7 +67,7 @@ SPECS: tuple[Spec, ...] = (
 )
 
 BY_KEY = {s.key: s for s in SPECS}
-GROUPS = ("抽样", "判定", "复核", "训练", "守门", "理由预设")
+GROUPS = ("抽样", "判定", "复核", "训练", "守门", "存储", "理由预设")
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 

@@ -7,7 +7,9 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from pathlib import Path
 
+from .. import retention
 from .. import settings as settings_mod
 from .deps import get_conn
 from .errors import ApiError
@@ -52,3 +54,21 @@ def update_setting(
     except ValueError as exc:
         raise ApiError("invalid_setting", str(exc), "按提示范围修正", 400) from exc
     return {"key": key, "value": value}
+
+
+class RetentionIn(BaseModel):
+    dry_run: bool = True
+    actor: str = "web"
+
+
+@router.post("/maintenance/retention")
+def maintenance_retention(body: RetentionIn, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    db_file = Path(conn.execute("PRAGMA database_list").fetchone()[2])
+    crop_days = settings_mod.get_value(conn, "retention.crop_days")
+    smoke_days = settings_mod.get_value(conn, "retention.smoke_days")
+    if body.dry_run:
+        result = retention.plan(conn, db_file.parent, crop_days=crop_days, smoke_days=smoke_days)
+        return {"dry_run": True, **{k: result[k] for k in ("count", "bytes", "crop_days", "smoke_days")}}
+    return {"dry_run": False, **retention.apply(
+        conn, db_file.parent, crop_days=crop_days, smoke_days=smoke_days, actor=body.actor
+    )}

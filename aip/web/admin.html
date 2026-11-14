@@ -300,6 +300,18 @@ async function renderWorkbench() {
     </section>
 
     <section>
+      <h2>存储维护</h2>
+      <p class="muted" style="margin:0 0 12px">
+        判例引用的图与待复核证据永不自动删；其余按保留期清理（设置 → 存储）。
+      </p>
+      <div class="row">
+        <button class="ghost" id="btnPreview">预览可清理</button>
+        <button class="ghost" id="btnClean">执行清理</button>
+      </div>
+      <div id="storageOut" class="muted" style="margin-top:10px"></div>
+    </section>
+
+    <section>
       <h2>最近操作</h2>
       ${audit.length ? `<div class="timeline">${audit.map(a => `
         <div class="tl"><time>${fmtTime(a.created_at)}</time><span class="kind">${esc(actionLabel(a.action))}</span>
@@ -1170,6 +1182,18 @@ async function renderSystem() {
           <td class="muted">${fmtTime(s.last_seen_at)}</td>
           <td class="muted">${esc(s.last_config_rev || "-")}</td>
         </tr>`).join("")}</tbody></table>`}
+    </section>
+
+    <section>
+      <h2>存储维护</h2>
+      <p class="muted" style="margin:0 0 12px">
+        判例引用的图与待复核证据永不自动删；其余按保留期清理（设置 → 存储）。
+      </p>
+      <div class="row">
+        <button class="ghost" id="btnPreview">预览可清理</button>
+        <button class="ghost" id="btnClean">执行清理</button>
+      </div>
+      <div id="storageOut" class="muted" style="margin-top:10px"></div>
     </section>
 
     <section>
