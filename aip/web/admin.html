@@ -541,6 +541,7 @@ async function renderQuality() {
   ]);
   const autoRefs = !settings.some(r => r.key === "review.show_references_default" && r.value === false);
   const items = q.items;
+  const isGroup = ["code", "family", "batch"].includes(reviewState.groupBy);
   let idx = 0;
   let reason = null;
   const REASONS = ["划痕", "脏污", "压伤", "误报", "其他"];
@@ -632,8 +633,6 @@ async function renderQuality() {
       </section>`;
 
     const groupIds = (it) => it.kind === "part" ? it.result_ids : [it.id];
-
-    const isGroup = ["code", "family", "batch"].includes(reviewState.groupBy);
 
     function paint() {
       $("rlist").innerHTML = items.map((it, i) => {
