@@ -83,15 +83,19 @@ def create_case(
     batch_no = (batch_no or "").strip() or None
 
     batch_source = "manual" if batch_no else None
-    if batch_no is None and result_id is not None:
-        row_batch = conn.execute(
-            "SELECT j.batch_no, j.batch_source FROM inference_result r"
+    if result_id is not None:
+        row_ctx = conn.execute(
+            "SELECT j.batch_no, j.batch_source, r.model_version_id FROM inference_result r"
             " JOIN inference_job j ON j.id = r.job_id WHERE r.id = ?",
             (result_id,),
         ).fetchone()
-        if row_batch is not None:
-            batch_no = row_batch["batch_no"]
-            batch_source = row_batch["batch_source"] if batch_no else None
+        if row_ctx is not None:
+            if batch_no is None:
+                batch_no = row_ctx["batch_no"]
+                batch_source = row_ctx["batch_source"] if batch_no else None
+            # 判例必须能回答"按哪版判的"：从结果继承，不依赖调用方传
+            if model_version_id is None:
+                model_version_id = row_ctx["model_version_id"]
 
     if part_no is not None:
         existing = conn.execute(
