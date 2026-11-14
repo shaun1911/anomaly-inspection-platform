@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import sqlite3
 from pathlib import Path
+
+from PIL import Image
 
 from fastapi import APIRouter, Depends, File, Form, Header, UploadFile
 from pydantic import BaseModel
 
 from .. import whitelist
 from ..inference.service import GATE_MESSAGES, FakePredictor, check_gate, process_job
-from ..settings import gate_config
+from ..settings import gate_config, get_value
 from ..store import tx
 from .deps import get_conn
 from .errors import ApiError
@@ -84,10 +87,19 @@ def submit(
     batch_no: str | None = Form(None),
     image: UploadFile = File(...),
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
+    station_token: str | None = Header(None, alias="X-Station-Token"),
     conn: sqlite3.Connection = Depends(get_conn),
 ) -> dict:
+    expected_token = get_value(conn, "station.token")
+    if expected_token and station_token != expected_token:
+        raise ApiError("bad_station_token", "站位令牌缺失或错误", "检查客户端令牌配置", 401)
     batch = _normalize_batch(batch_no)
     part = (part_no or "").strip() or None
+
+    if get_value(conn, "infer.require_part_no") and not part:
+        raise ApiError("missing_part_no", "缺少件号 part_no", "客户端必须上报件号", 400)
+    if get_value(conn, "infer.require_batch_no") and not batch:
+        raise ApiError("missing_batch_no", "缺少批次 batch_no", "客户端必须上报批次", 400)
 
     if not whitelist.is_allowed(code):
         raise ApiError("not_in_shift", f"编码 {code} 不在本班白名单", "联系技师或换件", 403)
@@ -114,6 +126,23 @@ def submit(
         raise ApiError(reason, message, action, 422)
 
     version_id, roi_rev, th_lo, th_hi = _resolve(conn, code)
+    tolerance = get_value(conn, "infer.crop_size_tolerance")
+    if tolerance:
+        roi = conn.execute(
+            "SELECT roi_rect FROM config_rev WHERE model_version_id = ? AND rev = ?",
+            (version_id, roi_rev),
+        ).fetchone()
+        if roi is not None:
+            x1, y1, x2, y2 = json.loads(roi["roi_rect"])
+            with Image.open(crop_path) as img:
+                cw, ch = img.size
+            if abs(cw - (x2 - x1)) > tolerance or abs(ch - (y2 - y1)) > tolerance:
+                raise ApiError(
+                    "crop_roi_mismatch",
+                    f"裁片 {cw}x{ch} 与 ROI {x2 - x1}x{y2 - y1} 不一致",
+                    "客户端需按 ROI 裁剪后再上传",
+                    422,
+                )
 
     with tx(conn):
         st = conn.execute("SELECT id FROM station WHERE name = ?", (station,)).fetchone()

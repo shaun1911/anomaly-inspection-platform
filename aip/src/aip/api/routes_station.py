@@ -8,10 +8,11 @@ from __future__ import annotations
 import json
 import sqlite3
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel, Field
 
 from .. import whitelist
+from ..settings import get_value
 from ..store import tx
 from .deps import get_conn
 from .errors import ApiError
@@ -45,7 +46,14 @@ def _latest_threshold(
 
 
 @router.get("/config")
-def station_config(code: str, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+def station_config(
+    code: str,
+    station_token: str | None = Header(None, alias="X-Station-Token"),
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> dict:
+    expected = get_value(conn, "station.token")
+    if expected and station_token != expected:
+        raise ApiError("bad_station_token", "站位令牌缺失或错误", "检查客户端令牌配置", 401)
     if not whitelist.is_allowed(code):
         raise ApiError(
             code="not_in_shift",
@@ -136,7 +144,14 @@ def station_config(code: str, conn: sqlite3.Connection = Depends(get_conn)) -> d
 
 
 @router.post("/heartbeat")
-def heartbeat(body: HeartbeatIn, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+def heartbeat(
+    body: HeartbeatIn,
+    station_token: str | None = Header(None, alias="X-Station-Token"),
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> dict:
+    expected = get_value(conn, "station.token")
+    if expected and station_token != expected:
+        raise ApiError("bad_station_token", "站位令牌缺失或错误", "检查客户端令牌配置", 401)
     with tx(conn):
         existing = conn.execute(
             "SELECT id FROM station WHERE name = ?", (body.station,)

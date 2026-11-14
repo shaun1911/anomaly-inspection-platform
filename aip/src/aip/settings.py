@@ -42,6 +42,14 @@ SPECS: tuple[Spec, ...] = (
          "判例与待复核证据不受此限制", 1, 3650),
     Spec("retention.smoke_days", "存储", "冒烟图保留天数", "int", 7,
          "试判图只用于核对，可短保留", 1, 365),
+    Spec("infer.require_part_no", "接入", "必须带件号", "bool", False,
+         "开启后未带 part_no 的请求会被拒绝（追溯要求）"),
+    Spec("infer.require_batch_no", "接入", "必须带批次", "bool", False,
+         "开启后未带 batch_no 的请求会被拒绝（按批统计要求）"),
+    Spec("infer.crop_size_tolerance", "接入", "裁片与 ROI 尺寸容差（px）", "int", 8,
+         "裁片宽高与 ROI 宽高偏差超过该值则拒绝；0=关闭", 0, 200),
+    Spec("station.token", "接入", "站位接入令牌", "str", "",
+         "非空时 /infer 与 /station/* 必须带 X-Station-Token"),
     Spec("gate.min_side", "守门", "裁片最小边长（px）", "int", 32, "低于则拒绝", 8, 2048),
     Spec("gate.min_brightness", "守门", "亮度下限", "float", 10.0, "0–255", 0.0, 255.0),
     Spec("gate.max_brightness", "守门", "亮度上限", "float", 245.0, "0–255", 0.0, 255.0),
@@ -67,7 +75,7 @@ SPECS: tuple[Spec, ...] = (
 )
 
 BY_KEY = {s.key: s for s in SPECS}
-GROUPS = ("抽样", "判定", "复核", "训练", "守门", "存储", "理由预设")
+GROUPS = ("抽样", "判定", "复核", "训练", "守门", "接入", "存储", "理由预设")
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
