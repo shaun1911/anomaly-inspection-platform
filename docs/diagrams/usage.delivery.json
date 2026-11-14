@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "299a9208-3ab3-4000-82b3-638defd491b1",
+  "status": "current",
+  "command": "deliver",
+  "type": "workflow",
+  "input": "usage.workflow.json",
+  "output": "usage.html",
+  "specification": {
+    "sha256": "8914c9d0ab2a524652d3dc553f257aab6bd3e9c4a389528738f184e80c16422e",
+    "bytes": 4702
+  },
+  "artifact": {
+    "sha256": "267ce8f6dab9736fa0bf6055615e13de670a3a5d9417bb626e7d6369d1f67bed",
+    "bytes": 850327
+  }
+}

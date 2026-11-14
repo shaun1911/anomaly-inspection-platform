@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIP 服务端</title>
+<style>
+  :root{
+    color-scheme: light dark;
+    --brand:#F26522;
+    --ok:light-dark(#1B8F3A,#34C759);
+    --warn:light-dark(#A86500,#F5A623);
+    --bad:light-dark(#C62828,#FF453A);
+    --g0:light-dark(#F4F5F7,#0F1115);
+    --g1:light-dark(#FFFFFF,#1A1D23);
+    --g2:light-dark(#EEF0F4,#2A2F37);
+    --g3:light-dark(#D6DAE1,#3A404A);
+    --t1:light-dark(#16181D,#F5F6F8);
+    --t2:light-dark(#4B5563,#A8AFBA);
+    --t3:light-dark(#6B7280,#8A929E);
+    --ring:light-dark(rgba(242,101,34,.35),rgba(242,101,34,.55));
+    accent-color: var(--brand);
+    scrollbar-color: light-dark(#B9BFC8,#4A515C) transparent;
+  }
+  *{box-sizing:border-box}
+  html,body{background:var(--g0)}
+  body{margin:0;color:var(--t1);font:14px/1.55 "Microsoft YaHei",system-ui,sans-serif}
+  :focus-visible{outline:3px solid var(--ring);outline-offset:2px;border-radius:6px}
+
+  .shell{display:grid;grid-template-columns:196px 1fr;min-height:100vh}
+  aside{background:var(--g1);border-right:1px solid var(--g3);padding:14px 10px;position:sticky;top:0;height:100vh;overflow:auto}
+  .logo{display:flex;align-items:center;gap:8px;padding:6px 10px 14px;font-weight:600}
+  .logo i{width:10px;height:10px;border-radius:3px;background:var(--brand);display:inline-block}
+  nav a{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;color:var(--t2);text-decoration:none;font-size:13px;margin-bottom:2px}
+  nav a:hover{background:var(--g2);color:var(--t1)}
+  nav a[aria-current="page"]{background:var(--g2);color:var(--t1);font-weight:600}
+  nav .group{margin:14px 10px 6px;font-size:11px;color:var(--t3);letter-spacing:.04em}
+  .side-foot{margin-top:18px;padding:10px;border-top:1px solid var(--g3);font-size:11px;color:var(--t3)}
+
+  header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--g1);border-bottom:1px solid var(--g3);position:sticky;top:0;z-index:4}
+  header h1{font-size:15px;margin:0;font-weight:600}
+  .search{flex:1;max-width:420px}
+  .search input{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:8px 12px;font-size:13px}
+  .pill{padding:4px 10px;border-radius:999px;background:var(--g2);color:var(--t2);font-size:12px}
+
+  main{padding:18px 22px;display:grid;gap:16px;align-content:start}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px}
+  .card{background:var(--g1);border:1px solid var(--g3);border-radius:12px;padding:14px}
+  .card b{display:block;font-size:22px;margin-top:4px;font-variant-numeric:tabular-nums}
+  .card span{color:var(--t3);font-size:12px}
+  .card.warn b{color:var(--warn)}
+  .card.bad b{color:var(--bad)}
+
+  section{background:var(--g1);border:1px solid var(--g3);border-radius:12px;padding:16px}
+  h2{font-size:13px;margin:0 0 12px;color:var(--t2);font-weight:600;display:flex;align-items:center;gap:8px}
+  h2 .pill{font-weight:400}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--g3)}
+  th{color:var(--t3);font-weight:500;font-size:12px}
+  tbody tr:hover{background:light-dark(#F7F8FA,#22262C)}
+  tbody tr[data-code]{cursor:pointer}
+
+  label{display:block;font-size:11px;color:var(--t3);margin-bottom:4px}
+  input,select{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:8px 10px;font-size:13px}
+  input:user-invalid{border-color:var(--bad)}
+  .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end;margin-bottom:14px}
+  .form button{width:100%}
+
+  .tag{font-size:11px;padding:2px 8px;border-radius:999px;display:inline-block}
+  .tag.ok,.tag.assist{background:color-mix(in oklab,var(--ok) 18%,transparent);color:var(--ok)}
+  .tag.ng,.tag.disabled{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad)}
+  .tag.gray,.tag.candidate,.tag.shadow{background:color-mix(in oklab,var(--warn) 18%,transparent);color:var(--warn)}
+
+  .muted{color:var(--t3);font-size:12px}
+  .empty{color:var(--t3);padding:18px 0;font-size:13px;line-height:1.9}
+  .empty b{color:var(--t2)}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+  button.act{background:var(--brand);color:#fff;border:0;border-radius:8px;padding:9px 14px;cursor:pointer;font-size:13px;font-weight:600}
+  button.ghost{background:var(--g3);color:var(--t1);border:0;border-radius:8px;padding:9px 14px;cursor:pointer;font-size:13px}
+  .todo{display:flex;flex-direction:column;gap:8px}
+  .todo a{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;background:var(--g2);color:var(--t1);text-decoration:none;font-size:13px}
+  .todo a:hover{outline:1px solid var(--g3)}
+  .todo .n{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600}
+  .timeline{display:flex;flex-direction:column;gap:0}
+  .tl{display:grid;grid-template-columns:150px 90px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid var(--g3);font-size:13px}
+  .tl time{color:var(--t3);font-variant-numeric:tabular-nums;font-size:12px}
+  .kind{font-size:11px;color:var(--t3)}
+  .review{display:grid;grid-template-columns:380px 1fr;gap:16px;align-items:start}
+  .review-list{background:var(--g1);border:1px solid var(--g3);border-radius:12px;padding:16px}
+  .review-detail{background:var(--g1);border:1px solid var(--g3);border-radius:12px;padding:16px}
+  .queue{display:flex;flex-direction:column;gap:6px;max-height:420px;overflow:auto}
+  .item{display:flex;align-items:center;gap:8px;padding:9px;border-radius:8px;background:var(--g2);cursor:pointer;font-size:13px}
+  .item.on{outline:2px solid var(--brand)}
+  .refs{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .refs h2{font-size:12px;margin:0 0 8px}
+  .refrow{display:flex;gap:8px;flex-wrap:wrap}
+  .refrow figure{margin:0;width:110px}
+  .refrow img{width:110px;height:110px;object-fit:cover;border-radius:8px;border:1px solid var(--g3);background:var(--g2)}
+  .refrow figcaption{font-size:11px;color:var(--t3);margin-top:4px;line-height:1.4}
+  .thumb{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--g3);background:var(--g2)}
+  .chip-static{background:var(--g2);border:1px solid var(--g3);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--t2)}
+  .item .score{width:48px;font-variant-numeric:tabular-nums;color:var(--t2)}
+  .shot{background:var(--g2);border-radius:10px;min-height:320px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:12px}
+  .shot img{max-width:100%;max-height:420px;image-rendering:pixelated}
+  .kv{display:grid;grid-template-columns:80px 1fr;gap:6px 10px;font-size:13px}
+  .kv div:nth-child(odd){color:var(--t3)}
+  .reasons{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+  .reasons button.sel{background:var(--brand);color:#fff}
+  .row{display:flex;gap:8px}
+  .row button{flex:1}
+  dialog{background:var(--g1);color:var(--t1);border:1px solid var(--g3);border-radius:12px;padding:20px;width:min(520px,92vw)}
+  dialog::backdrop{background:rgba(0,0,0,.5)}
+  dialog label{display:block;font-size:11px;color:var(--t3);margin:10px 0 4px}
+  dialog input,dialog select{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:9px 10px;font-size:13px}
+  #toasts{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px;z-index:99}
+  #toasts output{padding:12px 16px;border-radius:10px;color:#fff;font-size:13px;background:var(--ok)}
+  #toasts output[data-kind="bad"]{background:var(--bad)}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  @media (max-width:900px){.shell{grid-template-columns:1fr}aside{position:static;height:auto}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside>
+    <div class="logo"><i></i>AIP 服务端</div>
+    <nav aria-label="主导航">
+      <a href="#/workbench" data-nav="workbench">工作台</a>
+      <div class="group">生产</div>
+      <a href="#/catalog" data-nav="catalog">编码与模型</a>
+      <div class="group">质量</div>
+      <a href="#/quality" data-nav="quality">复核队列</a>
+      <a href="#/cases" data-nav="cases">判例库</a>
+      <div class="group">其他</div>
+      <a href="#/training" data-nav="training">训练与发布</a>
+      <a href="#/system" data-nav="system">系统</a>
+      <a href="#/settings" data-nav="settings">设置</a>
+    </nav>
+    <div class="side-foot">v0.1.0 · 开发机</div>
+  </aside>
+
+  <div>
+    <header>
+      <h1 id="title">工作台</h1>
+      <div class="search">
+        <label class="sr-only" for="jump">跳转到编码</label>
+        <input id="jump" placeholder="输入编码回车直达，例如 AB-1234-01">
+      </div>
+      <span class="pill" id="health" role="status">健康检查中…</span>
+    </header>
+    <main id="view" aria-live="polite"></main>
+  </div>
+</div>
+<div id="toasts" aria-live="polite"></div>
+
+<dialog id="caseDlg">
+  <form method="dialog" id="caseForm">
+    <h2 style="margin-bottom:12px">录入判例</h2>
+    <label for="f_code">编码</label><input id="f_code" required placeholder="AB-1234-01">
+    <label for="f_path">裁片路径</label><input id="f_path" required placeholder="data/crops/xxx.png">
+    <label for="f_verdict">结论</label>
+    <select id="f_verdict"><option value="ok">可接受 ok</option><option value="ng">不可接受 ng</option></select>
+    <label for="f_reason">一句话理由</label><input id="f_reason" placeholder="边部划痕">
+    <label for="f_source">来源</label>
+    <select id="f_source"><option value="manual">手工录入</option><option value="result">复核转</option><option value="import">导入</option></select>
+    <label for="f_adj">裁决人</label><input id="f_adj" value="admin" required>
+    <div class="row" style="margin-top:16px">
+      <button class="act" id="f_save" value="save">保存</button>
+      <button class="ghost" value="cancel">取消</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+async function api(path, opts) {
+  const resp = await fetch(path, opts);
+  const text = await resp.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = { raw: text }; }
+  if (!resp.ok) {
+    const err = new Error(body?.message || body?.detail?.message || resp.statusText);
+    err.body = body; err.status = resp.status;
+    throw err;
+  }
+  return body;
+}
+const post = (p, b) => api(p, {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(b)});
+
+function toast(msg, bad=false) {
+  const out = document.createElement("output");
+  out.textContent = msg;
+  if (bad) out.dataset.kind = "bad";
+  $("toasts").append(out);
+  setTimeout(() => out.remove(), 2600);
+}
+const tag = (label) => `<span class="tag ${esc(label)}">${esc(label)}</span>`;
+const fmtTime = (s) => s ? s.replace("T", " ").replace(/\.\d+Z$/, "") : "-";
+
+/* ---------- 视图 ---------- */
+
+async function renderWorkbench() {
+  const [stats, overview, audit] = await Promise.all([
+    api("/api/stats/today"), api("/api/overview"), api("/api/audit/recent?limit=8")
+  ]);
+  const candidates = (await api("/api/models")).flatMap(m =>
+    m.versions.filter(v => v.status === "candidate").map(v => ({model: m.code, vno: v.version_no})));
+  const badStations = overview.stations.filter(s => s.health !== "ok");
+
+  const todos = [];
+  if (overview.pending_review > 0) todos.push({href:"#/quality", text:"待确认的判定", n: overview.pending_review});
+  if (candidates.length) todos.push({href:"#/training", text:"待发布的候选版本", n: candidates.length});
+  if (badStations.length) todos.push({href:"#/system", text:"异常站位", n: badStations.length});
+  if (overview.cases === 0) todos.push({href:"#/cases", text:"判例库还是空的，先录一条", n: "→"});
+
+  $("view").innerHTML = `
+    <div class="cards">
+      <div class="card"><span>今日判定</span><b>${stats.total}</b></div>
+      <div class="card"><span>NG</span><b>${stats.ng}</b></div>
+      <div class="card warn"><span>灰区</span><b>${stats.gray}</b></div>
+      <div class="card bad"><span>待确认</span><b>${stats.pending_review}</b></div>
+      <div class="card"><span>NG 率</span><b>${(stats.ng_rate*100).toFixed(1)}%</b></div>
+      <div class="card"><span>灰区率</span><b>${(stats.gray_rate*100).toFixed(1)}%</b></div>
+    </div>
+
+    <section>
+      <h2>要你处理的 <span class="pill">${todos.length} 项</span></h2>
+      <div class="todo">
+        ${todos.length ? todos.map(t => `<a href="${t.href}"><span>${esc(t.text)}</span><span class="n">${t.n}</span></a>`).join("")
+          : `<div class="empty">今天没有待处理事项。<b>下一步</b>：去「编码与模型」建一个编码，或去「判例库」录一条判例。</div>`}
+      </div>
+    </section>
+
+    <section>
+      <h2>最近操作</h2>
+      ${audit.length ? `<div class="timeline">${audit.map(a => `
+        <div class="tl"><time>${fmtTime(a.created_at)}</time><span class="kind">${esc(a.action)}</span>
+        <span>${esc(a.actor)} · ${esc(a.entity)}${a.entity_id ? " #" + esc(a.entity_id) : ""}</span></div>`).join("")}</div>`
+        : `<div class="empty">还没有记录。改阈值、换绑定、发布版本都会出现在这里。</div>`}
+    </section>`;
+}
+
+let showArchived = false;
+
+async function renderCatalog() {
+  const [codes, bindings, models] = await Promise.all([
+    api("/api/codes?include_archived=" + showArchived), api("/api/bindings"), api("/api/models")
+  ]);
+  const byCode = {};
+  bindings.filter(b => !b.active_to).forEach(b => byCode[b.code] = b);
+
+  $("view").innerHTML = `
+    <section>
+      <h2>产品编码 <span class="pill">${codes.length}</span>
+        <span style="margin-left:auto">
+          <button class="ghost" id="btnArchived">${showArchived ? "隐藏已归档" : "显示已归档"}</button>
+        </span></h2>
+      ${codes.length === 0 ? `<div class="empty">还没有编码。<b>怎么做</b>：先在下面建编码，再建模型并绑定。</div>` : `
+      <table><caption class="sr-only">产品编码列表</caption>
+        <thead><tr><th scope="col">编码</th><th scope="col">族 / 零件</th><th scope="col">状态</th><th scope="col">当前模型</th><th scope="col">阶段</th><th scope="col">操作</th></tr></thead>
+        <tbody>${codes.map(c => {
+          const b = byCode[c.code];
+          return `<tr data-code="${esc(c.code)}">
+            <td>${esc(c.code)}</td>
+            <td>${esc(c.family || "-")} / ${esc(c.part || "-")}</td>
+            <td>${c.active ? "启用" : '<span class="tag disabled">停用</span>'}</td>
+            <td>${b ? "M" + esc(b.model_id) : '<span class="muted">未绑定</span>'}</td>
+            <td>${b ? tag(b.stage) : "-"}</td>
+            <td>${c.archived_at
+              ? `<button class="ghost" data-restore="${esc(c.code)}">恢复</button>`
+              : `<button class="ghost" data-archive="${esc(c.code)}" ${b ? "disabled title=\"先解绑再归档\"" : ""}>归档</button>`}</td>
+          </tr>`;
+        }).join("")}</tbody></table>`}
+    </section>
+
+    <section>
+      <h2>新建编码</h2>
+      <div class="form">
+        <div><label for="nc_code">编码（不可改）</label><input id="nc_code" required placeholder="AB-1234-01"></div>
+        <div><label for="nc_family">族</label><input id="nc_family" placeholder="支架"></div>
+        <div><label for="nc_part">零件</label><input id="nc_part" placeholder="全型"></div>
+        <div><button class="act" id="btnNewCode">建编码</button></div>
+      </div>
+      <h2 style="margin-top:16px">新建模型</h2>
+      <div class="form">
+        <div><label for="nm_code">模型编码</label><input id="nm_code" required placeholder="M1"></div>
+        <div><label for="nm_name">名称</label><input id="nm_name" placeholder="支架-全型"></div>
+        <div><button class="act" id="btnNewModel">建模型</button></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>模型与版本</h2>
+      ${models.length === 0 ? `<div class="empty">还没有模型。建完模型后，在编码详情里建版本、配 ROI 与阈值。</div>` : `
+      <table><caption class="sr-only">模型列表</caption>
+        <thead><tr><th scope="col">ID</th><th scope="col">编码</th><th scope="col">名称</th><th scope="col">版本</th></tr></thead>
+        <tbody>${models.map(m => `<tr>
+          <td>${m.id}</td><td>${esc(m.code)}</td><td>${esc(m.name || "-")}</td>
+          <td>${m.versions.length ? m.versions.map(v => `<span class="tag ${v.status}">v${v.version_no} ${v.status}</span>`).join(" ") : '<span class="muted">无版本</span>'}</td>
+        </tr>`).join("")}</tbody></table>`}
+    </section>`;
+
+  document.querySelectorAll("tr[data-code]").forEach(tr => {
+    tr.onclick = () => { location.hash = "#/code/" + encodeURIComponent(tr.dataset.code); };
+  });
+  $("btnArchived").onclick = () => { showArchived = !showArchived; renderCatalog(); };
+  document.querySelectorAll("[data-archive]").forEach(btn => {
+    btn.onclick = async (ev) => {
+      ev.stopPropagation();
+      try { await post(`/api/codes/${encodeURIComponent(btn.dataset.archive)}/archive`, {}); toast("已归档"); renderCatalog(); }
+      catch (e) { toast(e.message, true); }
+    };
+  });
+  document.querySelectorAll("[data-restore]").forEach(btn => {
+    btn.onclick = async (ev) => {
+      ev.stopPropagation();
+      try { await post(`/api/codes/${encodeURIComponent(btn.dataset.restore)}/restore`, {}); toast("已恢复"); renderCatalog(); }
+      catch (e) { toast(e.message, true); }
+    };
+  });
+  $("btnNewCode").onclick = async () => {
+    try {
+      await post("/api/codes", {
+        code: $("nc_code").value.trim(),
+        family: $("nc_family").value || null,
+        part: $("nc_part").value || null
+      });
+      toast("编码已创建"); renderCatalog();
+    } catch (e) { toast(e.message, true); }
+  };
+  $("btnNewModel").onclick = async () => {
+    try {
+      await post("/api/models", {code: $("nm_code").value.trim(), name: $("nm_name").value || null});
+      toast("模型已创建"); renderCatalog();
+    } catch (e) { toast(e.message, true); }
+  };
+}
+
+async function renderCode(code) {
+  const [d, tl, models] = await Promise.all([
+    api(`/api/codes/${encodeURIComponent(code)}/detail`),
+    api(`/api/codes/${encodeURIComponent(code)}/timeline?limit=20`),
+    api("/api/models")
+  ]);
+  $("view").innerHTML = `
+    <section>
+      <h2>${esc(d.code)} ${d.active ? "" : '<span class="tag disabled">停用</span>'}
+        <span class="pill">${esc(d.family || "")} ${esc(d.part || "")}</span>
+        <span style="margin-left:auto">
+          <button class="ghost" id="btnToggle">${d.active ? "停用编码" : "启用编码"}</button>
+          <button class="ghost" id="btnArchive">归档</button>
+        </span></h2>
+      <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        <div class="card"><span>模型</span><b style="font-size:15px">${d.binding ? esc(d.binding.model_code) : "未绑定"}</b></div>
+        <div class="card"><span>版本</span><b style="font-size:15px">${d.version ? "v" + d.version.version_no + " " + d.version.status : "-"}</b></div>
+        <div class="card"><span>ROI rev</span><b style="font-size:15px">${d.config ? d.config.rev : "-"}</b></div>
+        <div class="card"><span>阈值</span><b style="font-size:15px">${d.threshold ? d.threshold.th_lo.toFixed(2) + " / " + d.threshold.th_hi.toFixed(2) : "-"}</b></div>
+        <div class="card"><span>判例</span><b style="font-size:15px">${d.case_count}</b></div>
+      </div>
+      ${d.config ? `<p class="muted" style="margin:12px 0 0">ROI 矩形：${esc(JSON.stringify(d.config.roi_rect))}</p>` : ""}
+    </section>
+
+    <section>
+      <h2>操作</h2>
+      <div class="form">
+        <div><label for="bind_model">换绑到模型</label>
+          <select id="bind_model">${models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("")}</select>
+        </div>
+        <div><button class="act" id="btnBind">绑定</button></div>
+      </div>
+      ${d.version ? `
+      <div class="form">
+        <div><label for="roi_box">改 ROI（x1,y1,x2,y2）</label><input id="roi_box" value="${d.config ? esc(d.config.roi_rect.join(",")) : "0,0,512,512"}"></div>
+        <div><button class="ghost" id="btnRoi">保存 ROI</button></div>
+      </div>
+      <div class="form">
+        <div><label for="th_box">改阈值（th_lo,th_hi）</label><input id="th_box" value="${d.threshold ? esc(d.threshold.th_lo + "," + d.threshold.th_hi) : "0.45,0.60"}"></div>
+        <div><button class="ghost" id="btnTh">保存阈值</button></div>
+      </div>
+      <p class="muted">改 ROI 与阈值会产生新的 rev，旧值保留可追溯；不影响已在跑的结果。</p>` :
+      `<div class="empty">这个编码还没有可用版本。<b>下一步</b>：先绑定模型，并让该模型有一个 assist/shadow 版本。</div>`}
+    </section>
+
+    <section>
+      <h2>最近判定 <span class="pill">最近 20 条</span></h2>
+      ${d.recent_results.length === 0 ? `<div class="empty">这个编码还没有判定记录。<b>下一步</b>：去工位面板扫码换型并推图。</div>` : `
+      <table><caption class="sr-only">最近判定</caption>
+        <thead><tr><th scope="col">#</th><th scope="col">分数</th><th scope="col">结论</th><th scope="col">确认</th><th scope="col">时间</th></tr></thead>
+        <tbody>${d.recent_results.map(r => `<tr>
+          <td>${r.id}</td><td>${r.score.toFixed(3)}</td><td>${tag(r.label)}</td>
+          <td>${r.confirmed_by ? esc(r.confirmed_by) : (r.label === 'ok' ? '<span class="muted">—</span>' : '<span class="muted">待确认</span>')}</td>
+          <td class="muted">${fmtTime(r.created_at)}</td></tr>`).join("")}
+        </tbody></table>`}
+    </section>
+
+    <section>
+      <h2>时间线</h2>
+      <div class="timeline">
+        ${tl.map(e => `<div class="tl"><time>${fmtTime(e.at)}</time><span class="kind">${esc(e.kind)}</span>
+          <span>${esc(e.title)}${e.detail ? ' <span class="muted">· ' + esc(e.detail) + '</span>' : ""}</span></div>`).join("")}
+      </div>
+    </section>`;
+
+  $("btnToggle").onclick = async () => {
+    try {
+      await post(`/api/codes/${encodeURIComponent(code)}/active`, {active: !d.active});
+      toast(d.active ? "已停用" : "已启用"); renderCode(code);
+    } catch (e) { toast(e.message, true); }
+  };
+  $("btnArchive").onclick = async () => {
+    if (!confirm("归档后该编码从列表与选择器消失，历史仍保留。继续？")) return;
+    try { await post(`/api/codes/${encodeURIComponent(code)}/archive`, {}); toast("已归档"); location.hash = "#/catalog"; }
+    catch (e) { toast(e.message, true); }
+  };
+  $("btnBind").onclick = async () => {
+    try {
+      await post("/api/bindings", {code, model_id: Number($("bind_model").value)});
+      toast("已绑定"); renderCode(code);
+    } catch (e) { toast(e.message, true); }
+  };
+  if (d.version) {
+    $("btnRoi").onclick = async () => {
+      try {
+        const roi = $("roi_box").value.split(",").map(Number);
+        await post("/api/configs", {model_version_id: d.version.id, rev: (d.config ? d.config.rev : 0) + 1, roi_rect: roi});
+        toast("ROI 已保存"); renderCode(code);
+      } catch (e) { toast(e.message, true); }
+    };
+    $("btnTh").onclick = async () => {
+      try {
+        const [lo, hi] = $("th_box").value.split(",").map(Number);
+        await post("/api/thresholds", {model_version_id: d.version.id, roi_rev: d.config ? d.config.rev : 1, th_lo: lo, th_hi: hi});
+        toast("阈值已保存"); renderCode(code);
+      } catch (e) { toast(e.message, true); }
+    };
+  }
+}
+
+let reviewState = { code: "", label: "", sort: "oldest", groupBy: "part" };
+
+function ageText(iso) {
+  if (!iso) return "-";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "-";
+  const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+  if (mins < 60) return mins + " 分钟";
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + " 小时 " + (mins % 60) + " 分";
+  return Math.floor(hours / 24) + " 天";
+}
+
+async function renderQuality() {
+  const params = new URLSearchParams({group_by: reviewState.groupBy, sort: reviewState.sort, limit: "50"});
+  if (reviewState.code) params.set("code", reviewState.code);
+  if (reviewState.label) params.set("label", reviewState.label);
+
+  const [q, codes, settings] = await Promise.all([
+    api("/review/queue?" + params), api("/api/codes"), api("/api/settings")
+  ]);
+  const autoRefs = !settings.some(r => r.key === "review.show_references_default" && r.value === false);
+  const items = q.items;
+  let idx = 0;
+  let reason = null;
+  const REASONS = ["划痕", "脏污", "压伤", "误报", "其他"];
+  const actor = "admin";
+
+  const filters = `
+    <div class="form" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+      <div><label for="fq_code">编码</label>
+        <select id="fq_code"><option value="">全部</option>
+          ${codes.map(c => `<option value="${esc(c.code)}" ${reviewState.code === c.code ? "selected" : ""}>${esc(c.code)}</option>`).join("")}
+        </select></div>
+      <div><label for="fq_label">结论</label>
+        <select id="fq_label">
+          <option value="">全部</option>
+          <option value="ng" ${reviewState.label === "ng" ? "selected" : ""}>仅 NG</option>
+          <option value="gray" ${reviewState.label === "gray" ? "selected" : ""}>仅灰区</option>
+        </select></div>
+      <div><label for="fq_sort">排序</label>
+        <select id="fq_sort">
+          <option value="oldest" ${reviewState.sort === "oldest" ? "selected" : ""}>最旧优先</option>
+          <option value="newest" ${reviewState.sort === "newest" ? "selected" : ""}>最新优先</option>
+          <option value="score_desc" ${reviewState.sort === "score_desc" ? "selected" : ""}>分数高→低</option>
+          <option value="score_asc" ${reviewState.sort === "score_asc" ? "selected" : ""}>分数低→高</option>
+        </select></div>
+      <div><label for="fq_group">视图</label>
+        <select id="fq_group">
+          <option value="part" ${reviewState.groupBy === "part" ? "selected" : ""}>按件聚合</option>
+          <option value="result" ${reviewState.groupBy === "result" ? "selected" : ""}>按单条结果</option>
+        </select></div>
+    </div>`;
+
+  if (items.length === 0) {
+    $("view").innerHTML = `
+      <section><h2>复核队列</h2>${filters}
+        <div class="empty">没有待处理的件。<b>什么时候会有</b>：判定为 NG 或灰区、且还没人确认时。</div></section>`;
+  } else {
+    $("view").innerHTML = `
+      <section>
+        <h2>复核队列 <span class="pill">${q.summary.total} 条待处理</span>
+          <span class="pill">最旧 ${ageText(q.summary.oldest_at)}</span>
+          ${q.summary.skipped_count > 0
+            ? `<span style="margin-left:auto"><button class="ghost" id="btnSkipped">暂缓件 ${q.summary.skipped_count}</button></span>`
+            : ""}</h2>
+        ${filters}
+        <div id="skippedWrap" hidden style="margin-bottom:12px">
+          <table><caption class="sr-only">暂缓件</caption>
+            <thead><tr><th scope="col">#</th><th scope="col">编码</th><th scope="col">件号</th><th scope="col">分数</th><th scope="col">原因</th><th scope="col">暂缓人</th><th scope="col">时间</th><th scope="col">操作</th></tr></thead>
+            <tbody id="skippedRows"></tbody></table>
+        </div>
+        <div class="chips" style="margin-bottom:12px">
+          ${q.summary.by_code.map(c => `<span class="chip-static">${esc(c.code)} · ${c.count}</span>`).join("")}
+        </div>
+      </section>
+      <section class="review">
+        <div class="review-list">
+          <h2>待处理 <span class="pill">${items.length}</span></h2>
+          <div id="rlist" class="queue"></div>
+          <div class="muted" style="margin-top:10px">J/K 切换 · Enter 接受 · X 改判 · 1–5 选理由</div>
+        </div>
+        <div class="review-detail">
+          <div class="shot"><img id="shot" alt="裁片"></div>
+          <div class="kv" id="rmeta"></div>
+          <div id="rshots" class="muted" style="margin-top:10px"></div>
+          <div style="margin-top:10px">
+            <button class="ghost" id="rRefBtn">参考样例（可能影响判断）</button>
+            <div id="rRefs" hidden style="margin-top:10px"></div>
+          </div>
+          <div class="reasons" id="rreasons">
+            ${REASONS.map((r, i) => `<button class="ghost" data-r="${r}">${i + 1}. ${r}</button>`).join("")}
+          </div>
+          <div class="row" style="margin-bottom:8px">
+            <button class="ghost" id="rClaim">领取这一件</button>
+            <button class="ghost" id="rSkip">暂缓</button>
+          </div>
+          <div class="row">
+            <button class="act" id="rAccept">接受系统结论</button>
+            <button class="ghost" id="rFlip">改判</button>
+          </div>
+        </div>
+      </section>`;
+
+    const groupIds = (it) => it.kind === "part" ? it.result_ids : [it.id];
+
+    function paint() {
+      $("rlist").innerHTML = items.map((it, i) => {
+        const ids = groupIds(it);
+        const label = it.kind === "part"
+          ? `<span class="pill">${it.count} 张</span>`
+          : tag(it.label);
+        const score = it.kind === "part"
+          ? `${it.min_score.toFixed(2)}–${it.max_score.toFixed(2)}`
+          : it.score.toFixed(3);
+        const partNo = it.part_no || "-";
+        return `<div class="item ${i === idx ? "on" : ""}" data-i="${i}">
+          <span class="score">${score}</span>
+          ${label}
+          <span style="flex:1">${esc(it.code)} · ${esc(partNo)}</span>
+          <span class="pill">${ageText(it.first_at || it.created_at)}</span>
+        </div>`;
+      }).join("");
+      document.querySelectorAll("#rlist .item").forEach(el => {
+        el.onclick = () => { idx = Number(el.dataset.i); reason = null; paint(); };
+      });
+
+      const cur = items[idx];
+      const ids = groupIds(cur);
+      $("shot").src = `/results/${ids[0]}/image`;
+      $("rmeta").innerHTML = `
+        <div>编码</div><div>${esc(cur.code)}</div>
+        <div>件号</div><div>${esc(cur.part_no || "-")}</div>
+        <div>待处理</div><div>${ids.length} 张</div>
+        <div>首次时间</div><div>${fmtTime(cur.first_at || cur.created_at)}</div>
+        <div>位置</div><div>${idx + 1} / ${items.length}</div>`;
+      $("rshots").textContent = "结果号：" + ids.join(", ");
+      $("rRefs").hidden = true;
+      $("rRefs").innerHTML = "";
+      if (autoRefs) loadRefs();
+      document.querySelectorAll("#rreasons button").forEach(b => b.classList.toggle("sel", b.dataset.r === reason));
+    }
+
+    async function each(ids, fn) {
+      for (const id of ids) { try { await fn(id); } catch (e) { toast(`#${id}: ${e.message}`, true); } }
+    }
+
+    async function confirmGroup(opts) {
+      const cur = items[idx];
+      await each(groupIds(cur), (id) => post(`/review/${id}/confirm`, {...opts, note: reason, confirmed_by: actor}));
+      toast(`已确认 ${groupIds(cur).length} 张`);
+      renderQuality();
+    }
+
+    function removeCurrent() {
+      items.splice(idx, 1);
+      reason = null;
+      if (items.length === 0) return renderQuality();
+      idx = Math.min(idx, items.length - 1);
+      paint();
+    }
+
+    paint();
+    document.querySelectorAll("#rreasons button").forEach(b => {
+      b.onclick = () => { reason = b.dataset.r; paint(); };
+    });
+    async function loadRefs() {
+      const cur = items[idx];
+      const ids = groupIds(cur);
+      const box = $("rRefs");
+      try {
+        const refs = await api(`/results/${ids[0]}/references`);
+        const card = (c) => `<figure><img src="${c.image_url}" alt="${esc(c.verdict)} 样例" loading="lazy">
+          <figcaption>${esc(c.reason || "无理由")}</figcaption></figure>`;
+        box.innerHTML = `
+          <div class="refs">
+            <div><h2>OK 样例 <span class="pill">${refs.ok.length}</span></h2>
+              <div class="refrow">${refs.ok.length ? refs.ok.map(card).join("") : '<span class="muted">暂无</span>'}</div></div>
+            <div><h2>NG 样例 <span class="pill">${refs.ng.length}</span></h2>
+              <div class="refrow">${refs.ng.length ? refs.ng.map(card).join("") : '<span class="muted">暂无</span>'}</div></div>
+          </div>
+          ${refs.note ? `<p class="muted" style="margin:8px 0 0">${esc(refs.note)}</p>` : ""}`;
+        box.hidden = false;
+        $("rRefBtn").textContent = "收起参考样例";
+      } catch (e) { toast(e.message, true); }
+    }
+
+    $("rRefBtn").onclick = async () => {
+      const box = $("rRefs");
+      if (!box.hidden) {
+        box.hidden = true;
+        box.innerHTML = "";
+        $("rRefBtn").textContent = "参考样例（可能影响判断）";
+        return;
+      }
+      await loadRefs();
+    };
+
+    // 深链：/#/quality?refs=0 强制收起（培训时想先自己判）
+    if (new URLSearchParams(location.hash.split("?")[1] || "").get("refs") === "0") {
+      $("rRefs").hidden = true;
+      $("rRefBtn").textContent = "参考样例（可能影响判断）";
+    }
+
+    $("rClaim").onclick = async () => {
+      await each(groupIds(items[idx]), (id) => post(`/review/${id}/claim`, {actor}));
+      toast("已领取");
+    };
+    $("rSkip").onclick = async () => {
+      if (!reason) { toast("暂缓前先选一个理由", true); return; }
+      const cur = items[idx];
+      await each(groupIds(cur), (id) => post(`/review/${id}/skip`, {actor, reason}));
+      toast("已暂缓");
+      removeCurrent();
+    };
+    $("rAccept").onclick = () => confirmGroup({});          // 各张保留各自结论
+    $("rFlip").onclick = () => {
+      if (!reason) { toast("改判前先选一个理由", true); return; }
+      confirmGroup({flip: true});                            // 各张翻转到相反结论
+    };
+
+    window.__reviewKeys = (ev) => {
+      if (ev.key === "j" || ev.key === "J") { idx = Math.min(idx + 1, items.length - 1); reason = null; paint(); }
+      else if (ev.key === "k" || ev.key === "K") { idx = Math.max(idx - 1, 0); reason = null; paint(); }
+      else if (ev.key === "Enter") { ev.preventDefault(); $("rAccept").click(); }
+      else if (ev.key === "x" || ev.key === "X") { $("rFlip").click(); }
+      else if (/^[1-5]$/.test(ev.key)) { reason = REASONS[Number(ev.key) - 1]; paint(); }
+    };
+
+    if ($("btnSkipped")) {
+      $("btnSkipped").onclick = async () => {
+        const wrap = $("skippedWrap");
+        wrap.hidden = !wrap.hidden;
+        if (wrap.hidden) return;
+        const data = await api("/review/skipped" + (reviewState.code ? "?code=" + encodeURIComponent(reviewState.code) : ""));
+        $("skippedRows").innerHTML = data.items.length === 0
+          ? '<tr><td colspan="8" class="empty">没有暂缓的件</td></tr>'
+          : data.items.map(s => `<tr>
+              <td>${s.id}</td><td>${esc(s.code)}</td><td>${esc(s.part_no || "-")}</td>
+              <td>${s.score.toFixed(3)}</td><td>${esc(s.reason || "-")}</td>
+              <td>${esc(s.claimed_by || "-")}</td><td class="muted">${fmtTime(s.claimed_at)}</td>
+              <td><button class="ghost" data-unskip="${s.id}">恢复</button></td>
+            </tr>`).join("");
+        document.querySelectorAll("[data-unskip]").forEach(btn => {
+          btn.onclick = async () => {
+            await post(`/review/${btn.dataset.unskip}/restore`, {actor: "admin"});
+            toast("已恢复到队列");
+            renderQuality();
+          };
+        });
+      };
+    }
+
+    $("fq_code").onchange = (e) => { reviewState.code = e.target.value; renderQuality(); };
+    $("fq_label").onchange = (e) => { reviewState.label = e.target.value; renderQuality(); };
+    $("fq_sort").onchange = (e) => { reviewState.sort = e.target.value; renderQuality(); };
+    $("fq_group").onchange = (e) => { reviewState.groupBy = e.target.value; renderQuality(); };
+  }
+
+  if (items.length === 0) {
+    if ($("btnSkipped")) {
+      $("btnSkipped").onclick = async () => {
+        const wrap = $("skippedWrap");
+        wrap.hidden = !wrap.hidden;
+        if (wrap.hidden) return;
+        const data = await api("/review/skipped" + (reviewState.code ? "?code=" + encodeURIComponent(reviewState.code) : ""));
+        $("skippedRows").innerHTML = data.items.length === 0
+          ? '<tr><td colspan="8" class="empty">没有暂缓的件</td></tr>'
+          : data.items.map(s => `<tr>
+              <td>${s.id}</td><td>${esc(s.code)}</td><td>${esc(s.part_no || "-")}</td>
+              <td>${s.score.toFixed(3)}</td><td>${esc(s.reason || "-")}</td>
+              <td>${esc(s.claimed_by || "-")}</td><td class="muted">${fmtTime(s.claimed_at)}</td>
+              <td><button class="ghost" data-unskip="${s.id}">恢复</button></td>
+            </tr>`).join("");
+        document.querySelectorAll("[data-unskip]").forEach(btn => {
+          btn.onclick = async () => {
+            await post(`/review/${btn.dataset.unskip}/restore`, {actor: "admin"});
+            toast("已恢复到队列");
+            renderQuality();
+          };
+        });
+      };
+    }
+
+    $("fq_code").onchange = (e) => { reviewState.code = e.target.value; renderQuality(); };
+    $("fq_label").onchange = (e) => { reviewState.label = e.target.value; renderQuality(); };
+    $("fq_sort").onchange = (e) => { reviewState.sort = e.target.value; renderQuality(); };
+    $("fq_group").onchange = (e) => { reviewState.groupBy = e.target.value; renderQuality(); };
+  }
+}
+
+async function renderSettings() {
+  const rows = await api("/api/settings");
+  const groups = [...new Set(rows.map(r => r.group))];
+  $("view").innerHTML = `
+    <section>
+      <h2>设置 <span class="pill">运行时可改 · 改动记审计</span></h2>
+      <p class="muted" style="margin:0 0 14px">
+        这里只放运行时可改的项。端口、数据库路径、白名单路径属于启动级配置，改了会断服务，不放在页面上。
+      </p>
+      ${groups.map(g => `
+        <h2 style="margin-top:18px">${esc(g)}</h2>
+        <table><caption class="sr-only">${esc(g)} 配置</caption>
+          <thead><tr><th scope="col">项</th><th scope="col">当前值</th><th scope="col">默认</th><th scope="col">修改</th><th scope="col">操作</th></tr></thead>
+          <tbody>
+            ${rows.filter(r => r.group === g).map(r => {
+              const val = Array.isArray(r.value) ? r.value.join(",") : r.value;
+              const def = Array.isArray(r.default) ? r.default.join(",") : r.default;
+              const k = esc(r.key);
+              return `<tr>
+                <td>${esc(r.label)}<div class="muted">${esc(r.key)}${r.description ? " · " + esc(r.description) : ""}</div></td>
+                <td><input data-k="${k}" value="${esc(val)}" aria-label="${esc(r.label)}"></td>
+                <td class="muted">${esc(def)}</td>
+                <td class="muted">${r.updated_by ? esc(r.updated_by) + "<br>" + fmtTime(r.updated_at) : "—"}</td>
+                <td><button class="ghost" data-save="${k}">保存</button></td>
+              </tr>`;
+            }).join("")}
+          </tbody></table>`).join("")}
+    </section>
+    <section>
+      <h2>为什么有些项不在这里</h2>
+      <div class="muted" style="line-height:2">
+        <b>启动级</b>：端口、数据库路径、数据目录、日志级别、本班白名单 → 改配置文件后重启。<br>
+        <b>版本绑定</b>：ROI、阈值 → 跟模型版本走，改它们等于产生新版本，不在通用设置里。
+      </div>
+    </section>`;
+
+  document.querySelectorAll("[data-save]").forEach(btn => {
+    btn.onclick = async () => {
+      const key = btn.dataset.save;
+      const input = document.querySelector(`input[data-k="${key}"]`);
+      let value = input.value;
+      const row = rows.find(r => r.key === key);
+      if (row.kind === "int") value = Number(value);
+      else if (row.kind === "float") value = Number(value);
+      else if (row.kind === "list") value = value.split(",").map(s => s.trim()).filter(Boolean);
+      try {
+        await api("/api/settings/" + encodeURIComponent(key), {
+          method: "PUT", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({value, actor: "web"})
+        });
+        toast(`${row.label} 已保存`);
+        renderSettings();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+}
+
+let caseState = {code: "", verdict: "", source: "", conflict: false, showArchived: false};
+
+async function renderCases() {
+  const params = new URLSearchParams({limit: "50"});
+  if (caseState.code) params.set("code", caseState.code);
+  if (caseState.verdict) params.set("verdict", caseState.verdict);
+  if (caseState.source) params.set("source", caseState.source);
+  if (caseState.conflict) params.set("conflict", "true");
+  if (caseState.showArchived) params.set("include_archived", "true");
+
+  const [rows, codes, conflicts] = await Promise.all([
+    api("/api/cases?" + params), api("/api/codes?include_archived=true"), api("/api/cases/conflicts")
+  ]);
+
+  const exportCsv = () => {
+    const head = ["id", "code", "verdict", "reason", "source", "adjudicator", "created_at"];
+    const lines = [head.join(",")].concat(rows.map(r => head.map(k =>
+      '"' + String(r[k] ?? "").replace(/"/g, '""') + '"').join(",")));
+    const blob = new Blob(["\ufeff" + lines.join("\n")], {type: "text/csv;charset=utf-8"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "cases.csv";
+    a.click();
+  };
+
+  $("view").innerHTML = `
+    <section>
+      <h2>判例库 <span class="pill">${rows.length}</span>
+        ${conflicts.length ? `<span class="pill" style="background:color-mix(in oklab,var(--bad) 18%,transparent);color:var(--bad)">冲突 ${conflicts.length}</span>` : ""}
+        <span style="margin-left:auto">
+          <button class="ghost" id="btnExport">导出 CSV</button>
+          <button class="act" id="newCase">录入判例</button>
+        </span></h2>
+
+      <div class="form" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        <div><label for="cq_code">编码</label>
+          <select id="cq_code"><option value="">全部</option>
+            ${codes.map(c => `<option value="${esc(c.code)}" ${caseState.code === c.code ? "selected" : ""}>${esc(c.code)}</option>`).join("")}
+          </select></div>
+        <div><label for="cq_verdict">结论</label>
+          <select id="cq_verdict"><option value="">全部</option>
+            <option value="ok" ${caseState.verdict === "ok" ? "selected" : ""}>OK</option>
+            <option value="ng" ${caseState.verdict === "ng" ? "selected" : ""}>NG</option>
+          </select></div>
+        <div><label for="cq_source">来源</label>
+          <select id="cq_source"><option value="">全部</option>
+            <option value="manual" ${caseState.source === "manual" ? "selected" : ""}>手工</option>
+            <option value="result" ${caseState.source === "result" ? "selected" : ""}>复核转</option>
+            <option value="import" ${caseState.source === "import" ? "selected" : ""}>导入</option>
+          </select></div>
+        <div><label for="cq_arch">归档</label>
+          <select id="cq_arch">
+            <option value="" ${!caseState.showArchived ? "selected" : ""}>不含已归档</option>
+            <option value="1" ${caseState.showArchived ? "selected" : ""}>含已归档</option>
+          </select></div>
+      </div>
+
+      ${conflicts.length ? `<div class="empty" style="padding:10px 0;color:var(--bad)">
+        有 ${conflicts.length} 条冲突：同图被判过不同结论，需人工裁决。
+      </div>` : ""}
+
+      ${rows.length === 0 ? `<div class="empty">还没有判例。<b>为什么要有</b>：判例是训练数据来源，也是"这张为什么这么判"的证据。</div>` : `
+      <table><caption class="sr-only">判例列表</caption>
+        <thead><tr>
+          <th scope="col">图</th><th scope="col">#</th><th scope="col">编码</th><th scope="col">结论</th>
+          <th scope="col">理由</th><th scope="col">来源</th><th scope="col">裁决人</th>
+          <th scope="col">时间</th><th scope="col">操作</th>
+        </tr></thead>
+        <tbody>${rows.map(c => `<tr>
+          <td><img class="thumb" src="/api/cases/${c.id}/image" alt="判例 ${c.id}" loading="lazy"
+                onerror="this.style.visibility='hidden'"></td>
+          <td>${c.id}</td>
+          <td>${esc(c.code)}</td>
+          <td>${tag(c.verdict)}${c.conflict ? ' <span class="tag ng">冲突</span>' : ""}</td>
+          <td>${esc(c.reason || "-")}</td>
+          <td class="muted">${esc(c.source || "manual")}</td>
+          <td>${esc(c.adjudicator)}</td>
+          <td class="muted">${fmtTime(c.created_at)}</td>
+          <td>${c.archived_at
+            ? `<button class="ghost" data-restore-case="${c.id}">恢复</button>`
+            : `<button class="ghost" data-archive-case="${c.id}">归档</button>`}</td>
+        </tr>`).join("")}</tbody></table>`}
+    </section>`;
+
+  $("newCase").onclick = () => $("caseDlg").showModal();
+  $("btnExport").onclick = exportCsv;
+  document.querySelectorAll("[data-archive-case]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("归档后该判例不参与训练，可随时恢复。")) return;
+      try { await post(`/api/cases/${btn.dataset.archiveCase}/archive`, {}); toast("已归档"); renderCases(); }
+      catch (e) { toast(e.message, true); }
+    };
+  });
+  document.querySelectorAll("[data-restore-case]").forEach(btn => {
+    btn.onclick = async () => {
+      try { await post(`/api/cases/${btn.dataset.restoreCase}/restore`, {}); toast("已恢复"); renderCases(); }
+      catch (e) { toast(e.message, true); }
+    };
+  });
+
+  $("cq_code").onchange = (e) => { caseState.code = e.target.value; renderCases(); };
+  $("cq_verdict").onchange = (e) => { caseState.verdict = e.target.value; renderCases(); };
+  $("cq_source").onchange = (e) => { caseState.source = e.target.value; renderCases(); };
+  $("cq_arch").onchange = (e) => { caseState.showArchived = e.target.value === "1"; renderCases(); };
+}
+
+async function renderTraining() {
+  const [jobs, models] = await Promise.all([api("/api/train"), api("/api/models")]);
+
+  $("view").innerHTML = `
+    <section>
+      <h2>训练新版本</h2>
+      <div class="form">
+        <div><label for="tr_model">模型</label>
+          <select id="tr_model">${models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("")}</select>
+        </div>
+        <div><button class="act" id="btnTrain">开始训练</button></div>
+      </div>
+      <p class="muted">当前是假训练器：只验证状态机与发布链路，指标为模拟值，不代表模型能力。</p>
+    </section>
+
+    <section>
+      <h2>训练任务 <span class="pill">${jobs.length}</span></h2>
+      ${jobs.length === 0 ? `<div class="empty">还没有训练任务。<b>下一步</b>：在上方选一个模型开始第一次训练。</div>` : `
+      <table><caption class="sr-only">训练任务</caption>
+        <thead><tr><th scope="col">#</th><th scope="col">模型</th><th scope="col">状态</th><th scope="col">召回</th><th scope="col">过杀</th><th scope="col">样本</th><th scope="col">完成时间</th></tr></thead>
+        <tbody>${jobs.map(j => `<tr>
+          <td>${j.id}</td><td>${esc(j.model_code)}</td>
+          <td><span class="tag ${j.status === "succeeded" ? "ok" : j.status === "failed" ? "ng" : "gray"}">${esc(j.status)}</span></td>
+          <td>${j.metrics ? (j.metrics.recall * 100).toFixed(1) + "%" : "-"}</td>
+          <td>${j.metrics ? (j.metrics.overkill * 100).toFixed(1) + "%" : "-"}</td>
+          <td>${j.metrics ? j.metrics.train_samples : "-"}</td>
+          <td class="muted">${fmtTime(j.finished_at)}</td>
+        </tr>`).join("")}</tbody></table>`}
+    </section>
+
+    <section>
+      <h2>版本与发布</h2>
+      ${models.length === 0 ? `<div class="empty">还没有模型。</div>` : models.map(m => `
+        <div style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+            <b>${esc(m.code)}</b><span class="muted">${esc(m.name || "")}</span>
+            <span style="margin-left:auto">
+              <button class="ghost" data-rollback="${m.id}">回滚到上一版</button>
+            </span>
+          </div>
+          ${m.versions.length === 0 ? '<div class="muted">还没有版本</div>' : `
+          <table><caption class="sr-only">${esc(m.code)} 的版本</caption>
+            <thead><tr><th scope="col">版本</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+            <tbody>${m.versions.map(v => `<tr>
+              <td>v${v.version_no}</td>
+              <td><span class="tag ${v.status}">${v.status}</span></td>
+              <td>${v.status === "candidate"
+                ? `<button class="act" data-publish="${m.id}:${v.version_no}">发布为 assist</button>`
+                : v.status === "assist" ? '<span class="muted">当前生效</span>'
+                : v.status === "disabled" ? `<button class="ghost" data-revive="${m.id}:${v.version_no}">重新启用</button>`
+                : ""}</td>
+            </tr>`).join("")}</tbody></table>`}
+        </div>`).join("")}
+    </section>`;
+
+  $("btnTrain").onclick = async () => {
+    try {
+      const r = await post("/api/train", {model_id: Number($("tr_model").value)});
+      toast(`已训练出 v${r.version_no}，指标见列表`);
+      renderTraining();
+    } catch (e) { toast(e.message, true); }
+  };
+  document.querySelectorAll("[data-publish]").forEach(btn => {
+    btn.onclick = async () => {
+      const [mid, vno] = btn.dataset.publish.split(":");
+      try {
+        await api(`/api/models/${mid}/versions/${vno}/status`, {
+          method: "PUT", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({status: "assist"})
+        });
+        toast(`v${vno} 已发布，旧版本自动降为 disabled`); renderTraining();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+  document.querySelectorAll("[data-revive]").forEach(btn => {
+    btn.onclick = async () => {
+      const [mid, vno] = btn.dataset.revive.split(":");
+      try {
+        await api(`/api/models/${mid}/versions/${vno}/status`, {
+          method: "PUT", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({status: "assist"})
+        });
+        toast(`v${vno} 重新启用`); renderTraining();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+  document.querySelectorAll("[data-rollback]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("回滚到上一个版本？当前 assist 会降为 disabled。")) return;
+      try {
+        const r = await post(`/api/models/${btn.dataset.rollback}/rollback`, {});
+        toast(`已回滚 v${r.from} → v${r.to}`); renderTraining();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+}
+
+function renderPlaceholder(title, need, items) {
+  $("view").innerHTML = `
+    <section>
+      <h2>${esc(title)}</h2>
+      <div class="empty">
+        这一页需要先补后端：<b>${esc(need)}</b>
+        <ul style="margin:10px 0 0 18px;line-height:2">${items.map(i => `<li>${i}</li>`).join("")}</ul>
+      </div>
+    </section>`;
+}
+
+/* ---------- 路由 ---------- */
+
+const TITLES = {
+  workbench: "工作台", catalog: "编码与模型", quality: "复核队列", cases: "判例库",
+  training: "训练与发布", system: "系统", settings: "设置"
+};
+
+async function route() {
+  const raw = (location.hash.replace(/^#\/?/, "") || "workbench").split("?")[0];
+  const [name, arg] = raw.split("/");
+  document.querySelectorAll("[data-nav]").forEach(a => {
+    const on = a.dataset.nav === (name === "code" ? "catalog" : name);
+    on ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current");
+  });
+  $("title").textContent = name === "code" ? "编码详情" : (TITLES[name] || "工作台");
+  try {
+    if (name === "code" && arg) return await renderCode(decodeURIComponent(arg));
+    if (name === "catalog") return await renderCatalog();
+    if (name === "quality") return await renderQuality();
+    if (name === "cases") return await renderCases();
+    if (name === "training") return await renderTraining();
+    if (name === "system") return renderPlaceholder("系统", "站位与审计查询", [
+      "站位心跳列表（/api/stations 已有，可先接）",
+      "审计日志检索（/api/audit 需加筛选）"
+    ]);
+    if (name === "settings") return await renderSettings();
+    return await renderWorkbench();
+  } catch (e) {
+    $("view").innerHTML = `<section><div class="empty">加载失败：${esc(e.message)}<br><b>下一步</b>：${esc(e.body?.action || "刷新页面重试；仍失败请检查服务是否在跑")}</div></section>`;
+  }
+}
+
+async function health() {
+  try {
+    const h = await api("/health");
+    $("health").textContent = `服务 ${h.status} · 队列 ${h.queue_depth}`;
+  } catch { $("health").textContent = "服务不可用"; }
+}
+
+$("jump").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") {
+    const v = ev.target.value.trim();
+    if (!v) return;
+    location.hash = "#/code/" + encodeURIComponent(v);
+  }
+});
+
+window.addEventListener("hashchange", route);
+
+$("caseForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if (ev.submitter && ev.submitter.value === "cancel") return;
+  try {
+    await post("/api/cases", {
+      code: $("f_code").value.trim(),
+      crop_path: $("f_path").value.trim(),
+      verdict: $("f_verdict").value,
+      adjudicator: $("f_adj").value.trim(),
+      reason: $("f_reason").value || null,
+      source: $("f_source").value
+    });
+    $("caseDlg").close();
+    $("caseForm").reset();
+    toast("判例已入库");
+    renderCases();
+  } catch (e) { toast(e.message, true); }
+});
+
+document.addEventListener("keydown", (ev) => {
+  const tagName = (ev.target.tagName || "").toLowerCase();
+  if (tagName === "input" || tagName === "select" || tagName === "textarea") return;
+  if (location.hash.startsWith("#/quality") && window.__reviewKeys) window.__reviewKeys(ev);
+});
+health(); route();
+setInterval(health, 20000);
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+# AIP recipe: PatchCore on a folder dataset (the migration-friendly default).
+#
+# Copy this file per production line and change: project / data.root /
+# data.abnormal_dir / model.args. Everything else can stay.
+project: demo-metal
+
+seed: 42
+output_dir: artifacts     # relative to the repo root (parent of configs/)
+runs_dir: runs
+
+data:
+  kind: folder
+  root: ../datasets/demo
+  normal_dir: train/good
+  abnormal_dir: [test/scratch, test/stain, test/dent]
+  normal_test_dir: test/good
+  mask_dir: [ground_truth/scratch, ground_truth/stain, ground_truth/dent]
+  image_size: [256, 256]
+  train_batch_size: 8
+  eval_batch_size: 8
+  num_workers: 0          # Windows: keep 0; Linux: 4-8
+  val_split_mode: from_test
+  val_split_ratio: 0.4
+  test_split_mode: from_dir
+
+model:
+  name: Patchcore
+  args:
+    # demo default: resnet18 (~45 MB weights, fast first run).
+    # production accuracy: wide_resnet50_2 (PatchCore paper setup).
+    backbone: resnet18
+    layers: [layer2, layer3]
+    coreset_sampling_ratio: 0.1
+    num_neighbors: 9
+
+trainer:
+  accelerator: gpu
+  devices: 1
+  precision: "32"         # memory-bank models: keep fp32 for score fidelity
+  compile: false          # set true once the pipeline is stable
+
+export:
+  formats: [onnx]
+  opset: 18
+  include_ckpt: true
+
+serve:
+  backend: auto
+  host: 0.0.0.0
+  port: 8000
+  image_sensitivity: 0.5
+  pixel_sensitivity: 0.5

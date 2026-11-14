@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "ff08db5a-89e4-45b6-8716-27ffef69e892",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "system.architecture.json",
+  "output": "system.html",
+  "specification": {
+    "sha256": "58bf05b03f34b0718d73f2654bb12f92378b1e3b84156c518786c472636f98fb",
+    "bytes": 2930
+  },
+  "artifact": {
+    "sha256": "5e0a6b19ea8028eb3774b59771b5d5b30d754c432d2ce10ad8dd8a06bc6cb4de",
+    "bytes": 845971
+  }
+}

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<!-- 工位面板是常亮深色终端：显式声明 dark，让原生控件（文件选择/滚动条）跟着走 -->
+<meta name="color-scheme" content="dark">
+<title>AIP 工位面板</title>
+<style>
+  :root{color-scheme:dark;--pri:#F26522;--ok:#34C759;--warn:#F5A623;--bad:#FF3B30;--g0:#0F1115;--g1:#1A1D23;--g2:#2A2F37;--g3:#3A404A;--t1:#F5F6F8;--t2:#A8AFBA;--t3:#6B7280}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--g0);color:var(--t1);font:15px/1.5 "Microsoft YaHei",system-ui,sans-serif}
+  header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--g1);border-bottom:1px solid var(--g2)}
+  header h1{font-size:17px;margin:0;font-weight:600}
+  .spacer{flex:1}
+  .pill{padding:4px 10px;border-radius:999px;background:var(--g2);color:var(--t2);font-size:12px}
+  main{display:grid;grid-template-columns:1fr 380px;gap:16px;padding:16px 20px}
+  section{background:var(--g1);border:1px solid var(--g2);border-radius:12px;padding:16px}
+  h2{font-size:14px;margin:0 0 12px;color:var(--t2);font-weight:600}
+  label{display:block;font-size:12px;color:var(--t3);margin:8px 0 4px}
+  input,select{width:100%;padding:10px;border-radius:8px;border:1px solid var(--g3);background:var(--g2);color:var(--t1);font-size:15px}
+  button{cursor:pointer;border:0;border-radius:8px;padding:12px 16px;font-size:15px;font-weight:600;color:#fff;background:var(--pri)}
+  button.ghost{background:var(--g3)}
+  button.ok{background:var(--ok)}
+  button.bad{background:var(--bad)}
+  button:disabled{background:var(--g3);color:var(--t3);cursor:not-allowed}
+  input[type=file]{padding:8px}
+  input[type=file]::file-selector-button{background:var(--g3);color:var(--t1);border:0;border-radius:6px;padding:8px 12px;margin-right:10px;cursor:pointer;font-size:14px}
+  .row{display:flex;gap:8px;margin-top:12px}
+  .row button{flex:1}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;min-height:42px;align-items:center}
+  .chip{background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:500}
+  .chip small{color:var(--t3);font-size:11px}
+  .chip.on{background:var(--pri);border-color:var(--pri);color:#fff}
+  .status{margin-top:12px;padding:12px;border-radius:8px;background:var(--g2);font-size:14px;min-height:44px}
+  .status.ok{background:rgba(52,199,89,.15);border:1px solid var(--ok)}
+  .status.bad{background:rgba(255,59,48,.15);border:1px solid var(--bad)}
+  .queue{max-height:420px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+  .item{display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;background:var(--g2);cursor:pointer}
+  .item:hover{outline:1px solid var(--g3)}
+  .item .score{font-variant-numeric:tabular-nums;color:var(--t2);width:52px}
+  .tag{font-size:11px;padding:2px 8px;border-radius:999px}
+  .tag.ng{background:rgba(255,59,48,.2);color:#FF8A80}
+  .tag.gray{background:rgba(245,166,35,.2);color:#FFC46B}
+  .tag.ok{background:rgba(52,199,89,.2);color:#7BE495}
+  .empty{color:var(--t3);font-size:13px;padding:12px 0}
+  .kv{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;font-size:13px}
+  .kv div:nth-child(odd){color:var(--t3)}
+  dialog{background:var(--g1);color:var(--t1);border:1px solid var(--g3);border-radius:12px;padding:20px;width:min(640px,92vw)}
+  dialog::backdrop{background:rgba(0,0,0,.6)}
+  .dialog-body{display:grid;grid-template-columns:1fr 260px;gap:16px}
+  .preview{background:var(--g2);border-radius:8px;min-height:260px;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:12px;overflow:hidden}
+  .preview img{max-width:100%;max-height:340px;image-rendering:pixelated}
+  .reasons{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .reasons button{background:var(--g3);font-size:13px;padding:8px 12px}
+  .reasons button.sel{background:var(--pri)}
+</style>
+</head>
+<body>
+<header>
+  <h1>AIP 工位面板</h1>
+  <span class="pill" id="stationPill">站位：S1</span>
+  <span class="pill" id="modelPill">未换型</span>
+  <div class="spacer"></div>
+  <span class="pill" id="healthPill">健康检查中…</span>
+</header>
+
+<main>
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <section>
+      <h2>① 换型</h2>
+      <label>站位</label>
+      <input id="station" value="S1">
+      <label>选择产品（只列启用中的）</label>
+      <div class="chips" id="codePick"><span class="muted">加载中…</span></div>
+      <label style="margin-top:10px">或扫码/输入编码</label>
+      <input id="code" value="AB-1234-01" placeholder="扫描或输入编码">
+      <div class="row"><button id="btnLoad">换型</button></div>
+      <div class="status" id="loadStatus">尚未换型</div>
+    </section>
+
+    <section>
+      <h2>② 推图</h2>
+      <label>选择一张裁片（模拟相机）</label>
+      <input type="file" id="file" accept="image/*">
+      <div class="row"><button id="btnInfer" disabled>推图判定</button></div>
+      <div class="status" id="inferStatus">等待换型完成</div>
+    </section>
+
+    <section>
+      <h2>③ 本班最近结果</h2>
+      <div class="queue" id="recent"><div class="empty">暂无</div></div>
+    </section>
+  </div>
+
+  <section>
+    <h2>④ 待确认 <span class="pill" id="pendingCount">0 件</span></h2>
+    <div class="queue" id="pending"><div class="empty">没有待确认的件</div></div>
+  </section>
+</main>
+
+<dialog id="reviewDlg">
+  <h2 style="margin-bottom:12px">确认这一件</h2>
+  <div class="dialog-body">
+    <div class="preview" id="preview">裁片预览</div>
+    <div>
+      <div class="kv" id="detail"></div>
+      <label style="margin-top:14px">改判理由（仅在改判时选）</label>
+      <div class="reasons" id="reasons"></div>
+      <div class="row" style="margin-top:16px">
+        <button class="ok" id="btnAccept">接受系统结论</button>
+      </div>
+      <div class="row">
+        <button class="bad" id="btnFlip">改判</button>
+        <button class="ghost" id="btnCancel">取消</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<script>
+const REASONS = ["划痕","脏污","压伤","误报","其他"];
+const $ = (id) => document.getElementById(id);
+let current = null;   // {code, model_version_id, ...}
+let selectedReason = null;
+
+async function api(path, opts) {
+  const resp = await fetch(path, opts);
+  const text = await resp.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = { raw: text }; }
+  if (!resp.ok) {
+    const err = new Error(body?.message || resp.statusText);
+    err.body = body; err.status = resp.status;
+    throw err;
+  }
+  return body;
+}
+
+function show(el, msg, kind) {
+  el.textContent = msg;
+  el.className = "status" + (kind ? " " + kind : "");
+}
+
+function tag(label) {
+  return `<span class="tag ${label}">${label.toUpperCase()}</span>`;
+}
+
+async function health() {
+  try {
+    const h = await api("/health");
+    $("healthPill").textContent = `服务 ${h.status} · 队列 ${h.queue_depth}`;
+  } catch {
+    $("healthPill").textContent = "服务不可用";
+  }
+}
+
+$("btnLoad").onclick = async () => {
+  const code = $("code").value.trim();
+  $("stationPill").textContent = "站位：" + $("station").value.trim();
+  try {
+    const cfg = await api("/station/config?code=" + encodeURIComponent(code));
+    current = cfg;
+    $("modelPill").textContent = `模型 v${cfg.version_no} · ROI ${cfg.roi_rev}`;
+    show($("loadStatus"), `就绪：${code} → 模型 v${cfg.version_no}，ROI ${JSON.stringify(cfg.roi_rect)}`, "ok");
+    $("btnInfer").disabled = false;
+    show($("inferStatus"), "等待推图");
+    await api("/station/heartbeat", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({station: $("station").value.trim(), config_rev: `${cfg.model_version_id}:${cfg.roi_rev}`})
+    });
+  } catch (e) {
+    current = null;
+    $("btnInfer").disabled = true;
+    $("modelPill").textContent = "未换型";
+    show($("loadStatus"), `${e.message}｜${e.body?.action || ""}`, "bad");
+  }
+};
+
+$("btnInfer").onclick = async () => {
+  const file = $("file").files[0];
+  if (!file || !current) return;
+  const form = new FormData();
+  form.append("code", $("code").value.trim());
+  form.append("station", $("station").value.trim());
+  form.append("image", file);
+  try {
+    const job = await api("/infer", {method: "POST", body: form,
+      headers: {"Idempotency-Key": crypto.randomUUID()}});
+    const detail = await api("/infer/" + job.job_id);
+    const r = detail.result;
+    if (!r) { show($("inferStatus"), "任务未产生结果：" + detail.status, "bad"); return; }
+    show($("inferStatus"), `${r.label.toUpperCase()} · 分数 ${r.score.toFixed(3)} · result #${r.id}`,
+      r.label === "ok" ? "ok" : (r.label === "ng" ? "bad" : ""));
+    await refresh();
+  } catch (e) {
+    show($("inferStatus"), `${e.message}｜${e.body?.action || ""}`, "bad");
+  }
+};
+
+async function refresh() {
+  const station = $("station").value.trim();
+  try {
+    const pending = await api("/review/pending?station=" + encodeURIComponent(station));
+    $("pendingCount").textContent = pending.count + " 件";
+    $("pending").innerHTML = pending.count === 0
+      ? '<div class="empty">没有待确认的件</div>'
+      : pending.items.map(it => `
+        <div class="item" data-id="${it.result_id}">
+          <span class="score">${it.score.toFixed(3)}</span>
+          ${tag(it.label)}
+          <span style="flex:1">${it.code} · ${it.part_no || "-"}</span>
+          <span class="pill">#${it.result_id}</span>
+        </div>`).join("");
+    document.querySelectorAll("#pending .item").forEach(el => {
+      el.onclick = () => openReview(Number(el.dataset.id));
+    });
+
+    const recent = await api("/results?limit=10");
+    $("recent").innerHTML = recent.length === 0
+      ? '<div class="empty">暂无</div>'
+      : recent.map(r => `
+        <div class="item">
+          <span class="score">${r.score.toFixed(3)}</span>
+          ${tag(r.label)}
+          <span style="flex:1">${r.code}</span>
+          <span class="pill">${r.confirmed_by ? "已确认" : "—"}</span>
+        </div>`).join("");
+  } catch (e) {
+    $("pending").innerHTML = `<div class="empty">${e.message}</div>`;
+  }
+}
+
+async function openReview(resultId) {
+  const r = await api("/results/" + resultId);
+  current = {...current, review: r};
+  $("detail").innerHTML = `
+    <div>编码</div><div>${r.code}</div>
+    <div>件号</div><div>${r.part_no || "-"}</div>
+    <div>系统结论</div><div>${tag(r.label)}</div>
+    <div>分数</div><div>${r.score.toFixed(3)}</div>
+    <div>原图尺寸</div><div>${r.original_w}×${r.original_h}</div>`;
+  $("preview").innerHTML = `<span>裁片 #${r.id}<br>（演示版不加载图片）</span>`;
+  selectedReason = null;
+  $("reasons").innerHTML = REASONS.map(x => `<button data-r="${x}">${x}</button>`).join("");
+  document.querySelectorAll("#reasons button").forEach(b => {
+    b.onclick = () => {
+      selectedReason = b.dataset.r;
+      document.querySelectorAll("#reasons button").forEach(x => x.classList.remove("sel"));
+      b.classList.add("sel");
+    };
+  });
+  $("reviewDlg").showModal();
+}
+
+$("btnCancel").onclick = () => $("reviewDlg").close();
+
+$("btnAccept").onclick = async () => {
+  const r = current.review;
+  await confirm(r.label);
+};
+
+$("btnFlip").onclick = async () => {
+  const r = current.review;
+  if (!selectedReason) { alert("改判需要选一个理由"); return; }
+  await confirm(r.label === "ng" ? "ok" : "ng");
+};
+
+async function confirm(verdict) {
+  const r = current.review;
+  await api(`/review/${r.id}/confirm`, {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({verdict, note: selectedReason, confirmed_by: $("station").value.trim()})
+  });
+  $("reviewDlg").close();
+  await refresh();
+}
+
+async function loadPicker() {
+  try {
+    const codes = await api("/api/codes");
+    const active = codes.filter(c => c.active);
+    if (active.length === 0) {
+      $("codePick").innerHTML = '<span class="muted">没有启用中的产品，联系技师</span>';
+      return;
+    }
+    $("codePick").innerHTML = active.map(c =>
+      `<button class="chip" data-code="${c.code}">${c.code}${c.family ? "<small> · " + c.family + "</small>" : ""}</button>`
+    ).join("");
+    document.querySelectorAll("#codePick .chip").forEach(btn => {
+      btn.onclick = () => {
+        $("code").value = btn.dataset.code;
+        document.querySelectorAll("#codePick .chip").forEach(b => b.classList.toggle("on", b === btn));
+        $("btnLoad").click();
+      };
+    });
+  } catch { /* 面板离线时不影响扫码 */ }
+}
+
+loadPicker();
+health();
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

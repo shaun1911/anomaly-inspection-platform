@@ -1,0 +1,27 @@
+# Dependencies for the GPU serving / training image (Blackwell / sm_120).
+#
+# CUDA 13 wheels. For older drivers on the target box switch the index to
+# cu126 and the torch pins to 2.10.0+cu126 / 0.25.0+cu126.
+--extra-index-url https://download.pytorch.org/whl/cu130
+
+torch==2.10.0+cu130
+torchvision==0.25.0+cu130
+
+# anomalib brings lightning, torchmetrics, timm, kornia, opencv, ...
+# Pin to the exact version you trained with: the bundle metadata records it,
+# and post-processing / export signatures do change between minors.
+anomalib>=2.7.0,<2.8
+
+# ONNX export (the dynamo exporter needs onnxscript) + GPU inference
+onnx
+onnxscript
+onnxruntime-gpu
+
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9
+pydantic>=2.7
+pyyaml>=6.0
+typer>=0.12
+imagecodecs
+tifffile

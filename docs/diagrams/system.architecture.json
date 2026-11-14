@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "AIP 平台系统流程 · 纯内网单机（Windows 11 Pro + RTX 5090）",
+    "locale": "zh-CN",
+    "visual_preset": "editorial",
+    "output": "docs/diagrams/system.html"
+  },
+  "components": [
+    { "id": "browser", "type": "external", "label": "浏览器（管理端）", "sublabel": "内网 HTTPS", "pos": [40, 70], "size": [150, 60] },
+    { "id": "device", "type": "external", "label": "现场设备 / 工控机", "sublabel": "HTTP 推图 · 2K JPEG", "pos": [40, 270], "size": [150, 60] },
+    { "id": "proxy", "type": "cloud", "label": "Caddy 反向代理", "sublabel": "内部 CA · 限流 · 体积上限", "pos": [250, 170], "size": [140, 60] },
+    { "id": "api", "type": "backend", "label": "FastAPI 应用", "sublabel": "推理 API + 管理页面", "pos": [470, 170], "size": [150, 60] },
+    { "id": "infer", "type": "backend", "label": "推理引擎", "sublabel": "torch / ONNX · batch=8", "pos": [700, 70], "size": [160, 60] },
+    { "id": "bank", "type": "database", "label": "模型常驻", "sublabel": "bundle × N · 122 MB/个", "pos": [700, 270], "size": [160, 60] },
+    { "id": "db", "type": "database", "label": "SQLite (WAL)", "sublabel": "结果 / 任务 / 审计", "pos": [470, 370], "size": [160, 60] },
+    { "id": "files", "type": "database", "label": "文件存储", "sublabel": "原图 / bundle / 归档", "pos": [700, 450], "size": [160, 60] },
+    { "id": "worker", "type": "backend", "label": "训练 Worker", "sublabel": "独立进程 · 串行队列", "pos": [950, 270], "size": [160, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "纯内网 · 单机部署", "wraps": ["proxy", "api", "infer", "bank", "worker", "db", "files"] },
+    { "kind": "security-group", "label": "GPU 显存池 29 GB", "wraps": ["infer", "bank", "worker"] }
+  ],
+  "connections": [
+    { "id": "admin", "from": "browser", "to": "proxy", "label": "管理请求" },
+    { "id": "push", "from": "device", "to": "proxy", "label": "推图 / 查询", "variant": "emphasis" },
+    { "id": "forward", "from": "proxy", "to": "api", "label": "转发 + 鉴权" },
+    { "id": "batch", "from": "api", "to": "infer", "label": "批推理", "variant": "emphasis" },
+    { "id": "weights", "from": "infer", "to": "bank", "label": "读取权重", "fromSide": "bottom", "toSide": "top", "labelAt": [766, 196] },
+    { "id": "persist", "from": "api", "to": "db", "label": "结果 / 任务", "fromSide": "bottom", "toSide": "top", "labelDx": 46 },
+    { "id": "blobs", "from": "api", "to": "files", "label": "原图 · bundle", "variant": "dashed", "labelAt": [672, 352] },
+    { "id": "enqueue", "from": "api", "to": "worker", "label": "训练入队", "variant": "dashed", "labelAt": [858, 196] },
+    { "id": "export", "from": "worker", "to": "files", "label": "导出 bundle", "variant": "dashed", "labelAt": [922, 402] }
+  ]
+}

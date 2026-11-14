@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aip"
+version = "0.1.0"
+description = "AIP - Industrial anomaly inspection platform built on anomalib (train -> evaluate -> export -> serve)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "anomalib>=2.7",
+  "torch>=2.7",
+  "numpy",
+  "pillow",
+  "opencv-python-headless",
+  "pyyaml",
+  "pydantic>=2",
+  "typer>=0.12",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "python-multipart",
+  "onnxruntime>=1.17",
+]
+
+[project.optional-dependencies]
+# GPU serving / export extras. Install what the target box can run.
+gpu = ["onnxruntime-gpu>=1.17"]
+onnx = ["onnx", "onnxscript"]
+
+[project.scripts]
+aip = "aip.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aip"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"

@@ -1,0 +1,20 @@
+[Unit]
+Description=AIP industrial anomaly inspection service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/aip
+Environment=PYTHONUNBUFFERED=1
+Environment=AIP_BUNDLE=/opt/aip/artifacts/demo-metal
+Environment=AIP_BACKEND=onnx
+Environment=AIP_MAX_BATCH=8
+ExecStart=/opt/aip/.venv/bin/aip serve --bundle /opt/aip/artifacts/demo-metal --backend onnx --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=3
+# GPU access (when serving with the torch backend)
+# SupplementaryGroups=video
+
+[Install]
+WantedBy=multi-user.target

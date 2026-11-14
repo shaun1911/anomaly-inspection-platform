@@ -1,0 +1,37 @@
+# GPU image: torch cu130 + anomalib + onnxruntime-gpu.
+#
+#   docker build -f deploy/Dockerfile.gpu -t aip-serving:gpu .
+#   docker run --rm --gpus all -p 8000:8000 aip-serving:gpu
+#
+# The runtime image does not need a CUDA base image: the pip wheels ship the
+# CUDA user-space libraries; only the host driver must be new enough.
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    AIP_BUNDLE=/app/artifacts/demo-metal \
+    AIP_BACKEND=torch \
+    AIP_MAX_BATCH=8 \
+    NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libglib2.0-0 libgl1 libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY deploy/requirements-gpu.txt ./requirements.txt
+RUN pip install -r requirements.txt
+
+COPY aip ./aip
+RUN pip install --no-deps -e ./aip
+
+COPY artifacts ./artifacts
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s \
+    CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health')"
+
+CMD ["aip", "serve", "--bundle", "/app/artifacts/demo-metal", "--backend", "torch", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,46 @@
+# ---- 环境与缓存 ----
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+node_modules/
+
+# ---- 运行时数据（库、裁片、原图、日志）----
+data/
+logs/
+runs/
+artifacts/
+datasets/
+
+# ---- 模型权重与导出 ----
+*.ckpt
+*.onnx
+*.onnx.data
+*.pt
+*.pth
+*.engine
+*.safetensors
+
+# ---- 内部材料（不公开）----
+.internal/
+
+# ---- 外部依赖（按 README 自行 clone）----
+anomalib/
+.tools/
+
+# ---- 生成物与打包产物 ----
+out/
+package/
+downloads/
+*.log
+docs/report/report.html
+docs/diagrams/*.html
+
+# ---- 媒体（体积大，不进仓库）----
+*.mp4
+*.wav
+*.m4a
+docs/report/video/*
+!docs/report/video/*.md

@@ -1,0 +1,74 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "AIP 平台使用流程 · 建模 → 换型 → 判级 → 飞轮",
+    "locale": "zh-CN",
+    "visual_preset": "editorial",
+    "quality_profile": "showcase",
+    "output": "docs/diagrams/usage.html"
+  },
+  "lanes": [
+    { "id": "tech", "label": "技术人员" },
+    { "id": "op", "label": "操作工 / 现场" },
+    { "id": "sys", "label": "系统（服务）" },
+    { "id": "ml", "label": "模型与训练" }
+  ],
+  "phases": [
+    { "id": "build", "label": "建模与首训", "fromCol": 0, "toCol": 1, "variant": "emphasis" },
+    { "id": "switch", "label": "换型", "fromCol": 2, "toCol": 2 },
+    { "id": "run", "label": "生产判级", "fromCol": 3, "toCol": 4 },
+    { "id": "fly", "label": "飞轮", "fromCol": 5, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "g_build", "label": "一次性配置", "lane": "tech", "fromCol": 0, "toCol": 1, "variant": "emphasis" },
+    { "id": "g_warm", "label": "预热到显存", "lane": "ml", "fromCol": 2, "toCol": 2 },
+    { "id": "g_run", "label": "每件都走", "lane": "sys", "fromCol": 3, "toCol": 4 },
+    { "id": "g_fly", "label": "复核与发布", "lane": "tech", "fromCol": 5, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["wizard", "preset", "load", "upload", "route", "infer", "store"],
+  "nodes": [
+    { "id": "wizard", "lane": "tech", "col": 0, "type": "backend", "label": "新建模型向导", "sublabel": "5 步 · 编码冲突拦截", "width": 150 },
+    { "id": "preset", "lane": "tech", "col": 1, "type": "backend", "label": "配置单", "sublabel": "一组编码 · 可编辑", "width": 150 },
+    { "id": "load", "lane": "op", "col": 2, "type": "frontend", "label": "一键加载", "sublabel": "单击，不用选模型", "width": 150 },
+    { "id": "warm", "lane": "ml", "col": 2, "type": "database", "label": "模型常驻", "sublabel": "预热进显存 · 122 MB/个", "width": 150 },
+    { "id": "upload", "lane": "op", "col": 3, "type": "frontend", "label": "上料推图", "sublabel": "2K JPEG · 带编码", "width": 150 },
+    { "id": "route", "lane": "sys", "col": 3, "type": "backend", "label": "编码路由", "sublabel": "code → 模型", "width": 150 },
+    { "id": "infer", "lane": "sys", "col": 4, "type": "backend", "label": "推理判级", "sublabel": "batch=8 · 1.9 ms/图", "width": 150 },
+    { "id": "train", "lane": "ml", "col": 4, "type": "backend", "label": "自动训练", "sublabel": "队列串行 · 出候选", "width": 150 },
+    { "id": "store", "lane": "sys", "col": 5, "type": "database", "label": "结果入库", "sublabel": "分数 / 热图 / 模型版本", "width": 150 },
+    { "id": "publish", "lane": "tech", "col": 5, "type": "security", "label": "复核与发布", "sublabel": "冒烟集校验 · 人工点发布", "width": 150 }
+  ],
+  "edges": [
+    { "id": "wizard-2-preset", "from": "wizard", "to": "preset", "label": "建好模型", "variant": "default" },
+    { "id": "preset-2-load", "from": "preset", "to": "load", "label": "开工", "variant": "emphasis" },
+    { "id": "load-2-warm", "from": "load", "to": "warm", "label": "预热", "variant": "emphasis" },
+    { "id": "load-2-upload", "from": "load", "to": "upload", "label": "投料", "variant": "default" },
+    { "id": "upload-2-route", "from": "upload", "to": "route", "label": "product_code", "variant": "default" },
+    { "id": "route-2-infer", "from": "route", "to": "infer", "label": "选中模型", "variant": "emphasis" },
+    { "id": "infer-2-store", "from": "infer", "to": "store", "label": "判级结果", "variant": "emphasis" },
+    { "id": "store-2-publish", "from": "store", "to": "publish", "label": "抽样 / 反馈", "variant": "dashed" },
+    { "id": "store-2-train", "from": "store", "to": "train", "label": "样本 +50", "variant": "dashed", "role": "branch" },
+    { "id": "train-2-publish", "from": "train", "to": "publish", "label": "出候选", "variant": "emphasis" },
+    { "id": "publish-2-warm", "from": "publish", "to": "warm", "label": "热切换 < 5 s", "variant": "emphasis", "role": "return" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "操作工只做两件事",
+      "items": [
+        "换型时点一次「一键加载」，不用自己选模型",
+        "每件上料推图；判得不对就点一次反馈（过杀 / 漏检）"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "飞轮的三道闸",
+      "items": [
+        "抽样分层：低置信才找人，高置信自动入库",
+        "冒烟集校验：错绑模型直接拦下，禁止发布",
+        "人工发布：自动训练只出候选，上线必须人点"
+      ]
+    }
+  ]
+}

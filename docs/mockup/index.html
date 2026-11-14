@@ -1,0 +1,2031 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIP · 工业异常检测平台 · 原型 v0.3</title>
+<style>
+/* ============================================================
+   AIP 控制台 · 主题层
+   依据《效率工具 App 组件规范》v1（现代汽车工业 · 橙色主题）
+   - 主色 #F26522，Tint 阶 / Shade 阶
+   - 中性灰 Gray-0 #FFFFFF … Gray-700 #1A1A1A
+   - 语义色 Success #34C759 / Warning #F5A623 / Error #FF3B30 / Info #007AFF
+   - 字体 24/32 · 20/28 · 17/24 · 15/22 · 13/18 · Data 16/24
+   - 4dp 栅格；按钮圆角 8；卡片圆角 12；列表行高 56
+   ============================================================ */
+:root{
+  /* brand */
+  --pri:#F26522; --pri-shade:#D5541D; --pri-deep:#B94418; --pri-dark:#993A14;
+  --pri-t100:#FFF4EE; --pri-t200:#FFE6D9; --pri-t300:#FFC9B0; --pri-t400:#FF9A6B;
+  /* neutral */
+  --g0:#FFFFFF; --g50:#FAFAFA; --g100:#F7F7F7; --g200:#EEEEEE; --g300:#E0E0E0;
+  --g400:#C6C6C6; --g500:#9E9E9E; --g600:#666666; --g700:#1A1A1A;
+  /* semantic */
+  --ok:#34C759; --ok-bg:#E8F8EE; --ok-bd:#BFE9CD; --ok-tx:#1B8F45;
+  --warn:#F5A623; --warn-bg:#FFF6E5; --warn-bd:#FFE0A3; --warn-tx:#A96B00;
+  --ng:#FF3B30; --ng-bg:#FFECEB; --ng-bd:#FFC9C5; --ng-tx:#C62828;
+  --info:#007AFF; --info-bg:#E8F2FF; --info-bd:#B9D6FF; --info-tx:#0063CC;
+
+  --bg:var(--g100); --panel:var(--g0); --line:var(--g200); --line2:var(--g300);
+  --txt:var(--g700); --mut:var(--g600); --mut2:var(--g500);
+  --mono:ui-monospace,"SF Mono",Consolas,"Cascadia Mono",monospace;
+  --shadow-1:0 2px 6px rgba(0,0,0,.08);
+  --shadow-2:0 4px 14px rgba(0,0,0,.10);
+  --r-btn:8px; --r-card:12px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--txt);
+  font:15px/22px system-ui,-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ------------------------------------------------------------ 布局 */
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+.side{
+  background:var(--panel);border-right:1px solid var(--line);
+  padding:18px 12px;position:sticky;top:0;height:100vh;
+  display:flex;flex-direction:column;gap:6px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 8px 18px}
+.logo{
+  width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--pri),var(--pri-t400));
+  color:#fff;font-weight:700;font-size:13px;letter-spacing:.5px;
+  box-shadow:0 2px 6px rgba(242,101,34,.35);
+}
+.brand b{font-size:15px;line-height:20px;letter-spacing:.2px}
+.brand small{display:block;color:var(--mut2);font-size:11.5px;font-weight:400;margin-top:2px}
+
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{
+  all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border-radius:var(--r-btn);color:var(--mut);
+  font-size:14px;line-height:20px;position:relative;transition:background .12s,color .12s;
+}
+.nav button:hover{background:var(--g50);color:var(--txt)}
+.nav button.on{background:var(--pri-t100);color:var(--pri-shade);font-weight:600}
+.nav button.on::before{
+  content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;
+  border-radius:0 3px 3px 0;background:var(--pri);
+}
+.nav .ico{width:18px;text-align:center;font-size:14px;opacity:.95}
+
+.side .foot{
+  margin-top:auto;font-size:11.5px;line-height:1.8;color:var(--mut2);
+  padding:12px 8px 4px;border-top:1px solid var(--line);
+}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:6px}
+
+.main{padding:20px 28px 48px;max-width:1600px}
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
+.top h1{margin:0;font-size:24px;line-height:32px;font-weight:700;letter-spacing:-.2px}
+.top .sub{color:var(--mut);font-size:13px;line-height:18px;margin-top:4px}
+.badge{
+  font-size:12px;line-height:18px;padding:4px 10px;border-radius:999px;
+  background:var(--warn-bg);border:1px solid var(--warn-bd);color:var(--warn-tx);white-space:nowrap;
+}
+
+/* ------------------------------------------------------------ 卡片 */
+.card{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r-card);
+  padding:16px;box-shadow:var(--shadow-1);
+}
+.card h3{margin:0 0 12px;font-size:17px;line-height:24px;font-weight:600;color:var(--txt)}
+.card h3 span{color:var(--mut2);font-weight:400;font-size:12.5px;margin-left:4px}
+.grid{display:grid;gap:16px}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:1.4fr 1fr}
+@media(max-width:1200px){.g4{grid-template-columns:repeat(2,1fr)}.g2,.g3{grid-template-columns:1fr}}
+
+/* KPI */
+.kpi .lab{color:var(--mut);font-size:12.5px;display:flex;align-items:center;gap:6px}
+.kpi .val{font:600 26px/32px var(--mono);margin-top:6px;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.kpi .val small{font-size:13px;color:var(--mut2);font-weight:400;font-family:inherit;margin-left:2px}
+.kpi .delta{font-size:12px;margin-top:4px}
+.up{color:var(--ok-tx)} .down{color:var(--ng-tx)}
+
+/* ------------------------------------------------------------ 表格 / 列表 */
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{
+  color:var(--mut);font-weight:500;font-size:12.5px;text-align:left;
+  padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--g50);
+}
+.tbl td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle;line-height:22px}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tbody tr:hover td{background:var(--g50)}
+.tbl tr.sel td{background:var(--pri-t100)}
+.tablewrap{overflow:auto;border-radius:var(--r-btn)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ------------------------------------------------------------ 标签 */
+.tag{
+  display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:18px;
+  padding:2px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap;font-weight:500;
+}
+.tag.on{background:var(--ok-bg);color:var(--ok-tx);border-color:var(--ok-bd)}
+.tag.cand{background:var(--warn-bg);color:var(--warn-tx);border-color:var(--warn-bd)}
+.tag.off{background:var(--g100);color:var(--mut);border-color:var(--g300)}
+.tag.fail{background:var(--ng-bg);color:var(--ng-tx);border-color:var(--ng-bd)}
+.tag.run{background:var(--info-bg);color:var(--info-tx);border-color:var(--info-bd)}
+
+/* ------------------------------------------------------------ 按钮 */
+.btn{
+  all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:40px;padding:8px 16px;border-radius:var(--r-btn);
+  border:1px solid var(--line2);background:var(--panel);color:var(--txt);
+  font-size:14px;line-height:20px;font-weight:500;text-align:center;
+  transition:background .12s,border-color .12s,color .12s;
+}
+.btn:hover{border-color:var(--g400);background:var(--g50)}
+.btn:active{background:var(--g100)}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn.pri:hover{background:var(--pri-shade);border-color:var(--pri-shade)}
+.btn.ok{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok-tx)}
+.btn.ok:hover{background:#DCF3E5}
+.btn.ng{background:var(--ng-bg);border-color:var(--ng-bd);color:var(--ng-tx)}
+.btn.ng:hover{background:#FFDFDD}
+.btn.sm{min-height:32px;padding:5px 12px;font-size:12.5px;border-radius:7px;font-weight:400}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:disabled:hover{background:var(--panel);border-color:var(--line2)}
+
+/* ------------------------------------------------------------ 进度 / 分隔 */
+.bar{height:6px;background:var(--g200);border-radius:4px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--pri);border-radius:4px;transition:width .35s}
+.bar.ok>i{background:var(--ok)}
+.sep{height:1px;background:var(--line);margin:16px 0}
+
+/* ------------------------------------------------------------ 工具类 */
+.row{display:flex;gap:10px;align-items:center}
+.between{display:flex;justify-content:space-between;align-items:center;gap:14px}
+.mut{color:var(--mut)} .sm{font-size:13px;line-height:20px} .tiny{font-size:12px;line-height:18px;color:var(--mut)}
+.tiny.mut{color:var(--mut2)}
+.pill{
+  font-family:var(--mono);font-size:11.5px;line-height:18px;
+  background:var(--pri-t100);border:1px solid var(--pri-t200);color:var(--pri-deep);
+  padding:2px 8px;border-radius:6px;white-space:nowrap;
+}
+.chiprow{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;line-height:20px}
+.kv dt{color:var(--mut2)}
+.kv dd{margin:0;font-family:var(--mono);font-size:13px}
+
+/* ------------------------------------------------------------ 表单 */
+input,select,textarea{
+  background:var(--panel);border:1px solid var(--line2);color:var(--txt);
+  padding:10px 12px;border-radius:var(--r-btn);font-size:14px;font-family:inherit;min-height:40px;
+  transition:border-color .12s,box-shadow .12s;
+}
+input.mono,select.mono,textarea.mono{font-family:var(--mono)}
+input:focus,select:focus,textarea:focus{
+  outline:none;border-color:var(--pri);box-shadow:0 0 0 3px rgba(242,101,34,.14);
+}
+input:disabled,select:disabled{background:var(--g100);color:var(--mut2);cursor:not-allowed}
+textarea{min-height:auto;padding:10px 12px;line-height:20px}
+label.sm{display:inline-flex;align-items:center;gap:8px;color:var(--mut)}
+
+/* ------------------------------------------------------------ 上传区 */
+.drop{
+  border:2px dashed var(--g300);border-radius:var(--r-card);
+  padding:28px;text-align:center;color:var(--mut);cursor:pointer;transition:all .15s;background:var(--g50);
+}
+.drop:hover{border-color:var(--pri);color:var(--pri-deep);background:var(--pri-t100)}
+
+/* ------------------------------------------------------------ 样本网格 */
+.sample-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+@media(max-width:1200px){.sample-grid{grid-template-columns:repeat(4,1fr)}}
+.sample{position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--line);aspect-ratio:4/3;background:var(--g100)}
+.sample canvas{width:100%;height:100%;display:block}
+.sample .lb{
+  position:absolute;left:6px;bottom:5px;font-size:10.5px;line-height:16px;
+  padding:1px 6px;border-radius:5px;background:rgba(255,255,255,.92);color:var(--g700);
+  border:1px solid var(--line);
+}
+.sample .ng{color:var(--ng-tx);border-color:var(--ng-bd);background:var(--ng-bg)}
+
+/* ------------------------------------------------------------ 判级结论 */
+.verdict{font:700 40px/44px var(--mono);letter-spacing:1px}
+
+/* ------------------------------------------------------------ 提示 */
+.toast{position:fixed;right:24px;bottom:24px;display:flex;flex-direction:column;gap:8px;z-index:99}
+.toast div{
+  background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--info);
+  padding:12px 16px;border-radius:10px;font-size:13.5px;line-height:20px;
+  box-shadow:var(--shadow-2);animation:in .18s ease-out;max-width:380px;
+}
+.toast div.ok{border-left-color:var(--ok)}
+.toast div.warn{border-left-color:var(--warn)}
+@keyframes in{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+
+/* ------------------------------------------------------------ 代码块 */
+pre{
+  margin:0;background:var(--g100);border:1px solid var(--line);border-radius:var(--r-btn);
+  padding:14px;font-family:var(--mono);font-size:12px;line-height:19px;color:#333;
+  overflow:auto;
+}
+
+/* ------------------------------------------------------------ 空状态 */
+.empty{text-align:center;color:var(--mut2);padding:48px 0;font-size:13px}
+.empty div:first-child{font-size:32px;margin-bottom:10px;opacity:.45}
+
+/* ------------------------------------------------------------ 步骤条 */
+.step{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--mut2)}
+.step b{color:var(--txt);font-weight:500}
+.step i{
+  width:20px;height:20px;border-radius:50%;background:var(--g200);color:var(--mut);
+  display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:600;flex:none;
+}
+
+/* ------------------------------------------------------------ 滚动条 */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--g300);border-radius:6px;border:2px solid var(--bg)}
+::-webkit-scrollbar-thumb:hover{background:var(--g400)}
+::-webkit-scrollbar-track{background:transparent}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">AI</div>
+      <div><b>AIP 异常检测</b><small>v0.3 原型 · 假数据</small></div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="foot">
+      <div><span class="dot"></span>服务在线 · 纯内网</div>
+      <div>模型 <b class="mono" id="sideModel">4</b> 个 · 常驻 <b class="mono" id="sideLoaded">5</b></div>
+      <div>GPU RTX 5090 · 0.8/32 GB</div>
+      <div style="margin-top:9px"><button class="btn sm" id="roleBtn" onclick="toggleRole()" style="width:100%">角色：操作工</button></div>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="top">
+      <div>
+        <h1 id="title">概览</h1>
+        <div class="sub" id="subtitle">L-01 冲压件表面检测 · 今日</div>
+      </div>
+      <span class="badge">原型演示 · 数据为模拟</span>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+<div id="modal"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================================================================ 状态 */
+const DEFAULT_SAMPLING = {time:'02:00', dailyCap:80, ratio:0, allocation:'by_volume', budgetMin:10,
+  caps:{low:40, highOk:20, highNg:10, random:10}, lowRange:[0.35,0.65], highOkMax:0.20, highNgMin:0.90};
+const S = {
+  line: {name:'L-01 冲压件表面检测', token:'aip_live_9f3c…a71e'},
+  kpi: {calls:12847, ngRate:6.8, overkill:4.2, recall:96.1, p95:41},
+  series: [180,220,260,240,300,420,610,880,1020,980,1120,1180,1050,990,1080,1240,1310,1290,1180,860,620,420,300,240],
+
+  // 模型实体：版本在模型内各自成线
+  models: [
+    {id:'M-BL-01', name:'支架左件 · 表面', versions:[
+      {v:'v7', status:'active', recall:96.1, overkill:4.2, p95:41, ds:'ds-1006-b', at:'11-06 02:14'},
+      {v:'v6', status:'retired', recall:95.2, overkill:4.8, p95:44, ds:'ds-0930-a', at:'09-30 02:09'},
+    ]},
+    {id:'M-BR-01', name:'支架右件 · 表面', versions:[
+      {v:'v4', status:'candidate', recall:97.4, overkill:3.9, p95:39, ds:'ds-1111-a', at:'11-11 02:41'},
+      {v:'v3', status:'active', recall:96.4, overkill:4.0, p95:40, ds:'ds-1006-b', at:'11-06 02:14'},
+      {v:'v2', status:'retired', recall:95.0, overkill:4.6, p95:42, ds:'ds-0928-a', at:'09-28 02:11'},
+    ]},
+    {id:'M-CP-01', name:'连接板 · 双面', versions:[
+      {v:'v2', status:'active', recall:95.8, overkill:4.4, p95:43, ds:'ds-1010-a', at:'10-10 02:20'},
+      {v:'v1', status:'retired', recall:94.6, overkill:5.1, p95:45, ds:'ds-0905-a', at:'09-05 02:05'},
+    ]},
+    {id:'M-WS-01', name:'垫片 · 单面', versions:[
+      {v:'v1', status:'active', recall:93.2, overkill:6.1, p95:38, ds:'ds-1101-a', at:'11-01 02:07'},
+    ]},
+  ],
+
+  // 产品绑定到「模型」，不绑版本
+  products: [
+    {code:'AB-1234-01', family:'AB', part:'1234', seq:'01', name:'支架 A 型 · 左件', model:'M-BL-01', state:'ready', vram:122, hits:1284},
+    {code:'AB-1234-02', family:'AB', part:'1234', seq:'02', name:'支架 A 型 · 右件', model:'M-BR-01', state:'loading', vram:0, hits:0},
+    {code:'AB-1234-03', family:'AB', part:'1234', seq:'03', name:'支架 A 型 · 焊接面', model:'M-BR-01', state:'pending', vram:0, hits:0},
+    {code:'CD-5566-01', family:'CD', part:'5566', seq:'01', name:'连接板 · 正面', model:'M-CP-01', state:'ready', vram:122, hits:642},
+    {code:'CD-5566-02', family:'CD', part:'5566', seq:'02', name:'连接板 · 侧面', model:'M-CP-01', state:'ready', vram:122, hits:512},
+    {code:'EF-7788-01', family:'EF', part:'7788', seq:'01', name:'垫片 · 单面', model:'M-WS-01', state:'failed', vram:0, hits:0},
+    {code:'GH-9001-01', family:'GH', part:'9001', seq:'01', name:'新支架 · 左件', model:null, state:'pending', vram:0, hits:0},
+    {code:'GH-9001-02', family:'GH', part:'9001', seq:'02', name:'新支架 · 右件', model:null, state:'pending', vram:0, hits:0},
+  ],
+  bindFilter: 'all',
+  bindSearch: '',
+  bindModal: null,
+  sampling: JSON.parse(JSON.stringify(DEFAULT_SAMPLING)),
+  samplingModelCaps: {},
+  apiSel: 'infer',
+  paths: [
+    {key:'data', name:'原图与缩略图', path:'C:\\AIP\\data', used:312, total:1024, editable:true},
+    {key:'artifacts', name:'模型 bundle', path:'C:\\AIP\\artifacts', used:18.4, total:1024, editable:true},
+    {key:'db', name:'数据库', path:'C:\\AIP\\db', used:0.9, total:1024, editable:false},
+    {key:'logs', name:'日志', path:'C:\\AIP\\logs', used:3.2, total:1024, editable:true},
+    {key:'archive', name:'归档库', path:'D:\\AIP-archive', used:486, total:2048, editable:true},
+    {key:'backup', name:'备份', path:'D:\\AIP-backup', used:420, total:2048, editable:true},
+  ],
+  services: [
+    {name:'AIP-Web', state:'running', pid:4820, mem:1240, uptime:'3 天 02:11'},
+    {name:'AIP-Worker', state:'running', pid:4832, mem:1900, uptime:'3 天 02:11'},
+  ],
+  modal: null,
+  wizard: {step:1, name:'', object:'冲压件表面', products:[], datasetMode:'new', trainCount:0, defectCount:0,
+           imageSize:'256', backbone:'wide_resnet50_2', coreset:0.1, threshold:'recall', smoke:true, startTraining:true},
+
+  // 训练队列：全局串行，可排序
+  queue: [
+    {id:'job-119', model:'M-BR-01', ds:'ds-1111-a', status:'running', progress:62},
+    {id:'job-120', model:'M-CP-01', ds:'ds-1110-a', status:'queued', progress:0},
+    {id:'job-121', model:'M-WS-01', ds:'ds-1108-a', status:'queued', progress:0},
+  ],
+
+  datasets: [
+    {id:'ds-1006-b', name:'支架左件 · 基线', train:412, defect:88, frozen:false, fp:'8f3a…c21d', model:'M-BL-01'},
+    {id:'ds-1111-a', name:'支架右件 · 11-11', train:398, defect:96, frozen:false, fp:'c9d0…41fa', model:'M-BR-01'},
+    {id:'ds-frozen-BR', name:'冻结验收集 · 支架右件', train:86, defect:44, frozen:true, fp:'a1b7…9e02', model:'M-BR-01'},
+    {id:'ds-1010-a', name:'连接板 · 基线', train:260, defect:54, frozen:false, fp:'77e1…2b90', model:'M-CP-01'},
+  ],
+  storage: {hot:{used:312,total:1024}, archive:{used:486}},
+  archiveStats: {pending:12480, pendingGB:36.2, deletable:8900, deletableGB:21.4, protected:320},
+  archiveBatches: [
+    {id:'AR-8821', range:'10-16 ~ 10-31', model:'M-BR-01', n:5120, gb:14.8, sha:'ok', at:'11-01 02:40'},
+    {id:'AR-8790', range:'10-01 ~ 10-15', model:'M-CP-01', n:3080, gb:9.1, sha:'ok', at:'10-16 02:38'},
+  ],
+  legalHolds: [
+    {id:'LH-01', reason:'客户投诉 #C-8891', scope:'AB-1234-02 · 11-02 ~ 11-05', n:86, by:'legal', at:'11-06'},
+  ],
+  cleanupPreview: null,
+
+  pool: [
+    {id:'p1', score:0.58, model:'M-BR-01', product:'AB-1234-02'},
+    {id:'p2', score:0.47, model:'M-BL-01', product:'AB-1234-01'},
+    {id:'p3', score:0.62, model:'M-BR-01', product:'AB-1234-03'},
+    {id:'p4', score:0.41, model:'M-CP-01', product:'CD-5566-01'},
+    {id:'p5', score:0.55, model:'M-BR-01', product:'AB-1234-02'},
+    {id:'p6', score:0.52, model:'M-WS-01', product:'EF-7788-01'},
+    {id:'p7', score:0.44, model:'M-BL-01', product:'AB-1234-01'},
+    {id:'p8', score:0.49, model:'M-BR-01', product:'AB-1234-03'},
+  ],
+  reviewFilter: 'all',
+  reviewStats: {'M-BR-01':{ok:12,ng:5}, 'M-BL-01':{ok:8,ng:2}, 'M-CP-01':{ok:6,ng:3}, 'M-WS-01':{ok:4,ng:1}},
+  presets: [
+    {id:'CFG-01', name:'支架线 · 全型', note:'A 型左右件 + 焊接面，换 A 型时用', codes:['AB-1234-01','AB-1234-02','AB-1234-03'], by:'zhang', at:'11-10 16:20'},
+    {id:'CFG-02', name:'连接板 · 双面', note:'仅连接板正/侧面', codes:['CD-5566-01','CD-5566-02'], by:'li', at:'11-11 08:05'},
+    {id:'CFG-03', name:'混线 · 全产品', note:'含垫片，显存占用最高', codes:['AB-1234-01','AB-1234-02','AB-1234-03','CD-5566-01','CD-5566-02','EF-7788-01'], by:'zhang', at:'11-11 09:12'},
+  ],
+  activePreset: null,
+  loading: null,
+  role: 'operator',
+  resolve: {code:'AB-1234-02'},
+  budget: {minutes:10, used:220},
+  result: {score:0.873, threshold:0.5, area:0.42, decode:11, infer:6, total:38, product:'AB-1234-02', job:'job_2f81c4'},
+  feedback: null,
+  busy: false,
+};
+
+/* ================================================================ 工具 */
+const $ = (s,r=document)=>r.querySelector(s);
+const fmt = n=>n.toLocaleString('en-US');
+const modelOf = id => S.models.find(m=>m.id===id) || {id, name:id, versions:[]};
+const modelName = id => modelOf(id).name;
+const activeVer = id => (modelOf(id).versions.find(v=>v.status==='active')||{}).v || '—';
+const boundCount = id => S.products.filter(p=>p.model===id).length;
+const loadedCount = () => S.products.filter(p=>p.state==='ready').length;
+
+function toast(msg, type=''){
+  const el=document.createElement('div'); el.className=type; el.textContent=msg;
+  $('#toast').appendChild(el); setTimeout(()=>el.remove(), 3400);
+}
+function seedRand(seed){ return ()=> (seed = (seed*9301+49297)%233280)/233280; }
+function paintMetal(cv, opt={}){
+  const c=cv.getContext('2d'), w=cv.width, h=cv.height, r=seedRand(opt.seed||7);
+  const g=c.createLinearGradient(0,0,w,h);
+  g.addColorStop(0,'#8d9299'); g.addColorStop(.5,'#9aa0a8'); g.addColorStop(1,'#7f858d');
+  c.fillStyle=g; c.fillRect(0,0,w,h);
+  for(let i=0;i<220;i++){
+    const y=r()*h, a=r()*.10, l=40+r()*w;
+    c.strokeStyle=`rgba(${r()>.5?255:20},${r()>.5?255:25},${r()>.5?255:30},${a})`;
+    c.beginPath(); c.moveTo(r()*w,y); c.lineTo(r()*w+l,y); c.stroke();
+  }
+  if(opt.defect){
+    const x=w*(.35+(opt.seed%5)*.06), y=h*.45;
+    if(opt.defect==='scratch'){
+      c.strokeStyle='rgba(30,32,36,.85)'; c.lineWidth=Math.max(2,w*.006);
+      c.beginPath(); c.moveTo(x-w*.10,y+h*.06); c.lineTo(x+w*.12,y-h*.09); c.stroke();
+      const hg=c.createRadialGradient(x,y,2,x,y,w*.16);
+      hg.addColorStop(0,'rgba(255,80,60,.55)'); hg.addColorStop(1,'rgba(255,80,60,0)');
+      c.fillStyle=hg; c.fillRect(0,0,w,h);
+    } else {
+      const hg=c.createRadialGradient(x,y,2,x,y,w*.14);
+      hg.addColorStop(0,'rgba(255,120,40,.65)'); hg.addColorStop(1,'rgba(255,120,40,0)');
+      c.fillStyle=hg; c.fillRect(0,0,w,h);
+      c.fillStyle='rgba(40,42,46,.35)'; c.beginPath(); c.ellipse(x,y,w*.05,h*.07,.4,0,7); c.fill();
+    }
+    if(opt.box){
+      const bx=x-w*.12, by=y-h*.12, bw=w*.16, bh=h*.2;
+      if(opt.heat){ c.fillStyle='rgba(255,60,60,.10)'; c.fillRect(0,0,w,h); }
+      c.strokeStyle='#FF3B30'; c.lineWidth=2; c.strokeRect(bx,by,bw,bh);
+      c.fillStyle='#FF3B30'; c.font='11px ui-monospace'; c.fillText('defect 0.87', bx+2, by-4);
+    }
+  }
+}
+function sparkline(vals,w=640,h=88){
+  const max=Math.max(...vals)*1.08;
+  const pts=vals.map((v,i)=>[i*(w/(vals.length-1)), h-(v/max)*(h-8)-4]);
+  const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area=`M0 ${h} `+pts.map(p=>`L${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ')+` L${w} ${h} Z`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none">
+    <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F26522" stop-opacity=".30"/><stop offset="1" stop-color="#F26522" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#g1)"/><path d="${d}" fill="none" stroke="#F26522" stroke-width="1.6"/></svg>`;
+}
+function histogram(){
+  const bins=[3,6,14,28,46,62,74,58,41,27,19,12,8,5], max=Math.max(...bins);
+  return bins.map((v,i)=>{
+    const color=i>=8?'#FF3B30':(i>=5?'#F5A623':'#34C759');
+    return `<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:74px">
+      <i style="display:block;height:${(v/max*100).toFixed(0)}%;background:${color};opacity:.85;border-radius:2px 2px 0 0"></i></div>`;
+  }).join('');
+}
+function stateTag(s){
+  return s==='ready'?'<span class="tag on">● 已加载</span>'
+    : s==='loading'?'<span class="tag run">加载中</span>'
+    : s==='failed'?'<span class="tag fail">失败</span>'
+    : '<span class="tag off">未加载</span>';
+}
+
+/* ================================================================ 视图 */
+const NAV_ICONS = {
+  dashboard:'▦', infer:'◎', routing:'⇄', workorder:'☰', models:'◆', create:'✚',
+  train:'▶', datasets:'▤', archive:'▩', review:'☑', strategy:'◈', api:'{}', system:'⚙',
+};
+const API_SPEC = {
+  infer: {m:'POST', p:'/infer', auth:'line token', d:'异步提交一张图，立即返回 job_id；结果用 GET 查询',
+    req:`POST /infer
+Content-Type: multipart/form-data
+Authorization: Bearer &lt;line_token&gt;
+Idempotency-Key: L01-8f3a9c21
+
+product_code = AB-1234-02
+image        = @part.jpg   (2K JPEG, <300 KB)`,
+    res:`202 Accepted
+{
+  "job_id": "job_2f81c4",
+  "status": "queued",
+  "model": "M-BR-01",
+  "model_version": "v3"
+}`,
+    e:['400 缺少 product_code','401 令牌无效','413 超过 16 MB','422 未知编码','410 编码已停用','503 模型未就绪']},
+
+  'infer-get': {m:'GET', p:'/infer/{job_id}', auth:'line token', d:'查询异步推理结果（建议 200 ms 轮询一次）',
+    req:`GET /infer/job_2f81c4
+Authorization: Bearer &lt;line_token&gt;`,
+    res:`200 OK
+{
+  "status": "done",
+  "label": "NG",
+  "score": 0.873,
+  "threshold": 0.5,
+  "localized": true,
+  "boxes": [[412,168,96,88]],
+  "defect_ratio": 0.0042,
+  "model": "M-BR-01", "model_version": "v3",
+  "latency_ms": 38
+}`,
+    e:['404 job 不存在','401 令牌无效']},
+
+  'infer-sync': {m:'POST', p:'/infer?sync=1', auth:'line token', d:'同步推理，用于调试或低延迟场景（≤800 ms 超时）',
+    req:`POST /infer?sync=1
+（同 /infer，多一个查询参数）`,
+    res:`200 OK
+{"label":"NG","score":0.873,"boxes":[[412,168,96,88]],
+ "latency_ms":31,"model_version":"v3"}`,
+    e:['503 超时未完成（请重试或改用异步）']},
+
+  feedback: {m:'POST', p:'/infer/feedback', auth:'line token', d:'现场上报误判：过杀或漏检',
+    req:`POST /infer/feedback
+{"result_id":"res_8a71","verdict":"ok","note":"划痕误报"}`,
+    res:`200 OK
+{"status":"recorded","pool":"M-BR-01","next_train_in":38}`,
+    e:['400 verdict 必须是 ok/ng','404 result 不存在']},
+
+  resolve: {m:'GET', p:'/routing/resolve?code=', auth:'line token', d:'换型前先查：这个编码用哪个模型、是否已加载',
+    req:`GET /routing/resolve?code=AB-1234-02`,
+    res:`200 OK
+{"code":"AB-1234-02","product":"支架 A 型 · 右件",
+ "model":"M-BR-01","model_version":"v3",
+ "state":"ready","vram_mb":122,"load_estimate_ms":0}`,
+    e:['422 未知编码','410 编码已停用']},
+
+  preload: {m:'POST', p:'/routing/preload', auth:'line token', d:'批量预热，返回逐项状态；不阻塞',
+    req:`POST /routing/preload
+{"codes":["AB-1234-01","AB-1234-02"]}`,
+    res:`200 OK
+{"results":[{"code":"AB-1234-01","state":"ready"},
+            {"code":"AB-1234-02","state":"loading"}]}`,
+    e:['400 codes 为空','503 显存不足']},
+
+  loaded: {m:'GET', p:'/routing/loaded', auth:'line token', d:'当前常驻模型与显存占用',
+    req:`GET /routing/loaded`,
+    res:`200 OK
+{"count":5,"vram_mb":610,
+ "models":[{"id":"M-BR-01","version":"v3","vram_mb":122,"hits":1284}]}`,
+    e:['401 令牌无效']},
+
+  products: {m:'GET', p:'/api/products', auth:'admin', d:'编码列表，支持搜索与筛选',
+    req:`GET /api/products?q=AB&bound=1&page=1`,
+    res:`200 OK
+{"total":6,"items":[{"code":"AB-1234-02","name":"支架 A 型 · 右件",
+  "model":"M-BR-01","active":true}]}`,
+    e:['401 未登录']},
+
+  'binding-create': {m:'POST', p:'/api/bindings', auth:'admin', d:'新建编码并绑定模型（编码不可改）',
+    req:`POST /api/bindings
+{"code":"GH-9001-03","name":"新支架 · 焊接面","model_id":"M-BR-01"}`,
+    res:`201 Created
+{"code":"GH-9001-03","model":"M-BR-01"}`,
+    e:['409 编码已存在','422 模型不存在']},
+
+  'binding-update': {m:'PUT', p:'/api/bindings/{code}', auth:'admin', d:'改描述或改绑模型（改绑会立即改变判定）',
+    req:`PUT /api/bindings/AB-1234-02
+{"name":"支架 A 型 · 右件（V2）","model_id":"M-BR-01"}`,
+    res:`200 OK
+{"code":"AB-1234-02","model":"M-BR-01","changed":["name"]}`,
+    e:['404 编码不存在','409 模型已归档']},
+
+  'binding-delete': {m:'DELETE', p:'/api/bindings/{code}', auth:'admin', d:'停用（有记录）或物理删除（无记录）',
+    req:`DELETE /api/bindings/GH-9001-03`,
+    res:`200 OK
+{"deleted":true,"reason":null}`,
+    e:['409 已有检测记录，仅可停用']},
+
+  'models-list': {m:'GET', p:'/api/models', auth:'admin', d:'模型与其版本线',
+    req:`GET /api/models`,
+    res:`200 OK
+{"items":[{"id":"M-BR-01","name":"支架右件 · 表面",
+  "active_version":"v3","candidate":"v4","codes":2}]}`,
+    e:['401 未登录']},
+
+  'model-create': {m:'POST', p:'/api/models', auth:'admin', d:'新建模型（对应向导提交）',
+    req:`POST /api/models
+{"name":"新支架 · 表面","product_codes":["GH-9001-01"],
+ "dataset":{"mode":"new"},"config":{"backbone":"wide_resnet50_2"},
+ "start_training":true}`,
+    res:`201 Created
+{"id":"M-GH-06","status":"created","job_id":"job_119"}`,
+    e:['409 编码已被占用','400 名称为空']},
+
+  'model-publish': {m:'POST', p:'/api/models/{id}/publish', auth:'admin', d:'发布候选版本（冒烟集校验通过才允许）',
+    req:`POST /api/models/M-BR-01/publish
+{"version":"v4","note":"通过冒烟集 12/12"}`,
+    res:`200 OK
+{"active":"v4","previous":"v3","switched_ms":1200}`,
+    e:['409 冒烟集未通过','404 版本不存在']},
+
+  'model-rollback': {m:'POST', p:'/api/models/{id}/rollback', auth:'admin', d:'回滚到上一生效版本',
+    req:`POST /api/models/M-BR-01/rollback
+{"to":"v3"}`,
+    res:`200 OK
+{"active":"v3","switched_ms":900}`,
+    e:['404 版本不存在']},
+
+  train: {m:'POST', p:'/api/train', auth:'admin', d:'把训练任务加入队列（全局串行）',
+    req:`POST /api/train
+{"model_id":"M-BR-01","dataset_id":"ds-1111-a"}`,
+    res:`202 Accepted
+{"job_id":"job_120","queue_position":2}`,
+    e:['409 该模型已有任务在队列','409 冻结验收集指纹变化']},
+
+  'job-get': {m:'GET', p:'/api/jobs/{id}', auth:'admin', d:'任务状态、进度、指标',
+    req:`GET /api/jobs/job_120`,
+    res:`200 OK
+{"status":"running","progress":62,"gpu_seconds":148,
+ "metrics":null}`,
+    e:['404 任务不存在']},
+
+  'preset-load': {m:'POST', p:'/api/presets/{id}/load', auth:'line token', d:'一键加载配置单：解析编码→去重→预热',
+    req:`POST /api/presets/CFG-01/load`,
+    res:`200 OK
+{"preset":"CFG-01","models":4,"ready":4,"failed":0,
+ "duration_ms":2380}`,
+    e:['404 配置单不存在','503 显存不足']},
+
+  'preset-status': {m:'GET', p:'/api/presets/{id}/status', auth:'line token', d:'轮询加载进度（现场投料前）',
+    req:`GET /api/presets/CFG-01/status`,
+    res:`200 OK
+{"state":"loading","ready":3,"total":4,"current":"M-WS-01"}`,
+    e:['404 配置单不存在']},
+
+  'sampling-get': {m:'GET', p:'/api/sampling/config', auth:'admin', d:'读取抽样配置（全局 + 按模型覆盖）',
+    req:`GET /api/sampling/config`,
+    res:`200 OK
+{"run_at":"02:00","daily_cap":80,
+ "caps":{"low":40,"high_ok":20,"high_ng":10,"random":10},
+ "effective_at":"2026-11-12T02:00:00Z"}`,
+    e:['401 未登录']},
+
+  'sampling-put': {m:'PUT', p:'/api/sampling/config', auth:'admin', d:'修改抽样配置（校验后次日生效）',
+    req:`PUT /api/sampling/config
+{"run_at":"03:00","daily_cap":60,
+ "caps":{"low":30,"high_ok":15,"high_ng":10,"random":5}}`,
+    res:`200 OK
+{"saved":true,"effective_at":"2026-11-12T03:00:00Z"}`,
+    e:['400 分层之和超过总量','400 低置信上限超过人工预算']},
+
+  'archive-preview': {m:'GET', p:'/api/archive/preview', auth:'admin', d:'预览待归档量（按时间范围）',
+    req:`GET /api/archive/preview?from=2026-11-01&to=2026-11-15`,
+    res:`200 OK
+{"images":12480,"gb":36.2,"skipped_protected":320}`,
+    e:['400 时间范围非法']},
+
+  'archive-run': {m:'POST', p:'/api/archive/run', auth:'admin', d:'执行归档（异步任务，包内带校验和）',
+    req:`POST /api/archive/run
+{"from":"2026-11-01","to":"2026-11-15","label":"NG"}`,
+    res:`202 Accepted
+{"job_id":"arc_91","estimated_s":95}`,
+    e:['409 已有归档任务在跑']},
+
+  'cleanup-run': {m:'POST', p:'/api/cleanup/run', auth:'admin', d:'执行清理（必须传 expect_count 防手滑）',
+    req:`POST /api/cleanup/run
+{"expect_count":8900,"reason":"retention"}`,
+    res:`200 OK
+{"deleted":8900,"skipped_protected":320,"freed_gb":21.4}`,
+    e:['400 expect_count 与实际不符','409 有法务锁定未确认']},
+
+  health: {m:'GET', p:'/health', auth:'无', d:'存活探针（服务与模型就绪）',
+    req:`GET /health`,
+    res:`200 OK
+{"status":"ok","backend":"torch","uptime_s":3600}`,
+    e:['503 未就绪']},
+
+  reload: {m:'POST', p:'/reload', auth:'admin', d:'热重载模型（发布后自动调用，也可手动）',
+    req:`POST /reload`,
+    res:`200 OK
+{"reloaded":true,"model":"M-BR-01","version":"v4","ms":1200}`,
+    e:['500 载入失败（保留旧版本）']},
+};
+
+const API_GROUPS = [
+  {name:'推理', ids:['infer','infer-get','infer-sync','feedback']},
+  {name:'路由与加载', ids:['resolve','preload','loaded']},
+  {name:'编码与绑定', ids:['products','binding-create','binding-update','binding-delete']},
+  {name:'模型与版本', ids:['models-list','model-create','model-publish','model-rollback']},
+  {name:'训练', ids:['train','job-get']},
+  {name:'配置单', ids:['preset-load','preset-status']},
+  {name:'策略', ids:['sampling-get','sampling-put']},
+  {name:'归档与清理', ids:['archive-preview','archive-run','cleanup-run']},
+  {name:'系统', ids:['health','reload']},
+];
+
+const VIEWS = {
+  dashboard:{t:'概览', s:'L-01 冲压件表面检测 · 今日', r:viewDashboard},
+  infer:{t:'推理检测', s:'按产品编码路由到模型 · 异步推图 · 现场反馈', r:viewInfer},
+  routing:{t:'产品路由', s:'产品族 × 零件 × 序号 → 模型 · 加载状态', r:viewRouting},
+  workorder:{t:'配置单', s:'技术人员定义产品编码集合 · 操作工一键加载全部模型', r:viewWorkorder},
+  models:{t:'模型与版本', s:'每个模型自己的版本线 · 发布 · 回滚', r:viewModels},
+  create:{t:'新建模型', s:'五步向导 · 冲突拦截 · 按数据量推荐配置', r:viewCreate},
+  train:{t:'训练队列', s:'按模型排队 · 可排序 · 单卡串行', r:viewTrain},
+  datasets:{t:'数据集', s:'每个模型一个数据集 · 冻结验收集', r:viewDatasets},
+  archive:{t:'归档与清理', s:'分层保留 · 保护规则 · 归档包可追溯', r:viewArchive},
+  review:{t:'复核队列', s:'人工确认 · 每日预算 10 分钟', r:viewReview},
+  strategy:{t:'策略配置', s:'抽样参数 · 阈值与灵敏度 · 按模型覆盖', r:viewStrategy},
+  api:{t:'API 说明', s:'接口清单 · 请求/响应样例 · 通用约定', r:viewApi},
+  system:{t:'系统', s:'资源 · 存放路径 · 服务 · 运行环境', r:viewSystem},
+};
+let CUR='dashboard';
+
+function apiSelect(k){ S.apiSel=k; render(); }
+
+function viewApi(){
+  const sel=API_SPEC[S.apiSel]||API_SPEC.infer;
+  const total=Object.keys(API_SPEC).length;
+  return `
+  <div class="card">
+    <div class="between"><h3 style="margin:0">通用约定 <span>· 所有接口都遵循</span></h3>
+      <button class="btn sm" onclick="toast('导出 OpenAPI 3.0（原型）')">导出 OpenAPI</button></div>
+    <div class="grid g2" style="margin-top:12px">
+      <div class="kv">
+        <dt>Base URL</dt><dd>http://aip-server:8000</dd>
+        <dt>鉴权</dt><dd>Authorization: Bearer &lt;token&gt;</dd>
+        <dt>幂等</dt><dd>Idempotency-Key，24 h 内重复返回同一 job</dd>
+        <dt>限流</dt><dd>每线 20 rps（突发 40）</dd>
+        <dt>时间</dt><dd>ISO 8601 UTC</dd>
+        <dt>编码</dt><dd>UTF-8；返回 4xx 时 body 含 <span class="mono">error.code</span></dd>
+      </div>
+      <div class="tablewrap"><table class="tbl">
+        <thead><tr><th>状态码</th><th>含义</th><th>现场怎么处理</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">400</td><td>参数缺失/格式错</td><td>检查 product_code</td></tr>
+          <tr><td class="mono">401</td><td>令牌无效</td><td>核对 token</td></tr>
+          <tr><td class="mono">409</td><td>编码被占用 / 未绑定</td><td>联系技术人员</td></tr>
+          <tr><td class="mono">410</td><td>编码已停用</td><td>改用新编码</td></tr>
+          <tr><td class="mono">413</td><td>图片超过 16 MB</td><td>压缩后重发</td></tr>
+          <tr><td class="mono">422</td><td>未知编码</td><td>核对标签/新建绑定</td></tr>
+          <tr><td class="mono">429</td><td>超限流</td><td>退避重试</td></tr>
+          <tr><td class="mono">503</td><td>模型未就绪</td><td>退避重试（幂等键保证不重复）</td></tr>
+        </tbody></table></div>
+    </div>
+  </div>
+
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card" style="max-height:620px;overflow:auto">
+      <h3>接口清单 <span>· ${total} 个</span></h3>
+      ${API_GROUPS.map(g=>`<div style="margin-bottom:14px">
+        <div class="tiny mut" style="margin-bottom:6px">${g.name}</div>
+        ${g.ids.map(k=>{const a=API_SPEC[k]; if(!a) return '';
+          return `<button class="btn sm ${S.apiSel===k?'pri':''}" style="width:100%;text-align:left;margin-bottom:5px;display:block"
+            onclick="apiSelect('${k}')"><span class="mono" style="font-size:11px;color:${a.m==='GET'?'var(--ok)':(a.m==='POST'?'#007AFF':'var(--warn)')}">${a.m}</span>
+            <span class="mono" style="font-size:11.5px">${a.p}</span></button>`}).join('')}
+      </div>`).join('')}
+    </div>
+
+    <div class="card">
+      <div class="between">
+        <h3 style="margin:0"><span class="tag ${sel.m==='GET'?'on':'run'}">${sel.m}</span> <span class="mono">${sel.p}</span></h3>
+        <span class="tiny mut">${sel.auth}</span></div>
+      <div class="tiny mut" style="margin-top:8px">${sel.d}</div>
+      ${sel.req?`<h3 style="margin-top:16px">请求</h3><pre>${sel.req}</pre>`:''}
+      <h3 style="margin-top:16px">响应</h3><pre>${sel.res}</pre>
+      <h3 style="margin-top:16px">错误码</h3>
+      <div class="row" style="flex-wrap:wrap;gap:6px">${sel.e.map(x=>`<span class="tag off">${x}</span>`).join('')}</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>客户端样例 <span>· 现场采集端照着写</span></h3>
+    <div class="grid g2">
+      <pre>import requests, time
+BASE = "http://aip-server:8000"
+TOK  = "aip_live_xxx"
+H    = {"Authorization": f"Bearer {TOK}"}
+
+r = requests.post(f"{BASE}/infer",
+      headers={**H, "Idempotency-Key": "L01-8f3a9c21"},
+      data={"product_code": "AB-1234-02"},
+      files={"image": open("part.jpg", "rb")},
+      timeout=3)
+job = r.json()["job_id"]
+
+for _ in range(20):
+    s = requests.get(f"{BASE}/infer/{job}", headers=H).json()
+    if s["status"] == "done":
+        break
+    time.sleep(0.2)
+
+print(s["label"], s["score"], s["boxes"])</pre>
+      <pre># 换型前先确认模型已加载
+curl -s "http://aip-server:8000/routing/resolve?code=AB-1234-02" \\
+     -H "Authorization: Bearer $TOK"
+
+# 没加载就先预热，等 ready 再投料
+curl -s -X POST "http://aip-server:8000/routing/preload" \\
+     -H "Authorization: Bearer $TOK" \\
+     -H "Content-Type: application/json" \\
+     -d '{"codes":["AB-1234-02"]}'
+
+# 现场反馈误判
+curl -s -X POST "http://aip-server:8000/infer/feedback" \\
+     -H "Authorization: Bearer $TOK" \\
+     -H "Content-Type: application/json" \\
+     -d '{"result_id":"res_8a71","verdict":"ok"}'</pre>
+    </div>
+    <div class="tiny mut" style="margin-top:10px">采集端只需实现三个动作：解析编码（换型时）→ 推图（每件）→ 上报误判（可选）。</div>
+  </div>`;
+}
+
+function viewDashboard(){
+  const k=S.kpi;
+  return `
+  <div class="grid g4">
+    <div class="card kpi"><div class="lab">今日检测量</div><div class="val">${fmt(k.calls)} <small>张</small></div><div class="delta up">▲ 昨日 +8.2%</div></div>
+    <div class="card kpi"><div class="lab">NG 率</div><div class="val">${k.ngRate}<small>%</small></div><div class="delta down">▲ 较基线 +1.1pt</div></div>
+    <div class="card kpi"><div class="lab">过杀率 <span class="tiny mut">（复核后）</span></div><div class="val">${k.overkill}<small>%</small></div><div class="delta up">▼ 目标 ≤5.0%</div></div>
+    <div class="card kpi"><div class="lab">推理 p95</div><div class="val">${k.p95}<small>ms</small></div><div class="delta up">▼ 目标 ≤50ms</div></div>
+  </div>
+
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h3>24 小时检测量 <span>· 峰值 1,310 张/小时</span></h3>${sparkline(S.series)}
+      <div class="between tiny mut" style="margin-top:6px"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div></div>
+    <div class="card"><h3>分数分布 <span>· 阈值线 0.50</span></h3>
+      <div style="display:flex;gap:2px;align-items:flex-end;position:relative">${histogram()}
+        <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:#F5A623;opacity:.8"></div></div>
+      <div class="between tiny mut" style="margin-top:8px">
+        <span><i style="display:inline-block;width:8px;height:8px;background:#34C759;border-radius:2px"></i> 确定 OK</span>
+        <span><i style="display:inline-block;width:8px;height:8px;background:#F5A623;border-radius:2px"></i> 低置信（送复核）</span>
+        <span><i style="display:inline-block;width:8px;height:8px;background:#FF3B30;border-radius:2px"></i> 确定 NG</span></div></div>
+  </div>
+
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card"><h3>模型健康度 <span>· ${S.models.length} 个模型</span></h3>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${S.models.map(m=>{const a=m.versions.find(v=>v.status==='active'), c=m.versions.find(v=>v.status==='candidate');
+          return `<div class="between" style="padding:2px 0">
+            <div><div class="sm">${m.name}</div>
+              <div class="tiny mut">${a?a.recall+'% 召回 · '+a.overkill+'% 过杀 · ':''}绑 ${boundCount(m.id)} 个产品</div></div>
+            <span class="tag ${!a?'off':c?'cand':'on'}">${!a?'未训练':c?'候选 '+c.v:'生效 '+a.v}</span></div>`}).join('')}
+      </div>
+      <div class="sep"></div>
+      <div class="tiny mut">模型间指标不可平均：每个模型只在自己的冻结验收集上算。</div>
+      <button class="btn sm" style="margin-top:9px" onclick="go('models')">管理版本 →</button></div>
+
+    <div class="card"><h3>数据飞轮 <span>· 今日</span></h3>
+      <div class="kv"><dt>现场反馈</dt><dd>7 条</dd><dt>自动入库</dt><dd>55 张</dd><dt>待人工复核</dt><dd>38 张</dd><dt>下次自动训练</dt><dd>明日 02:00</dd></div>
+      <div class="sep"></div><div class="tiny mut">触发：训练集 +50 张 或 每日 02:00</div>
+      <div class="bar" style="margin-top:8px"><i style="width:76%"></i></div><div class="tiny mut" style="margin-top:5px">38 / 50 张</div></div>
+
+    <div class="card"><h3>待办</h3>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="row" style="justify-content:space-between"><div><div>复核队列 <b>38</b> 张</div><div class="tiny mut">预计 4 分钟</div></div>
+          <button class="btn sm pri" onclick="go('review')">去处理</button></div>
+        <div class="row" style="justify-content:space-between"><div><div>M-BR-01 <b>v4</b> 待发布</div><div class="tiny mut">召回 +1.0pt / 过杀 −0.1pt</div></div>
+          <button class="btn sm" onclick="go('models')">去审批</button></div>
+        <div class="row" style="justify-content:space-between"><div><div>训练队列 <b>${S.queue.filter(q=>q.status!=='done').length}</b> 个</div><div class="tiny mut">单卡串行</div></div>
+          <button class="btn sm" onclick="go('train')">查看</button></div>
+      </div></div>
+  </div>`;
+}
+
+function viewInfer(){
+  const r=S.result, p=S.products.find(x=>x.code===r.product);
+  const mid=p?p.model:'—';
+  return `
+  <div class="grid g2">
+    <div class="card">
+      <h3>推送图片 <span>· 模拟 POST /infer（异步）</span></h3>
+      <div class="row" style="margin-bottom:10px;flex-wrap:wrap">
+        <span class="tiny mut">product_code</span><span class="pill">${r.product}</span>
+        <span class="tiny mut">→</span><span class="pill">${mid}</span>
+        <span class="tiny mut">→ 生效</span><span class="pill">${activeVer(mid)}</span>
+        <span class="tag on">● 已加载</span>
+      </div>
+      <div class="drop" onclick="runInfer()"><div style="font-size:26px;margin-bottom:6px">⬆</div>
+        点击或拖入图片（2K JPEG，&lt;300 KB）<div class="tiny" style="margin-top:8px">演示：点击即模拟一次推图</div></div>
+      <div style="margin-top:14px;border-radius:10px;overflow:hidden;border:1px solid var(--line)">
+        <canvas id="cv" width="720" height="420" style="width:100%;display:block"></canvas></div>
+      <div class="between tiny mut" style="margin-top:8px">
+        <span>job_id <span class="pill">${r.job}</span></span><span>202 Accepted → 轮询 GET /infer/{job_id}</span></div>
+    </div>
+
+    <div class="card">
+      <h3>判定结果 <span>· ${r.product} → ${mid} ${activeVer(mid)}</span></h3>
+      <div class="between"><div class="verdict" style="color:var(--ng)">NG</div>
+        <div style="text-align:right"><div class="mono" style="font-size:22px">${r.score.toFixed(3)}</div>
+        <div class="tiny mut">score / 阈值 ${r.threshold}</div></div></div>
+      <div class="bar" style="margin:14px 0 6px"><i style="width:${(r.score*100).toFixed(0)}%"></i></div>
+      <div class="between tiny mut"><span>0.0</span><span>阈值 0.50</span><span>1.0</span></div>
+      <div class="sep"></div>
+      <div class="kv"><dt>缺陷面积</dt><dd>${r.area}%</dd><dt>定位</dt><dd>已定位（1 个框）</dd>
+        <dt>解码</dt><dd>${r.decode} ms <span class="mut">(1/4 降采样)</span></dd>
+        <dt>推理</dt><dd>${r.infer} ms <span class="mut">(batch=8)</span></dd>
+        <dt>端到端</dt><dd>${r.total} ms</dd></div>
+      <div class="sep"></div>
+      <div class="tiny mut" style="margin-bottom:8px">现场反馈（写入样本池，优先级高于自动抽样）</div>
+      <div class="row" style="flex-wrap:wrap">
+        <button class="btn sm ok" onclick="sendFeedback('ok')">实际 OK（过杀）</button>
+        <button class="btn sm ng" onclick="sendFeedback('ng')">实际 NG（漏检）</button>
+        <button class="btn sm" onclick="sendFeedback('confirm')">确认无误</button></div>
+      <div id="fbBox" style="margin-top:10px">${S.feedback?`<div class="tiny" style="color:var(--ok)">✓ 已记录：${S.feedback}</div>`:''}</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px"><h3>接口契约 <span>· 现场照着接</span></h3>
+    <div class="grid g2">
+      <pre>POST /infer
+Content-Type: multipart/form-data
+Idempotency-Key: L01-8f3a9c21
+
+product_code=AB-1234-02 & image=@part.jpg
+
+→ 202 {"job_id":"job_2f81c4","status":"queued"}</pre>
+      <pre>GET /infer/job_2f81c4
+→ 200 {"status":"done",
+  "product_code":"AB-1234-02",
+  "model":"M-BR-01","model_version":"v3",
+  "label":"NG","score":0.873,
+  "boxes":[[412,168,96,88]],"latency_ms":38}</pre>
+    </div>
+    <div class="tiny mut" style="margin-top:10px">响应里回显模型与版本，任何一张图都能追到「哪个模型的哪一版判的」。</div></div>`;
+}
+
+function resolveCard(p){
+  if(!p) return '<div class="tag fail">422 未知编码</div><div class="tiny mut" style="margin-top:8px">未找到该编码。不会回退默认模型（错判比不判更危险）。</div>';
+  const ok=p.state==='ready', mid=p.model;
+  return `
+    <div class="between"><div><div style="font-size:15px"><b>${p.name}</b></div><div class="tiny mut mono">${p.code}</div></div>
+      <span class="tag ${ok?'on':p.state==='failed'?'fail':'cand'}">${ok?'● 已加载':'需预热'}</span></div>
+    <div class="kv" style="margin-top:12px">
+      <dt>产品族</dt><dd>${p.family}</dd><dt>零件</dt><dd>${p.part}</dd><dt>序号</dt><dd>${p.seq}</dd>
+      <dt>绑定模型</dt><dd>${mid}</dd><dt>当前生效版本</dt><dd>${activeVer(mid)}</dd><dt>state</dt><dd>${p.state}</dd>
+      <dt>预估加载</dt><dd>${ok?'0 ms':'~720 ms（wrn50）'}</dd></div>
+    ${ok?'':`<div class="row" style="margin-top:12px"><button class="btn sm pri" onclick="preloadOne('${p.code}')">立即预热</button>
+      <span class="tiny mut">或直接推图：服务端同步加载，最多 2 s</span></div>`}`;
+}
+
+function viewRouting(){
+  const loaded=S.products.filter(p=>p.state==='ready');
+  const groups={};
+  loaded.forEach(p=>{ const key=p.model; groups[key]=groups[key]||{n:0,vram:p.vram}; groups[key].n++; });
+  const totalVram=loaded.reduce((a,p)=>a+p.vram,0);
+  const current=S.products.find(x=>x.code===S.resolve.code);
+  const q=(S.bindSearch||'').trim().toLowerCase();
+  const rows=S.products.filter(p=>{
+    if(S.bindFilter==='bound' && !p.model) return false;
+    if(S.bindFilter==='unbound' && p.model) return false;
+    if(S.bindFilter==='retired' && p.active!==false) return false;
+    if(q && !(p.code.toLowerCase().includes(q) || (p.name||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  return `
+  <div class="grid g2">
+    <div class="card"><h3>编码解析 <span>· GET /routing/resolve</span></h3>
+      <div class="row"><input id="codeInput" class="mono" value="${S.resolve.code}" style="flex:1">
+        <button class="btn pri" onclick="resolveCode()">解析</button></div>
+      <div id="resolveBox" style="margin-top:14px">${resolveCard(current)}</div>
+      <div class="sep"></div>
+      <div class="tiny mut">完整编码精确匹配；未命中直接 <b>422</b>，绝不回退默认模型。换型前先调这个接口，确认 <span class="mono">state=ready</span> 再投料。</div></div>
+
+    <div class="card"><h3>常驻模型 <span>· GET /routing/loaded</span></h3>
+      <div class="kv" style="margin-bottom:12px"><dt>常驻模型</dt><dd>${Object.keys(groups).length} 个</dd>
+        <dt>显存占用</dt><dd>${totalVram} MB / 32256 MB</dd><dt>建议上限</dt><dd>24 个（LRU 兜底）</dd></div>
+      <div class="tablewrap"><table class="tbl">
+        <thead><tr><th>模型</th><th>绑定产品</th><th>生效版本</th><th>显存</th></tr></thead>
+        <tbody>${Object.entries(groups).map(([mid,g])=>`<tr><td class="mono">${mid}</td><td>${g.n} 个</td>
+          <td class="mono">${activeVer(mid)}</td><td class="mono">${g.vram} MB</td></tr>`).join('')||'<tr><td colspan="4" class="mut">尚无常驻模型</td></tr>'}</tbody>
+      </table></div>
+      <div class="tiny mut" style="margin-top:10px">wrn50 单模型 122 MB（40 张库）；32 GB 可放 200+，LRU 只是保险丝。</div></div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="between">
+      <h3 style="margin:0">编码 → 模型 <span>· 多对一 · 编码不可改</span></h3>
+      <button class="btn sm pri" onclick="openBind('create')">+ 新建绑定</button>
+    </div>
+    <div class="row" style="margin-top:12px;flex-wrap:wrap">
+      <input id="bindSearch" value="${S.bindSearch}" placeholder="搜索编码或描述" style="width:220px" oninput="bindSearch(this.value)">
+      ${[['all','全部'],['bound','已绑定'],['unbound','未绑定'],['retired','已停用']].map(([k,l])=>
+        `<button class="btn sm ${S.bindFilter===k?'pri':''}" onclick="bindFilter('${k}')">${l}</button>`).join('')}
+      <span class="tiny mut">共 ${rows.length} 条</span>
+    </div>
+    <div class="tablewrap" style="margin-top:12px"><table class="tbl">
+      <thead><tr><th>编码</th><th>描述</th><th>绑定模型</th><th>状态</th><th>最近变更</th><th style="width:230px">操作</th></tr></thead>
+      <tbody>${rows.map(x=>`<tr style="${x.active===false?'opacity:.55':''}">
+        <td class="mono">${x.code}</td><td>${x.name}</td>
+        <td class="mono">${x.model||'<span class="mut">未绑定</span>'}</td>
+        <td>${x.active===false?'<span class="tag off">已停用</span>':x.model?'<span class="tag on">启用</span>':'<span class="tag cand">未绑定</span>'}</td>
+        <td class="tiny mut">${x.at||'11-10 16:20'}</td>
+        <td><div class="row" style="gap:4px">
+          <button class="btn sm" onclick="openBind('edit','${x.code}')">编辑</button>
+          <button class="btn sm" onclick="toggleActive('${x.code}')">${x.active===false?'启用':'停用'}</button>
+          <button class="btn sm ng" onclick="deleteBind('${x.code}')">删除</button>
+        </div></td></tr>`).join('')}</tbody>
+    </table></div>
+    ${rows.length?'':'<div class="empty"><div>∅</div><div>没有匹配的绑定</div></div>'}
+    <div class="tiny mut" style="margin-top:10px">编码是现场助记符：一个模型可绑多个编码；编码创建后<b>不可改</b>——要换编码请「停用旧码 + 新建新码」。已有检测记录的编码不能删除，只能停用（保留历史）。</div>
+  </div>
+  ${bindModalHtml()}`;
+}
+
+function viewWorkorder(){
+  const tech = S.role==='tech';
+  return `
+  <div class="card">
+    <div class="between">
+      <div><h3 style="margin:0">配置单 <span>· 技术人员定义，操作工一键加载</span></h3>
+        <div class="tiny mut" style="margin-top:4px">一张配置单 = 一组产品编码；加载后这些产品对应的模型全部预热进显存，直接开工。</div></div>
+      <div class="row">
+        <span class="tag ${tech?'cand':'off'}">当前角色：${tech?'技术人员':'操作工'}</span>
+        ${tech?'<button class="btn sm pri" onclick="openModal(\'preset\')">新建配置单</button>':''}
+      </div>
+    </div>
+    <div class="tiny mut" style="margin-top:10px">${tech?'你可以编辑编码集合；保存时会预估显存占用，超出上限会提示。':'如需修改配置单，请联系技术人员；你只能加载。'}</div>
+  </div>
+
+  <div class="grid g2" style="margin-top:14px">
+  ${S.presets.map(p=>{
+    const prods=p.codes.map(c=>S.products.find(x=>x.code===c));
+    const ok=prods.filter(Boolean);
+    const missing=p.codes.length-ok.length;
+    const mids=[...new Set(ok.map(x=>x.model))];
+    const isActive=S.activePreset===p.id;
+    const isLoading=!!S.loading && S.loading.id===p.id;
+    const readyN=mids.filter(mid=>S.products.filter(x=>x.model===mid).every(x=>x.state==='ready')).length;
+    const allReady=mids.length>0 && readyN===mids.length;
+    return `<div class="card">
+      <div class="between">
+        <div><b>${p.name}</b><div class="tiny mut mono">${p.id} · ${p.codes.length} 个产品 → ${mids.length} 个模型</div></div>
+        <span class="tag ${isActive&&allReady?'on':isLoading?'run':allReady?'cand':'off'}">
+          ${isLoading?'加载中':isActive&&allReady?'● 已加载':allReady?'● 已就绪':'未加载'}</span>
+      </div>
+      <div class="tiny mut" style="margin-top:8px">${p.note}</div>
+      <div class="chiprow">${p.codes.map(c=>{
+        const pr=ok.find(x=>x.code===c);
+        return `<span class="pill" ${pr?'':'style="opacity:.45;text-decoration:line-through"'}>${c}</span>`;}).join('')}</div>
+      ${missing?`<div class="tiny" style="color:var(--ng);margin-top:6px">⚠ ${missing} 个编码在系统中不存在（将被跳过）</div>`:''}
+      <div class="kv" style="margin-top:10px"><dt>预估显存</dt><dd>${mids.length*122} MB</dd>
+        <dt>创建</dt><dd>${p.by} · ${p.at}</dd>
+        <dt>模型就绪</dt><dd>${readyN} / ${mids.length}</dd></div>
+      ${isLoading?`<div class="bar" style="margin-top:10px"><i style="width:${(S.loading.done/S.loading.total*100).toFixed(0)}%"></i></div>
+        <div class="tiny mut" style="margin-top:5px">预热中 ${S.loading.done}/${S.loading.total} 个模型…</div>`:''}
+      <div class="sep"></div>
+      <div class="row">
+        <button class="btn pri" onclick="loadPreset('${p.id}')" ${isLoading?'disabled':''}>一键加载</button>
+        ${tech?`<button class="btn sm" onclick="openModal('preset','${p.id}')">编辑</button>
+          <button class="btn sm ng" onclick="deleteEntity('preset','${p.id}')">删除</button>`:''}
+      </div>
+    </div>`;
+  }).join('')}
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>加载记录 <span>· 谁在什么时候加载了哪张配置单</span></h3>
+    <div class="tablewrap"><table class="tbl">
+      <thead><tr><th>时间</th><th>配置单</th><th>操作人</th><th>模型数</th><th>耗时</th><th>结果</th></tr></thead>
+      <tbody>${(S.loadLog||[]).map(l=>`<tr><td class="tiny mut">${l.at}</td><td class="mono">${l.preset}</td>
+        <td>${l.by}</td><td class="mono">${l.n}</td><td class="mono">${l.ms} ms</td>
+        <td>${l.ok?'<span class="tag on">成功</span>':'<span class="tag fail">部分失败</span>'}</td></tr>`).join('')
+        || '<tr><td colspan="6" class="mut">暂无记录，点一次「一键加载」试试</td></tr>'}</tbody>
+    </table></div>
+    <div class="tiny mut" style="margin-top:10px">配置单只影响<b>预加载</b>，不影响路由：推图永远按 product_code 解析，忘了切配置单也不会判错。</div>
+  </div>`;
+}
+
+function viewModels(){
+  return `
+  <div class="grid g2">
+  ${S.models.map(m=>{
+    const active=m.versions.find(v=>v.status==='active'), cand=m.versions.find(v=>v.status==='candidate');
+    return `<div class="card">
+      <div class="between">
+        <div><b>${m.name}</b><div class="tiny mut mono">${m.id} · 绑定 ${boundCount(m.id)} 个产品</div></div>
+        <span class="tag ${!active?'off':cand?'cand':'on'}">${!active?'未训练':cand?'候选 '+cand.v:'生效 '+active.v}</span>
+      </div>
+      <div class="tablewrap" style="margin-top:10px"><table class="tbl">
+        <thead><tr><th>版本</th><th>状态</th><th>召回</th><th>过杀</th><th>数据</th><th></th></tr></thead>
+        <tbody>${m.versions.map(v=>`<tr>
+          <td class="mono">${v.v}</td>
+          <td>${v.status==='active'?'<span class="tag on">active</span>':v.status==='candidate'?'<span class="tag cand">候选</span>':'<span class="tag off">retired</span>'}</td>
+          <td class="mono">${v.recall}%</td><td class="mono">${v.overkill}%</td>
+          <td class="tiny mono">${v.ds}</td>
+          <td>${v.status==='candidate'?`<button class="btn sm pri" onclick="publish('${m.id}','${v.v}')">发布</button>`
+              :v.status==='retired'?`<button class="btn sm" onclick="rollback('${m.id}','${v.v}')">回滚</button>`:'<span class="tiny mut">—</span>'}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+      <div class="between" style="margin-top:10px">
+        <span class="tiny mut">最近训练 ${m.versions[0]?m.versions[0].at:'—'}</span>
+        <div class="row" style="gap:4px">
+          <button class="btn sm" onclick="openModal('model','${m.id}')">编辑</button>
+          <button class="btn sm ng" onclick="deleteEntity('model','${m.id}')">归档</button>
+          <button class="btn sm" onclick="go('train')">发起训练</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}
+  </div>
+  <div class="card" style="margin-top:14px"><div class="tiny mut">
+    版本号在<b>模型内</b>递增：M-BR-01 到 v4，M-CP-01 才 v2，互不相干。
+    发布只改「该模型的生效版本」，绑它的产品自动跟随；回滚同样只影响这一条版本线。</div></div>`;
+}
+
+function viewTrain(){
+  const q=S.queue;
+  const running=q.find(x=>x.status==='running');
+  return `
+  <div class="grid g2">
+    <div class="card"><h3>发起训练 <span>· 一个模型一个任务</span></h3>
+      <div class="kv" style="grid-template-columns:96px 1fr;gap:12px 14px">
+        <dt>模型</dt><dd><select id="trainModel">${S.models.map(m=>`<option value="${m.id}">${m.id} · ${m.name}</option>`).join('')}</select></dd>
+        <dt>数据集</dt><dd><span class="pill">该模型绑定的数据集</span> <span class="tiny mut">自动带出</span></dd>
+        <dt>验收集</dt><dd><span class="pill">冻结集</span> <span class="tiny mut">指纹校验</span></dd>
+        <dt>模型结构</dt><dd>PatchCore · wide_resnet50_2</dd></div>
+      <div class="sep"></div>
+      <div class="between"><div class="tiny mut">单卡串行 · 每任务 4~5 分钟 · 训练期间推理优先</div>
+        <button class="btn pri" onclick="enqueueJob()">加入队列</button></div>
+      <div class="sep"></div>
+      <div class="tiny mut">当前执行：${running?`<span class="mono">${running.id}</span> · ${running.model} <b>${running.progress}%</b>`:'空闲'}</div>
+      ${running?`<div class="bar" style="margin-top:8px"><i style="width:${running.progress}%"></i></div>`:''}
+    </div>
+
+    <div class="card"><h3>GPU 占用策略</h3>
+      <div class="kv"><dt>推理</dt><dd>优先，p95 &gt; 100ms 时训练暂停</dd><dt>训练显存</dt><dd>上限 60%（19 GB）</dd>
+        <dt>训练窗口</dt><dd>自动任务 02:00–06:00</dd><dt>并发</dt><dd>同时仅 1 个训练任务</dd></div>
+      <div class="sep"></div><div class="tiny mut">当前：推理 38% / 训练 ${running?'62%':'空闲'}</div>
+      <div class="bar" style="margin-top:8px"><i style="width:${running?62:38}%"></i></div></div>
+  </div>
+
+  <div class="card" style="margin-top:14px"><h3>训练队列 <span>· 可排序，串行执行</span></h3>
+    <div class="tablewrap"><table class="tbl">
+      <thead><tr><th style="width:40px">#</th><th>任务</th><th>模型</th><th>数据集</th><th>状态</th><th>进度</th><th style="width:150px">排序 / 操作</th></tr></thead>
+      <tbody>${q.map((j,i)=>`<tr>
+        <td class="mono mut">${i+1}</td><td class="mono">${j.id}</td><td class="mono">${j.model}</td><td class="tiny mono">${j.ds}</td>
+        <td>${j.status==='running'?'<span class="tag run">训练中</span>':j.status==='done'?'<span class="tag on">完成</span>':'<span class="tag off">排队</span>'}</td>
+        <td style="min-width:120px">${j.status==='queued'?'<span class="tiny mut">—</span>':`<div class="bar"><i class="${j.status==='done'?'ok':''}" style="width:${j.progress}%"></i></div>`}</td>
+        <td><div class="row" style="gap:4px">
+          <button class="btn sm" onclick="moveJob(${i},-1)" ${i===0||j.status!=='queued'?'disabled':''}>↑</button>
+          <button class="btn sm" onclick="moveJob(${i},1)" ${i===q.length-1||j.status!=='queued'?'disabled':''}>↓</button>
+          <button class="btn sm" onclick="cancelJob('${j.id}')" ${j.status!=='queued'?'disabled':''}>取消</button>
+          <button class="btn sm ng" onclick="deleteEntity('job','${j.id}')" ${j.status!=='done'?'disabled':''}>删除</button>
+        </div></td></tr>`).join('')}</tbody>
+    </table></div>
+    <div class="tiny mut" style="margin-top:10px">同一模型不允许重复排队；训练完成自动产出该模型的下一个版本号（v(N+1)），状态为 candidate。</div></div>`;
+}
+
+function viewDatasets(){
+  return `
+  <div class="between" style="margin-bottom:12px">
+    <h3 style="margin:0">数据集 <span>· 每个模型一份，冻结验收集不可删</span></h3>
+    <button class="btn sm pri" onclick="openModal('dataset')">+ 新建数据集</button>
+  </div>
+  <div class="grid g3">
+    ${S.datasets.map(d=>`<div class="card">
+      <div class="between"><div><b>${d.name}</b><div class="tiny mut mono">${d.id}</div></div>
+        ${d.frozen?'<span class="tag cand">🔒 冻结</span>':'<span class="tag off">可写</span>'}</div>
+      <div class="kv" style="margin-top:12px"><dt>归属模型</dt><dd>${d.model}</dd><dt>正常品</dt><dd>${d.train} 张</dd>
+        <dt>缺陷图</dt><dd>${d.defect} 张</dd><dt>指纹</dt><dd>${d.fp}</dd></div>
+      <div class="sep"></div><div class="row" style="gap:4px;flex-wrap:wrap">
+        <button class="btn sm" onclick="toast('浏览样本（原型）')">查看样本</button>
+        <button class="btn sm" onclick="openModal('dataset','${d.id}')">编辑</button>
+        <button class="btn sm ng" onclick="deleteEntity('dataset','${d.id}')">删除</button>
+        ${d.frozen?'<button class="btn sm" disabled>已锁定</button>':`<button class="btn sm pri" onclick="go('train')">用它训练</button>`}
+      </div></div>`).join('')}
+  </div>
+  <div class="card" style="margin-top:14px">
+    <div class="between"><h3 style="margin:0">样本浏览 <span>· ds-1111-a · 前 16 张</span></h3>
+      <button class="btn sm pri" onclick="toast('上传窗口（原型）')">上传</button></div>
+    <div class="sample-grid" style="margin-top:14px" id="samples"></div>
+    <div class="tiny mut" style="margin-top:10px">数据集按模型划分：一个检测任务一份数据、一条验收集，互不污染。</div></div>`;
+}
+
+function viewReview(){
+  const all=S.pool.filter(p=>!p.verdict);
+  const byModel={};
+  all.forEach(p=>byModel[p.model]=(byModel[p.model]||0)+1);
+  const list=S.pool.filter(p=>!p.verdict && (S.reviewFilter==='all'||p.model===S.reviewFilter));
+  const cur=list[0];
+  const used=Math.floor(S.budget.used/60), usedS=S.budget.used%60;
+  const quota={'M-BR-01':24,'M-BL-01':10,'M-CP-01':4,'M-WS-01':2};
+  const st=cur?(S.reviewStats[cur.model]||{ok:0,ng:0}):{ok:0,ng:0};
+  return `
+  <div class="card">
+    <div class="between"><h3 style="margin:0">今日复核 <span>· 预算 ${S.budget.minutes} 分钟 · 按模型分组</span></h3>
+      <div class="tiny mut">已用 ${used}:${String(usedS).padStart(2,'0')} · 待复核 ${all.length} 张</div></div>
+    <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+      <button class="btn sm ${S.reviewFilter==='all'?'pri':''}" onclick="setFilter('all')">全部 ${all.length}</button>
+      ${Object.entries(byModel).map(([mid,n])=>`<button class="btn sm ${S.reviewFilter===mid?'pri':''}" onclick="setFilter('${mid}')">${mid} <span class="mut">${n}</span></button>`).join('')}
+    </div>
+    <div class="bar" style="margin-top:12px"><i style="width:${Math.min(100,S.budget.used/(S.budget.minutes*60)*100)}%"></i></div>
+    <div class="tiny mut" style="margin-top:6px">配额按模型分配；当前筛选：<b>${S.reviewFilter==='all'?'全部模型':S.reviewFilter}</b>。确认后样本只并入<b>该模型</b>的数据集。</div>
+  </div>
+
+  <div class="card" style="margin-top:14px">${cur?`
+    <div class="grid g2">
+      <div><canvas id="rcv" width="760" height="470" style="width:100%;border-radius:10px;border:1px solid var(--line)"></canvas></div>
+      <div>
+        <div class="between">
+          <div><div class="sm"><b>${modelName(cur.model)}</b> <span class="mono tiny mut">${cur.model}</span></div>
+            <div class="tiny mut mono">${cur.product} · 生效 ${activeVer(cur.model)} · low_conf</div></div>
+          <span class="mono">score ${cur.score.toFixed(2)}</span>
+        </div>
+        <div class="bar" style="margin:10px 0 6px"><i style="width:${cur.score*100}%"></i></div>
+        <div class="between tiny mut"><span>0.0</span><span>该模型阈值 0.50</span><span>1.0</span></div>
+        <div class="sep"></div>
+        <div class="kv">
+          <dt>该模型今日</dt><dd>确认 OK ${st.ok} / NG ${st.ng}</dd>
+          <dt>确认后去向</dt><dd>${cur.model} 的 normal 集（OK）或验收集（NG）</dd>
+          <dt>该模型待复核</dt><dd>${byModel[cur.model]||0} 张（今日配额 ${quota[cur.model]||'—'}）</dd>
+        </div>
+        <div class="sep"></div>
+        <div class="row" style="flex-wrap:wrap">
+          <button class="btn ok" onclick="review(1)">1 · 实际 OK（过杀）</button>
+          <button class="btn ng" onclick="review(0)">2 · 实际 NG</button>
+          <button class="btn" onclick="review(-1)">空格 · 跳过</button></div>
+        <div class="tiny mut" style="margin-top:12px">快捷键 1 / 2 / 空格；点上方 chip 切换模型，避免在 4 个模型之间来回跳。</div>
+      </div>
+    </div>`:`<div class="empty"><div>✓</div>
+      <div>${S.reviewFilter==='all'?'今天没有待复核样本':'该模型队列已清空'}</div>
+      <div class="tiny" style="margin-top:6px">${S.reviewFilter==='all'?'队列清空后，飞轮会在 02:00 自动训练':'可切回「全部」查看其它模型'}</div></div>`}
+  </div>
+
+  <div class="card" style="margin-top:14px"><h3>各模型复核情况 <span>· 配额与今日确认</span></h3>
+    <div class="tablewrap"><table class="tbl">
+      <thead><tr><th>模型</th><th>生效版本</th><th>待复核</th><th>今日配额</th><th>已确认 OK</th><th>已确认 NG</th><th>实测过杀</th><th></th></tr></thead>
+      <tbody>${S.models.map(m=>{const a=m.versions.find(v=>v.status==='active');const s=S.reviewStats[m.id]||{ok:0,ng:0};
+        const done=s.ok+s.ng, q=quota[m.id]||0;
+        return `<tr><td class="mono">${m.id}<div class="tiny mut">${m.name}</div></td>
+          <td class="mono">${a.v}</td><td class="mono">${byModel[m.id]||0}</td>
+          <td class="mono ${done>q?'':''}" style="${done>q?'color:var(--warn)':''}">${done} / ${q}</td>
+          <td class="mono">${s.ok}</td><td class="mono">${s.ng}</td><td class="mono">${a.overkill}%</td>
+          <td><button class="btn sm" onclick="setFilter('${m.id}')">只复核它</button></td></tr>`}).join('')}</tbody>
+    </table></div>
+    <div class="tiny mut" style="margin-top:10px">超配额只记录不阻塞：单个模型不能把 10 分钟预算占满，否则其它模型的阈值会长期失准。</div>
+  </div>`;
+}
+
+function samplingCard(){
+  const c=S.sampling;
+  return `<div class="card" style="margin-top:14px">
+    <div class="between"><h3 style="margin:0">抽样配置 <span>· 全局默认，可按模型覆盖</span></h3>
+      <div class="row"><button class="btn sm" onclick="resetSampling()">恢复默认</button>
+        <button class="btn sm pri" onclick="saveSampling()">保存</button></div></div>
+    <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:16px">
+      <label class="sm">抽选时间 <input value="${c.time}" style="width:84px" onchange="samplingSet('time',this.value)"></label>
+      <label class="sm">每日上限 <input type="number" value="${c.dailyCap}" style="width:80px" onchange="samplingSet('dailyCap',+this.value)"></label>
+      <label class="sm">比例 <input type="number" value="${c.ratio}" style="width:70px" onchange="samplingSet('ratio',+this.value)">%</label>
+      <label class="sm">分配 <select onchange="samplingSet('allocation',this.value)">
+        <option value="by_volume" ${c.allocation==='by_volume'?'selected':''}>按昨日检测量</option>
+        <option value="even" ${c.allocation==='even'?'selected':''}>平均</option></select></label>
+      <label class="sm">人工预算 <input type="number" value="${c.budgetMin}" style="width:64px" onchange="samplingSet('budgetMin',+this.value)"> 分钟</label>
+    </div>
+    <div class="tablewrap" style="margin-top:14px"><table class="tbl">
+      <thead><tr><th>分层</th><th>条件</th><th>每日上限</th></tr></thead>
+      <tbody>
+        <tr><td>低置信 → 人工</td><td class="tiny mono">${c.lowRange[0]} ≤ score ≤ ${c.lowRange[1]}</td>
+          <td><input type="number" value="${c.caps.low}" style="width:84px" onchange="samplingCap('low',+this.value)"></td></tr>
+        <tr><td>高置信 OK → 训练集</td><td class="tiny mono">score ≤ ${c.highOkMax}</td>
+          <td><input type="number" value="${c.caps.highOk}" style="width:84px" onchange="samplingCap('highOk',+this.value)"></td></tr>
+        <tr><td>高置信 NG → 验收集</td><td class="tiny mono">score ≥ ${c.highNgMin}</td>
+          <td><input type="number" value="${c.caps.highNg}" style="width:84px" onchange="samplingCap('highNg',+this.value)"></td></tr>
+        <tr><td>随机对照</td><td class="tiny mut">全区间</td>
+          <td><input type="number" value="${c.caps.random}" style="width:84px" onchange="samplingCap('random',+this.value)"></td></tr>
+        <tr><td>现场反馈</td><td class="tiny mut">设备上报</td><td class="tiny mono mut">不限 · 不占配额</td></tr>
+      </tbody></table></div>
+    <div class="tiny mut" style="margin-top:10px">比例与上限同时生效：先按「昨日检测量 × 比例」算，再受上限封顶。保存后<b>次日 ${c.time}</b> 生效，变更写审计。</div>
+    <div class="sep"></div>
+    <h3>按模型覆盖 <span>· 留空则继承全局</span></h3>
+    <div class="tablewrap"><table class="tbl">
+      <thead><tr><th>模型</th><th>每日上限</th><th>低置信上限</th><th>昨日检测量</th></tr></thead>
+      <tbody>${S.models.map(m=>{const o=S.samplingModelCaps[m.id]||{};
+        return `<tr><td class="mono">${m.id}<div class="tiny mut">${m.name}</div></td>
+          <td><input type="number" value="${o.cap===undefined?'':o.cap}" placeholder="继承 ${c.dailyCap}" style="width:90px" onchange="samplingModelCap('${m.id}','cap',this.value)"></td>
+          <td><input type="number" value="${o.low===undefined?'':o.low}" placeholder="继承 ${c.caps.low}" style="width:90px" onchange="samplingModelCap('${m.id}','low',this.value)"></td>
+          <td class="mono tiny">${fmt(1200+m.id.length*130)}</td></tr>`}).join('')}</tbody>
+    </table></div></div>`;
+}
+
+function thresholdCard(){
+  return `<div class="card" style="margin-top:14px"><h3>阈值与灵敏度 <span>· 按模型，不用全局滑杆</span></h3>
+    <div class="tablewrap"><table class="tbl">
+      <thead><tr><th>模型</th><th>生效版本</th><th>阈值</th><th>灵敏度</th><th>实测过杀</th><th>召回</th><th></th></tr></thead>
+      <tbody>${S.models.map(m=>{const a=m.versions.find(v=>v.status==='active');
+        return `<tr><td class="mono">${m.id}<div class="tiny mut">${m.name}</div></td>
+          <td class="mono">${a?a.v:'—'}</td>
+          <td class="mono">${a?'0.50':'—'}</td><td class="mono">${a?'0.50':'—'}</td>
+          <td class="mono">${a?a.overkill+'%':'—'}</td><td class="mono">${a?a.recall+'%':'—'}</td>
+          <td><button class="btn sm" onclick="toast('调整 ${m.id} 阈值（原型）')" ${a?'':'disabled'}>调整</button></td></tr>`}).join('')}</tbody>
+    </table></div>
+    <div class="tiny mut" style="margin-top:10px">阈值随 bundle 固化；不提供全局滑杆——一刀切会让某些模型过杀、另一些漏检。每次调整写审计。</div></div>`;
+}
+
+function viewStrategy(){
+  return `
+  <div class="card"><div class="between">
+    <div><h3 style="margin:0">策略配置 <span>· 只影响「怎么抽、怎么判」</span></h3>
+      <div class="tiny mut" style="margin-top:4px">与硬件、路径无关；系统资源与存放路径在「系统」页。</div></div>
+    <button class="btn sm" onclick="toast('查看变更审计（原型）')">变更历史</button></div></div>
+  ${samplingCard()}
+  ${thresholdCard()}`;
+}
+
+function viewSystem(){
+  const loaded=loadedCount();
+  return `
+  <div class="grid g4">
+    <div class="card kpi"><div class="lab">GPU</div><div class="val" style="font-size:18px">RTX 5090</div>
+      <div class="tiny mut" style="margin-top:4px">0.9 / 32 GB · 利用率 38% · 62℃</div>
+      <div class="bar" style="margin-top:8px"><i style="width:3%"></i></div></div>
+    <div class="card kpi"><div class="lab">内存</div><div class="val" style="font-size:22px">14.2 <small>GB</small></div>
+      <div class="tiny mut">共 64 GB</div></div>
+    <div class="card kpi"><div class="lab">磁盘占用</div><div class="val" style="font-size:22px">31<small>%</small></div>
+      <div class="tiny mut">C: 312 / 1024 GB</div></div>
+    <div class="card kpi"><div class="lab">常驻模型</div><div class="val" style="font-size:22px">${loaded}<small> 个</small></div>
+      <div class="tiny mut">建议上限 24 个</div></div>
+  </div>
+
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h3>服务状态 <span>· NSSM 托管</span></h3>
+      <div class="tablewrap"><table class="tbl">
+        <thead><tr><th>服务</th><th>状态</th><th>PID</th><th>内存</th><th>运行时长</th></tr></thead>
+        <tbody>${S.services.map(s=>`<tr><td class="mono">${s.name}</td>
+          <td><span class="tag on">● 运行中</span></td><td class="mono">${s.pid}</td>
+          <td class="mono">${s.mem} MB</td><td class="tiny mut">${s.uptime}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <div class="tiny mut" style="margin-top:10px">看门狗每 2 分钟健康检查，连续 3 次失败自动重启；服务开机自启。</div></div>
+    <div class="card"><h3>运行环境</h3><div class="kv">
+      <dt>系统</dt><dd>Windows 11 Pro 24H2</dd><dt>Python</dt><dd>3.12.7</dd>
+      <dt>PyTorch</dt><dd>2.10.0+cu130</dd><dt>驱动</dt><dd>621.01 (CUDA 13.5)</dd>
+      <dt>anomalib</dt><dd>2.7.1</dd><dt>数据库</dt><dd>SQLite (WAL)</dd></div>
+      <div class="tiny mut" style="margin-top:10px">离线安装：wheelhouse + 内置权重，无外网依赖。</div></div>
+  </div>
+
+  <div class="card" style="margin-top:14px"><h3>存放路径 <span>· 改动需重启服务</span></h3>
+    <div class="tablewrap"><table class="tbl">
+      <thead><tr><th>用途</th><th>路径</th><th>已用</th><th>容量</th></tr></thead>
+      <tbody>${S.paths.map(p=>`<tr>
+        <td>${p.name}</td>
+        <td><input value="${p.path}" class="mono" style="width:100%;min-width:200px" ${p.editable?'':'disabled'} onchange="pathSet('${p.key}',this.value)"></td>
+        <td class="mono">${p.used} GB</td><td class="mono tiny">${p.total} GB</td></tr>`).join('')}</tbody>
+    </table></div>
+    <div class="row" style="margin-top:12px"><button class="btn pri" onclick="savePaths()">保存路径</button>
+      <span class="tiny mut">仅支持绝对路径且目录需已存在；数据库路径不可改（走备份/恢复流程）</span></div></div>
+
+  <div class="card" style="margin-top:14px"><h3>接入凭据</h3>
+    <div class="kv"><dt>产线</dt><dd>${S.line.name}</dd>
+      <dt>Token</dt><dd>${S.line.token} <button class="btn sm" style="margin-left:8px" onclick="toast('已复制（原型）')">复制</button></dd></div></div>`;
+}
+
+function viewArchive(){
+  const s=S.archiveStats, st=S.storage, cp=S.cleanupPreview;
+  const pct=(st.hot.used/st.hot.total*100).toFixed(0);
+  return `
+  <div class="grid g3">
+    <div class="card"><h3>热存 SSD</h3>
+      <div style="font:600 26px/1.25 var(--mono)">${st.hot.used} <small class="mut" style="font-size:13px">GB</small></div>
+      <div class="tiny mut">共 ${st.hot.total} GB · 占用 ${pct}%</div>
+      <div class="bar" style="margin-top:10px"><i style="width:${pct}%"></i></div>
+      <div class="tiny mut" style="margin-top:6px">&gt;80% 告警，&gt;90% 自动归档并清理无保护数据</div></div>
+    <div class="card"><h3>归档库</h3>
+      <div style="font:600 26px/1.25 var(--mono)">${st.archive.used} <small class="mut" style="font-size:13px">GB</small></div>
+      <div class="tiny mut">保留 12 个月 · 每包带 manifest + 校验和</div>
+      <div class="sep"></div><div class="tiny mut">最近归档 ${S.archiveBatches[0].at}</div></div>
+    <div class="card"><h3>可回收</h3>
+      <div style="font:600 26px/1.25 var(--mono);color:var(--warn)">${s.deletableGB} <small class="mut" style="font-size:13px">GB</small></div>
+      <div class="tiny mut">${fmt(s.deletable)} 张到期原图 · 受保护 ${s.protected} 张</div>
+      <div class="sep"></div><div class="tiny mut">受保护数据永不自动删除</div></div>
+  </div>
+
+  <div class="card" style="margin-top:14px"><h3>保留策略 <span>· 可按产线覆盖</span></h3>
+    <div class="tablewrap"><table class="tbl">
+      <thead><tr><th>数据</th><th>热存</th><th>归档</th><th>销毁</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>NG 原图</td><td class="mono">30 天</td><td class="mono">12 个月</td><td class="mono">到期</td><td class="tiny mut">追溯价值最高</td></tr>
+        <tr><td>OK 原图</td><td class="mono">7 天</td><td class="mono">不归档</td><td class="mono">删原图</td><td class="tiny mut">只留缩略图 + 元数据</td></tr>
+        <tr><td>缩略图 / 元数据</td><td class="mono">永久</td><td>—</td><td>—</td><td class="tiny mut">支撑统计与追溯</td></tr>
+        <tr><td>训练/验收样本</td><td class="mono">永久</td><td class="mono">模型退役后</td><td class="mono">模型删除 +1 年</td><td class="tiny mut">训练证据</td></tr>
+        <tr><td>归档包</td><td>—</td><td class="mono">12 个月</td><td class="mono">到期</td><td class="tiny mut">含校验和，可恢复</td></tr>
+      </tbody></table></div></div>
+
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h3>待处理</h3>
+      <div class="kv"><dt>待归档</dt><dd>${fmt(s.pending)} 张 · ${s.pendingGB} GB</dd>
+        <dt>可清理</dt><dd>${fmt(s.deletable)} 张 · ${s.deletableGB} GB</dd>
+        <dt>受保护跳过</dt><dd>${s.protected} 张（数据集引用 / 法务锁定 / 安全期）</dd></div>
+      <div class="sep"></div>
+      <div class="row" style="flex-wrap:wrap;gap:8px">
+        <button class="btn" onclick="runArchive()">执行归档</button>
+        <button class="btn" onclick="previewCleanup()">预览清理</button>
+        <button class="btn ng" onclick="runCleanup()">执行清理</button>
+      </div>
+      ${cp?`<div class="card" style="margin-top:12px;background:rgba(255,92,92,.06);border-color:rgba(255,92,92,.3)">
+        <div class="tiny" style="color:var(--ng)">将永久删除 <b>${fmt(cp.n)}</b> 张（${cp.gb} GB）</div>
+        <div class="tiny mut" style="margin-top:4px">受保护跳过 ${cp.prot} 张；执行时需输入删除条数二次确认。</div></div>`:''}
+      <div class="tiny mut" style="margin-top:10px">归档包先校验回读再删原图；校验失败整包作废并告警。</div></div>
+
+    <div class="card"><h3>法务锁定 <span>· 永不自动删除</span></h3>
+      ${S.legalHolds.map(l=>`<div class="between" style="padding:8px 0;border-bottom:1px solid var(--line)">
+        <div><div class="sm">${l.reason}</div><div class="tiny mut mono">${l.id} · ${l.scope}</div></div>
+        <div class="row"><div style="text-align:right"><div class="mono">${l.n} 张</div><div class="tiny mut">${l.by} · ${l.at}</div></div>
+        <button class="btn sm ng" onclick="deleteEntity('legal','${l.id}')">解除</button></div></div>`).join('')
+        ||'<div class="tiny mut">暂无锁定</div>'}
+      <div class="row" style="margin-top:12px"><button class="btn sm" onclick="openModal('legal')">新增锁定</button></div>
+      <div class="tiny mut" style="margin-top:10px">锁定范围按「产品 + 时间段」圈定，命中即加入保护集合。</div></div>
+  </div>
+
+  <div class="card" style="margin-top:14px"><h3>归档记录</h3>
+    <div class="tablewrap"><table class="tbl">
+      <thead><tr><th>包 ID</th><th>时间范围</th><th>模型</th><th>张数</th><th>体积</th><th>校验</th><th>归档时间</th><th></th></tr></thead>
+      <tbody>${S.archiveBatches.map(b=>`<tr><td class="mono">${b.id}</td><td class="mono tiny">${b.range}</td>
+        <td class="mono">${b.model}</td><td class="mono">${fmt(b.n)}</td><td class="mono">${b.gb} GB</td>
+        <td>${b.sha==='ok'?'<span class="tag on">通过</span>':'<span class="tag fail">失败</span>'}</td>
+        <td class="tiny mut">${b.at}</td>
+        <td><button class="btn sm" onclick="toast('批量恢复（二期）')">恢复</button></td></tr>`).join('')}</tbody>
+    </table></div>
+    <div class="tiny mut" style="margin-top:10px">恢复 = 从包解出回热存，不重建数据库行；按时间/产品/判定筛选（批量恢复排二期，先用 manifest 手工恢复）。</div></div>`;
+}
+
+const WIZ_STEPS=['基本信息','绑定产品','训练数据','训练配置','确认创建'];
+function wizIssues(){
+  const w=S.wizard, block=[], warn=[];
+  if(w.step===1){
+    if(!w.name.trim()) block.push('填写模型名称');
+    else if(S.models.some(m=>m.name===w.name.trim())) block.push('模型名称已存在');
+  }
+  if(w.step===2){
+    if(!w.products.length) block.push('至少选择一个产品编码');
+    const taken=w.products.filter(c=>(S.products.find(p=>p.code===c)||{}).model);
+    if(taken.length) block.push('已被占用：'+taken.join('、'));
+  }
+  if(w.step===3){
+    if(w.trainCount<=0) block.push('正常品至少 1 张');
+    if(w.trainCount>0 && w.trainCount<50) warn.push('正常品少于 50 张，召回可能不稳');
+    if(w.defectCount===0) warn.push('没有缺陷图：只能评估图像级指标，pixel-F1 不可信');
+  }
+  if(w.step===5 && !w.smoke) warn.push('跳过冒烟集：错绑风险由你承担');
+  return {block,warn};
+}
+function wizStep1(){
+  const w=S.wizard;
+  return `<div class="kv" style="grid-template-columns:110px 1fr;gap:14px">
+    <dt>模型名称</dt><dd><input id="wname" value="${w.name}" placeholder="如：支架 C 型 · 表面" style="width:100%" oninput="wizSet('name',this.value)"></dd>
+    <dt>检测对象</dt><dd><select onchange="wizSet('object',this.value)">
+      ${['冲压件表面','注塑件外观','装配完整性','纹理/印刷'].map(o=>`<option ${o===w.object?'selected':''}>${o}</option>`).join('')}</select></dd>
+    <dt>负责人</dt><dd>zhang（当前登录）</dd>
+    <dt>从模板复制</dt><dd><select onchange="toast('已套用模板配置（原型）')"><option>不复制</option>
+      ${S.models.map(m=>`<option>${m.id} · ${m.name}</option>`).join('')}</select>
+      <div class="tiny mut" style="margin-top:4px">复制训练配置与阈值策略，不复制数据与版本</div></dd>
+  </div>`;
+}
+function wizStep2(){
+  const w=S.wizard;
+  return `<div class="tiny mut" style="margin-bottom:10px">一个编码只能绑一个模型，但<b>一个模型可以绑多个编码</b>（现场记哪个都行）。已被占用的编码显示占用者，不能选。</div>
+  <div class="tablewrap"><table class="tbl">
+    <thead><tr><th style="width:40px"></th><th>产品编码</th><th>产品名</th><th>现状</th></tr></thead>
+    <tbody>${S.products.map(p=>{
+      const taken=!!p.model, on=w.products.includes(p.code);
+      return `<tr class="${on?'sel':''}" style="${taken?'opacity:.5':''}">
+        <td><input type="checkbox" ${on?'checked':''} ${taken?'disabled':''} onchange="wizToggle('${p.code}')"></td>
+        <td class="mono">${p.code}</td><td>${p.name}</td>
+        <td>${taken?`<span class="tiny mut">已被 ${p.model} 占用</span>`:'<span class="tiny" style="color:var(--ok)">可绑定</span>'}</td>
+      </tr>`}).join('')}</tbody></table></div>`;
+}
+function wizStep3(){
+  const w=S.wizard;
+  const rec = w.trainCount<100 ? 'resnet18 · 256 · coreset 0.1（先验证可行性）'
+    : w.trainCount<=500 ? 'wide_resnet50_2 · 256 · coreset 0.1'
+    : 'wide_resnet50_2 · 384 · coreset 0.05（显存换精度）';
+  return `<div class="kv" style="grid-template-columns:110px 1fr;gap:14px">
+    <dt>数据集</dt><dd><select onchange="wizSet('datasetMode',this.value)">
+      <option value="new" ${w.datasetMode==='new'?'selected':''}>新建数据集</option>
+      <option value="reuse" ${w.datasetMode==='reuse'?'selected':''}>复用已有数据集</option></select></dd>
+    <dt>正常品</dt><dd><div class="row"><button class="btn sm" onclick="wizCount('train',-50)">−50</button>
+      <span class="mono" style="min-width:70px;text-align:center">${w.trainCount} 张</span>
+      <button class="btn sm" onclick="wizCount('train',50)">+50</button>
+      <span class="tiny mut">建议 ≥ 200 张</span></div></dd>
+    <dt>缺陷图</dt><dd><div class="row"><button class="btn sm" onclick="wizCount('defect',-10)">−10</button>
+      <span class="mono" style="min-width:70px;text-align:center">${w.defectCount} 张</span>
+      <button class="btn sm" onclick="wizCount('defect',10)">+10</button>
+      <span class="tiny mut">用于评估与定阈值，不参与 one-class 训练</span></div></dd>
+    <dt>冻结验收集</dt><dd>正常品 20% + 缺陷 50%，创建时自动切分并锁指纹</dd>
+    <dt>推荐配置</dt><dd class="tiny" style="color:#007AFF">${rec}</dd>
+  </div>
+  <div class="tiny mut" style="margin-top:10px">图片按 2K JPEG 上传，创建后可在数据集页继续补充；少于 50 张也能建，但召回不稳。</div>`;
+}
+function wizStep4(){
+  const w=S.wizard;
+  return `<div class="kv" style="grid-template-columns:130px 1fr;gap:14px">
+    <dt>主干</dt><dd><select onchange="wizSet('backbone',this.value)">
+      ${['resnet18','wide_resnet50_2'].map(b=>`<option ${b===w.backbone?'selected':''}>${b}</option>`).join('')}</select></dd>
+    <dt>输入尺寸</dt><dd><select onchange="wizSet('imageSize',this.value)">
+      ${['256','384','512'].map(s=>`<option ${s===w.imageSize?'selected':''}>${s}</option>`).join('')}</select>
+      <span class="tiny mut">2K 原图按 1/4 降采样后裁剪</span></dd>
+    <dt>coreset</dt><dd><input value="${w.coreset}" style="width:90px" onchange="wizSet('coreset',parseFloat(this.value)||0.1)">
+      <span class="tiny mut">越小越省显存、越慢</span></dd>
+    <dt>阈值策略</dt><dd><div class="row">
+      <button class="btn sm ${w.threshold==='recall'?'pri':''}" onclick="wizSet('threshold','recall')">召回优先</button>
+      <button class="btn sm ${w.threshold==='balanced'?'pri':''}" onclick="wizSet('threshold','balanced')">均衡</button></div>
+      <div class="tiny mut" style="margin-top:4px">召回优先 = 过杀 ≤5% 时取召回最高点（漏检代价高时选它）</div></dd>
+  </div>`;
+}
+function wizStep5(){
+  const w=S.wizard;
+  const vram=w.products.length*122;
+  const eta=Math.max(1,Math.round(w.trainCount*0.02));
+  return `<div class="grid g2">
+    <div><div class="kv" style="grid-template-columns:110px 1fr;gap:12px">
+      <dt>模型名称</dt><dd>${w.name||'—'}</dd>
+      <dt>绑定产品</dt><dd class="mono tiny">${w.products.join('、')||'—'}</dd>
+      <dt>正常品 / 缺陷</dt><dd>${w.trainCount} / ${w.defectCount} 张</dd>
+      <dt>主干 / 输入</dt><dd>${w.backbone} · ${w.imageSize}</dd>
+      <dt>coreset</dt><dd>${w.coreset}</dd>
+      <dt>阈值策略</dt><dd>${w.threshold==='recall'?'召回优先':'均衡'}</dd>
+    </div></div>
+    <div><div class="kv" style="grid-template-columns:110px 1fr;gap:12px">
+      <dt>预估显存</dt><dd>${vram} MB</dd>
+      <dt>预估训练</dt><dd>${eta} 分钟</dd>
+      <dt>冻结核验</dt><dd>创建时切分并锁指纹</dd>
+    </div>
+    <div class="sep"></div>
+    <label class="row" style="gap:8px;cursor:pointer">
+      <input type="checkbox" ${w.smoke?'checked':''} onchange="wizSet('smoke',this.checked)">
+      <span class="sm">准备冒烟集（每产品 3~5 张已知结果）</span></label>
+    <label class="row" style="gap:8px;cursor:pointer;margin-top:8px">
+      <input type="checkbox" ${w.startTraining?'checked':''} onchange="wizSet('startTraining',this.checked)">
+      <span class="sm">创建后立即训练（加入队列）</span></label></div>
+  </div>`;
+}
+function viewCreate(){
+  const w=S.wizard, {block,warn}=wizIssues();
+  const body=[wizStep1,wizStep2,wizStep3,wizStep4,wizStep5][w.step-1]();
+  return `
+  <div class="card">
+    <div class="row" style="gap:6px;flex-wrap:wrap">
+      ${WIZ_STEPS.map((s,i)=>`<div class="step" style="flex:1;min-width:120px">
+        <i style="${i+1===w.step?'background:var(--pri);color:#fff':i+1<w.step?'background:rgba(61,220,132,.2);color:var(--ok)':''}">${i+1}</i>
+        <b style="${i+1===w.step?'color:#D5541D':''}">${s}</b></div>`).join('')}
+    </div>
+    <div class="bar" style="margin-top:12px"><i style="width:${(w.step/5*100)}%"></i></div>
+  </div>
+
+  <div class="card" style="margin-top:14px"><h3>${w.step}. ${WIZ_STEPS[w.step-1]}</h3>${body}</div>
+
+  ${block.length||warn.length?`<div class="card" style="margin-top:14px;border-color:${block.length?'rgba(255,92,92,.4)':'rgba(245,165,36,.35)'}">
+    ${block.map(b=>`<div class="tiny" style="color:var(--ng)">✗ ${b}</div>`).join('')}
+    ${warn.map(x=>`<div class="tiny" style="color:var(--warn)">⚠ ${x}</div>`).join('')}
+  </div>`:''}
+
+  <div class="card" style="margin-top:14px"><div class="between">
+    <button class="btn" onclick="wizPrev()" ${w.step===1?'disabled':''}>上一步</button>
+    <div class="tiny mut">${block.length?'先处理阻塞项才能继续':'可以继续'}</div>
+    ${w.step<5?`<button class="btn pri" onclick="wizNext()">下一步</button>`
+      :`<button class="btn pri" onclick="createModel()">创建模型</button>`}
+  </div></div>`;
+}
+
+/* ------------------------------ 通用实体弹窗（CRUD 复用） ------------------------------ */
+function pathSet(key, v){
+  const p=S.paths.find(x=>x.key===key);
+  if(p) p.path=v;
+}
+function savePaths(){
+  const bad=S.paths.filter(p=>p.editable && !/^[A-Za-z]:\\/.test(p.path.trim()));
+  if(bad.length){ toast('必须是绝对路径：'+bad.map(b=>b.name).join('、'),'warn'); return; }
+  toast('路径已保存，重启 AIP-Web 与 AIP-Worker 后生效','ok');
+}
+function samplingSet(k,v){ S.sampling[k]=v; render(); }
+function samplingCap(k,v){ S.sampling.caps[k]=v; render(); }
+function samplingModelCap(mid,k,v){
+  const o=S.samplingModelCaps[mid]||(S.samplingModelCaps[mid]={});
+  if(v===''||v===null||v===undefined){ delete o[k]; } else { o[k]=+v; }
+  render();
+}
+function validateSampling(){
+  const c=S.sampling, errs=[];
+  if(!/^\d{1,2}:\d{2}$/.test(String(c.time))) errs.push('抽选时间格式应为 HH:MM');
+  const sum=Object.values(c.caps).reduce((a,b)=>a+(+b||0),0);
+  if(sum>c.dailyCap) errs.push('各分层上限之和 '+sum+' 超过每日上限 '+c.dailyCap);
+  const humanCap=Math.floor(c.budgetMin*60/6);
+  if(c.caps.low>humanCap) errs.push('低置信上限 '+c.caps.low+' 超过人工预算可处理 '+humanCap+' 张');
+  if(!(c.highOkMax<c.lowRange[0] && c.lowRange[0]<=c.lowRange[1] && c.lowRange[1]<c.highNgMin))
+    errs.push('分层区间重叠或倒置');
+  return errs;
+}
+function saveSampling(){
+  const errs=validateSampling();
+  if(errs.length){ toast('校验未通过：'+errs[0],'warn'); return; }
+  toast('抽样配置已保存，次日 '+S.sampling.time+' 生效','ok');
+}
+function resetSampling(){
+  S.sampling=JSON.parse(JSON.stringify(DEFAULT_SAMPLING));
+  S.samplingModelCaps={};
+  toast('已恢复默认配置','warn'); render();
+}
+function openModal(type, id){
+  const editing=!!id;
+  const m={type, mode:editing?'edit':'create', id:id||'', draft:{}};
+  if(type==='preset'){
+    const p=editing?S.presets.find(x=>x.id===id):null;
+    m.draft={name:p?p.name:'', note:p?p.note:'', codes:p?p.codes.join(' '):''};
+  } else if(type==='model'){
+    const mo=editing?S.models.find(x=>x.id===id):null;
+    m.draft={id:mo?mo.id:'', name:mo?mo.name:''};
+  } else if(type==='dataset'){
+    const d=editing?S.datasets.find(x=>x.id===id):null;
+    m.draft={name:d?d.name:'', model:d?d.model:((S.models[0]||{}).id||'')};
+  } else if(type==='legal'){
+    m.draft={reason:'', scope:'', n:0};
+  }
+  S.modal=m; render();
+}
+function closeModal(){ S.modal=null; render(); }
+function modalSet(k,v){ if(S.modal) S.modal.draft[k]=v; }
+function renderModal(){
+  const m=S.modal; if(!m) return '';
+  const d=m.draft, editing=m.mode==='edit';
+  const shell=(title,body)=>`<div style="position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;z-index:90"
+      onclick="if(event.target===this)closeModal()">
+    <div class="card" style="width:560px" onclick="event.stopPropagation()">
+      <h3>${title}</h3>${body}
+      <div class="sep"></div>
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn" onclick="closeModal()">取消</button>
+        <button class="btn pri" onclick="saveModal()">保存</button></div>
+    </div></div>`;
+  if(m.type==='preset'){
+    return shell(editing?('编辑配置单 '+m.id):'新建配置单', `
+      <div class="kv" style="grid-template-columns:80px 1fr;gap:12px">
+        <dt>名称</dt><dd><input value="${d.name}" style="width:100%" oninput="modalSet('name',this.value)"></dd>
+        <dt>说明</dt><dd><input value="${d.note}" style="width:100%" oninput="modalSet('note',this.value)"></dd>
+        <dt>编码集合</dt><dd><textarea rows="4" style="width:100%;background:#0b0f16;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px;font-family:var(--mono);font-size:12px" oninput="modalSet('codes',this.value)">${d.codes}</textarea>
+          <div class="tiny mut" style="margin-top:4px">空格或逗号分隔，可跨零件/型号；不存在的编码加载时跳过</div></dd>
+      </div>`);
+  }
+  if(m.type==='model'){
+    return shell('编辑模型 '+m.id, `
+      <div class="kv" style="grid-template-columns:80px 1fr;gap:12px">
+        <dt>模型 ID</dt><dd class="mono">${d.id}</dd>
+        <dt>名称</dt><dd><input value="${d.name}" style="width:100%" oninput="modalSet('name',this.value)"></dd>
+      </div>
+      <div class="tiny mut" style="margin-top:10px">重命名不影响编码绑定与版本历史。模型 ID 不可改。</div>`);
+  }
+  if(m.type==='dataset'){
+    return shell(editing?('编辑数据集 '+m.id):'新建数据集', `
+      <div class="kv" style="grid-template-columns:80px 1fr;gap:12px">
+        <dt>名称</dt><dd><input value="${d.name}" style="width:100%" oninput="modalSet('name',this.value)"></dd>
+        <dt>归属模型</dt><dd><select style="width:100%" onchange="modalSet('model',this.value)">
+          ${S.models.map(x=>`<option value="${x.id}" ${x.id===d.model?'selected':''}>${x.id} · ${x.name}</option>`).join('')}</select>
+          <div class="tiny mut" style="margin-top:4px">数据集按模型划分；冻结验收集不可改归属</div></dd>
+      </div>`);
+  }
+  if(m.type==='legal'){
+    return shell('新增法务锁定', `
+      <div class="kv" style="grid-template-columns:80px 1fr;gap:12px">
+        <dt>原因</dt><dd><input value="${d.reason}" placeholder="如 客户投诉 #C-8891" style="width:100%" oninput="modalSet('reason',this.value)"></dd>
+        <dt>范围</dt><dd><input value="${d.scope}" placeholder="编码 + 时间段" style="width:100%" oninput="modalSet('scope',this.value)"></dd>
+        <dt>张数</dt><dd><input type="number" value="${d.n}" style="width:120px" oninput="modalSet('n',parseInt(this.value)||0)"></dd>
+      </div>
+      <div class="tiny mut" style="margin-top:10px">命中范围的检测记录加入保护集合，永不自动删除。</div>`);
+  }
+  return '';
+}
+function saveModal(){
+  const m=S.modal; if(!m) return;
+  const d=m.draft;
+  if(m.type==='preset'){
+    const codes=(d.codes||'').split(/[\s,，]+/).filter(Boolean);
+    if(!d.name.trim()){ toast('请填写名称','warn'); return; }
+    if(!codes.length){ toast('至少填写一个编码','warn'); return; }
+    const unknown=codes.filter(c=>!S.products.some(p=>p.code===c));
+    if(m.mode==='create'){
+      S.presets.push({id:'CFG-'+String(S.presets.length+1).padStart(2,'0'), name:d.name.trim(),
+        note:d.note||'—', codes, by:'you', at:'刚刚'});
+      toast('配置单已创建'+(unknown.length?('（'+unknown.length+' 个编码不存在，加载时跳过）'):''),'ok');
+    } else {
+      const p=S.presets.find(x=>x.id===m.id); if(!p) return;
+      p.name=d.name.trim(); p.note=d.note||'—'; p.codes=codes; p.by='you'; p.at='刚刚';
+      toast('配置单已更新','ok');
+    }
+  } else if(m.type==='model'){
+    const mo=S.models.find(x=>x.id===m.id); if(!mo) return;
+    if(!d.name.trim()){ toast('名称不能为空','warn'); return; }
+    mo.name=d.name.trim(); toast('模型已重命名','ok');
+  } else if(m.type==='dataset'){
+    if(!d.name.trim()){ toast('名称不能为空','warn'); return; }
+    if(m.mode==='create'){
+      S.datasets.push({id:'ds-'+Math.floor(1000+Math.random()*900), name:d.name.trim(),
+        train:0, defect:0, frozen:false, fp:'—', model:d.model});
+      toast('数据集已创建','ok');
+    } else {
+      const ds=S.datasets.find(x=>x.id===m.id); if(!ds) return;
+      if(ds.frozen && d.model!==ds.model){ toast('冻结验收集不能换归属模型','warn'); return; }
+      ds.name=d.name.trim(); if(!ds.frozen) ds.model=d.model;
+      toast('数据集已更新','ok');
+    }
+  } else if(m.type==='legal'){
+    if(!d.reason.trim()){ toast('请填写原因','warn'); return; }
+    S.legalHolds.push({id:'LH-'+String(S.legalHolds.length+1).padStart(2,'0'),
+      reason:d.reason, scope:d.scope||'—', n:d.n||0, by:'you', at:'刚刚'});
+    toast('已新增法务锁定','ok');
+  }
+  closeModal();
+}
+function deleteEntity(type, id){
+  if(type==='preset'){
+    if(S.activePreset===id){ toast('该配置单已加载，请先加载其它配置单再删除','warn'); return; }
+    if(!confirm('删除配置单 '+id+'？')) return;
+    S.presets=S.presets.filter(x=>x.id!==id); toast('已删除 '+id,'warn');
+  } else if(type==='model'){
+    const n=boundCount(id);
+    if(n>0){ toast('仍绑定 '+n+' 个编码，无法归档；请先解绑或改绑','warn'); return; }
+    if(!confirm('归档模型 '+id+'？版本历史保留，但不再出现在列表。')) return;
+    S.models=S.models.filter(x=>x.id!==id); toast('模型已归档','warn');
+  } else if(type==='dataset'){
+    const d=S.datasets.find(x=>x.id===id); if(!d) return;
+    if(d.frozen){ toast('冻结验收集不可删除','warn'); return; }
+    if(!confirm('删除数据集 '+id+'？')) return;
+    S.datasets=S.datasets.filter(x=>x.id!==id); toast('数据集已删除','warn');
+  } else if(type==='legal'){
+    if(!confirm('解除锁定 '+id+'？解除后相关数据可能被清理。')) return;
+    S.legalHolds=S.legalHolds.filter(x=>x.id!==id); toast('已解除锁定','warn');
+  } else if(type==='job'){
+    const j=S.queue.find(x=>x.id===id); if(!j) return;
+    if(j.status!=='done'){ toast('只能删除已完成的任务记录','warn'); return; }
+    S.queue=S.queue.filter(x=>x.id!==id); toast('任务记录已删除','warn');
+  }
+  render();
+}
+
+/* ================================================================ 交互 */
+function hashPage(){
+  try{
+    const m=(location.hash||'').match(/^#\/?([a-z]+)$/);
+    return m && VIEWS[m[1]] ? m[1] : null;
+  }catch(e){ return null; }
+}
+function go(id){
+  CUR=id;
+  try{ if(location.hash!=='#/'+id) location.hash='#/'+id; }catch(e){}
+  render(); window.scrollTo({top:0,behavior:'instant'});
+}
+function render(){
+  const v=VIEWS[CUR];
+  $('#title').textContent=v.t; $('#subtitle').textContent=v.s;
+  try {
+    $('#view').innerHTML=v.r();
+  } catch (e) {
+    console.error('[AIP mockup] 渲染失败:', e);
+    $('#view').innerHTML = `<div class="card"><h3 style="color:var(--ng)">页面渲染失败</h3>
+      <pre>${e && e.message ? e.message : e}</pre>
+      <div class="tiny mut" style="margin-top:10px">这是原型自身的 bug，不是数据问题。控制台有完整堆栈。</div></div>`;
+  }
+  const icons=NAV_ICONS;
+  $('#nav').innerHTML=Object.entries(VIEWS).map(([k,o])=>
+    `<button class="${k===CUR?'on':''}" onclick="go('${k}')"><span class="ico">${icons[k]||'·'}</span>${o.t}</button>`).join('');
+  $('#sideModel').textContent=S.models.length;
+  $('#sideLoaded').textContent=loadedCount();
+  const rb=$('#roleBtn'); if(rb) rb.textContent='角色：'+(S.role==='tech'?'技术人员':'操作工');
+  const mh=$('#modal'); if(mh) mh.innerHTML=renderModal();
+  if(CUR==='infer'){ const c=$('#cv'); if(c) paintMetal(c,{seed:11,defect:'scratch',box:true,heat:true}); }
+  if(CUR==='review'){ const c=$('#rcv'); if(c) paintMetal(c,{seed:23,defect:'stain',box:false}); }
+  if(CUR==='datasets'){ const g=$('#samples'); if(g){ g.innerHTML='';
+    for(let i=0;i<16;i++){ const d=document.createElement('div'); d.className='sample';
+      const c=document.createElement('canvas'); c.width=160; c.height=120;
+      const defect=i%5===3?(i%10===3?'scratch':'stain'):null;
+      paintMetal(c,{seed:i+3,defect,box:false}); d.appendChild(c);
+      const lb=document.createElement('div'); lb.className='lb'+(defect?' ng':''); lb.textContent=defect?'缺陷':'正常';
+      d.appendChild(lb); g.appendChild(d); } } }
+}
+
+function runInfer(){
+  const r=S.result; r.job='job_'+Math.random().toString(36).slice(2,8); S.feedback=null;
+  r.score=0.72+Math.random()*0.22;
+  toast('已提交 → 202 '+r.job+'（模拟 38ms 后返回）','warn');
+  setTimeout(()=>{ render(); toast('判定完成：NG · score '+r.score.toFixed(3),''); },380);
+}
+function sendFeedback(kind){
+  S.feedback={ok:'实际 OK（过杀）→ 进训练集 normal',ng:'实际 NG（漏检）→ 进验收集',confirm:'确认无误 → 已入库'}[kind];
+  const box=$('#fbBox'); if(box) box.innerHTML=`<div class="tiny" style="color:var(--ok)">✓ 已记录：${S.feedback}</div>`;
+  toast('反馈已写入样本池（优先级高于抽样）','ok');
+}
+function resolveCode(){
+  const code=($('#codeInput')?.value||'').trim().toUpperCase(); S.resolve.code=code;
+  const p=S.products.find(x=>x.code===code), box=$('#resolveBox');
+  if(box) box.innerHTML=resolveCard(p);
+  toast(p? code+' → '+p.model+' '+activeVer(p.model)+'（'+p.state+'）' : code+' → 422 未知编码', p?'':'warn');
+}
+function preloadOne(code){
+  const p=S.products.find(x=>x.code===code); if(!p||p.state==='ready') return;
+  p.state='loading'; render(); toast('预热 '+code+' …','warn');
+  setTimeout(()=>{
+    p.state = code==='EF-7788-01' ? 'failed':'ready'; if(p.state==='ready') p.vram=122;
+    render(); toast(code+' → '+(p.state==='ready'?'已加载 122 MB':'加载失败：显存不足'), p.state==='ready'?'ok':'warn');
+  },900);
+}
+function loadPreset(id){
+  const p=S.presets.find(x=>x.id===id); if(!p||S.loading) return;
+  const ok=p.codes.map(c=>S.products.find(x=>x.code===c)).filter(Boolean);
+  const mids=[...new Set(ok.map(x=>x.model))];
+  if(!mids.length){ toast('配置单里没有有效产品编码','warn'); return; }
+  if(mids.length*122 > 29264){ toast('容量不足：需要 '+(mids.length*122)+' MB > 可用 29 GB','warn'); return; }
+  const need=mids.filter(mid=>S.products.filter(x=>x.model===mid).some(x=>x.state!=='ready'));
+  need.forEach(mid=>S.products.filter(x=>x.model===mid).forEach(x=>{x.state='loading';}));
+  S.loading={id, total:need.length, done:0, started:Date.now()};
+  if(!need.length){ S.loading=null; finishLoad(id, 0, mids); return; }
+  render(); toast('开始加载 '+need.length+' 个模型（并发 4）','warn');
+  need.forEach((mid,i)=>setTimeout(()=>{
+    const fail = mid==='M-WS-01';
+    S.products.filter(x=>x.model===mid).forEach(x=>{ x.state=fail?'failed':'ready'; if(!fail) x.vram=122; });
+    S.loading.done++;
+    if(CUR==='workorder') render();
+    if(S.loading.done>=S.loading.total){ const ms=Date.now()-S.loading.started; S.loading=null; finishLoad(id, ms, mids); }
+  }, 600+i*420));
+}
+function finishLoad(id, ms, mids){
+  const failed=mids.filter(mid=>S.products.filter(x=>x.model===mid).some(x=>x.state==='failed'));
+  if(!failed.length) S.activePreset=id;
+  S.loadLog=S.loadLog||[];
+  S.loadLog.unshift({at:'刚刚', preset:id, by:S.role==='tech'?'zhang (技术)':'wang (操作)', n:mids.length, ms, ok:!failed.length});
+  toast(failed.length? ('加载完成，但 '+failed.join('、')+' 失败') : (id+' 已加载（'+mids.length+' 个模型，'+ms+' ms），可以开工'),
+        failed.length?'warn':'ok');
+  if(CUR==='workorder') render();
+}
+function toggleRole(){
+  S.role = S.role==='tech'?'operator':'tech';
+  toast('已切换为'+(S.role==='tech'?'技术人员':'操作工'),'');
+  render();
+}
+function publish(mid, v){
+  if(!confirm(`发布 ${mid} ${v}？\n该模型绑定的 ${boundCount(mid)} 个产品会自动切到 ${v}。`)) return;
+  modelOf(mid).versions.forEach(x=>{ if(x.status==='active') x.status='retired'; if(x.v===v) x.status='active'; });
+  toast(`${mid} ${v} 已发布，${boundCount(mid)} 个产品自动生效`,'ok'); render();
+}
+function rollback(mid, v){
+  if(!confirm(`回滚 ${mid} 到 ${v}？\n当前版本会被标记为 retired。`)) return;
+  modelOf(mid).versions.forEach(x=>{ if(x.status==='active') x.status='retired'; if(x.v===v) x.status='active'; });
+  toast(`${mid} 已回滚到 ${v}`,'warn'); render();
+}
+function enqueueJob(){
+  const mid=$('#trainModel')?.value || S.models[0].id;
+  if(S.queue.some(j=>j.model===mid && j.status!=='done')){ toast(mid+' 已有任务在队列中（同一模型不允许重复排队）','warn'); return; }
+  const id='job-'+Math.floor(122+Math.random()*60);
+  S.queue.push({id, model:mid, ds:'ds-'+Math.floor(1000+Math.random()*99), status:'queued', progress:0});
+  toast('已加入队列：'+id+' → '+mid,'ok'); render(); runNext();
+}
+function advance(job){
+  const timer=setInterval(()=>{
+    job.progress=Math.min(100, job.progress+Math.random()*12+5);
+    if(CUR==='train') render();
+    if(job.progress>=100){ clearInterval(timer); job.status='done'; S.busy=false; finish(job); }
+  },420);
+}
+function finish(job){
+  const m=modelOf(job.model);
+  const num=parseInt((m.versions[0]?m.versions[0].v:'v0').replace('v',''))+1;
+  m.versions.unshift({v:'v'+num, status:'candidate', recall:+(95+Math.random()*3).toFixed(1),
+    overkill:+(3.5+Math.random()*1.2).toFixed(1), p95:40, ds:job.ds, at:'刚刚'});
+  toast(job.id+' 完成 → '+job.model+' 产出候选 v'+num,'ok');
+  if(CUR==='train') render();
+  runNext();
+}
+function runNext(){
+  if(S.busy) return;
+  const job=S.queue.find(j=>j.status==='queued'); if(!job) return;
+  S.busy=true; job.status='running'; if(CUR==='train') render(); advance(job);
+}
+function moveJob(idx, dir){
+  const q=S.queue, j=q[idx]; if(!j||j.status!=='queued') return;
+  const t=idx+dir; if(t<0||t>=q.length) return;
+  q[idx]=q[t]; q[t]=j; render();
+}
+function cancelJob(id){
+  const i=S.queue.findIndex(j=>j.id===id); if(i<0) return;
+  if(S.queue[i].status!=='queued'){ toast('执行中的任务不能取消，只能中止','warn'); return; }
+  S.queue.splice(i,1); toast(id+' 已取消','warn'); render();
+}
+function addCode(){
+  openBind('create');
+}
+function bindFilter(k){ S.bindFilter=k; render(); }
+function bindSearch(v){
+  S.bindSearch=v; render();
+  const el=$('#bindSearch');
+  if(el && typeof el.focus==='function'){
+    el.focus();
+    try{ el.setSelectionRange(v.length,v.length); }catch(e){}
+  }
+}
+function openBind(mode, code){
+  if(mode==='create'){
+    S.bindModal={mode, code:'', desc:'', model:(S.models[0]||{}).id||'', orig:''};
+  } else {
+    const p=S.products.find(x=>x.code===code); if(!p) return;
+    S.bindModal={mode, code:p.code, desc:p.name||'', model:p.model||'', orig:p.model||''};
+  }
+  render();
+}
+function closeBind(){ S.bindModal=null; render(); }
+function bindSet(k,v){ if(S.bindModal) S.bindModal[k]=v; }
+function saveBind(){
+  const m=S.bindModal; if(!m) return;
+  const code=(m.code||'').trim().toUpperCase();
+  if(!code){ toast('编码不能为空','warn'); return; }
+  if(m.mode==='create'){
+    if(S.products.some(p=>p.code===code)){ toast('编码已存在（编码不可改，请换一个）','warn'); return; }
+    S.products.push({code, name:m.desc||'（未填描述）', model:m.model||null, state:'pending', vram:0, hits:0, active:true, at:'刚刚'});
+    toast('已新建：'+code+' → '+(m.model||'未绑定'),'ok');
+  } else {
+    const p=S.products.find(x=>x.code===m.code); if(!p){ toast('编码不存在','warn'); return; }
+    if(m.model!==m.orig){
+      if(!confirm('把 '+p.code+' 从「'+(m.orig||'未绑定')+'」改绑到「'+(m.model||'未绑定')+'」？\n\n该编码的判定结果会立即改变。')) return;
+    }
+    p.model=m.model||null; if(m.desc) p.name=m.desc; p.at='刚刚';
+    if(p.model) p.state='pending';
+    toast('已更新：'+p.code,'ok');
+  }
+  S.bindModal=null; render();
+}
+function toggleActive(code){
+  const p=S.products.find(x=>x.code===code); if(!p) return;
+  p.active = p.active===false;
+  p.at='刚刚';
+  toast(code+(p.active?' 已启用':' 已停用（推图将返回 410 Gone）'), p.active?'ok':'warn');
+  render();
+}
+function deleteBind(code){
+  const p=S.products.find(x=>x.code===code); if(!p) return;
+  if(p.hits>0){ toast('该编码已有检测记录，不能删除；请用「停用」保留历史','warn'); return; }
+  if(!confirm('彻底删除编码 '+code+'？\n只有从未产生过检测记录的编码才能删除。')) return;
+  S.products=S.products.filter(x=>x.code!==code);
+  toast(code+' 已删除','warn'); render();
+}
+function bindModalHtml(){
+  const m=S.bindModal; if(!m) return '';
+  const editing=m.mode==='edit';
+  return `<div style="position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;z-index:80"
+      onclick="if(event.target===this)closeBind()">
+    <div class="card" style="width:540px" onclick="event.stopPropagation()">
+      <h3>${editing?'编辑绑定':'新建绑定'}</h3>
+      <div class="kv" style="grid-template-columns:80px 1fr;gap:12px">
+        <dt>编码</dt><dd><input value="${m.code}" class="mono" style="width:100%" ${editing?'disabled':''}
+          placeholder="如 GH-9001-03" oninput="bindSet('code',this.value)"></dd>
+        <dt>描述</dt><dd><input value="${m.desc}" style="width:100%" placeholder="给人看的说明" oninput="bindSet('desc',this.value)"></dd>
+        <dt>绑定模型</dt><dd><select onchange="bindSet('model',this.value)" style="width:100%">
+          <option value="">（不绑定）</option>
+          ${S.models.map(x=>`<option value="${x.id}" ${x.id===m.model?'selected':''}>${x.id} · ${x.name}</option>`).join('')}
+        </select></dd>
+      </div>
+      ${editing?`<div class="tiny" style="color:var(--warn);margin-top:12px">改绑定模型会立即改变该编码的判定结果，保存时二次确认。</div>`
+        :`<div class="tiny mut" style="margin-top:12px">编码创建后<b>不可修改</b>（已打印的标签会失效）。</div>`}
+      <div class="sep"></div>
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn" onclick="closeBind()">取消</button>
+        <button class="btn pri" onclick="saveBind()">保存</button></div>
+    </div></div>`;
+}
+function wizSet(k,v){ S.wizard[k]=v; render(); }
+function wizToggle(code){
+  const w=S.wizard, p=S.products.find(x=>x.code===code);
+  if(p && p.model){ toast(code+' 已被 '+p.model+' 占用，不能选','warn'); return; }
+  w.products = w.products.includes(code) ? w.products.filter(c=>c!==code) : [...w.products, code];
+  render();
+}
+function wizCount(kind,delta){
+  const w=S.wizard, key = kind==='train' ? 'trainCount' : 'defectCount';
+  w[key]=Math.max(0, w[key]+delta); render();
+}
+function wizNext(){
+  const {block}=wizIssues();
+  if(block.length){ toast('请先处理：'+block.join('；'),'warn'); return; }
+  if(S.wizard.step<5){ S.wizard.step++; render(); }
+}
+function wizPrev(){ if(S.wizard.step>1){ S.wizard.step--; render(); } }
+function createModel(){
+  const w=S.wizard, {block}=wizIssues();
+  if(block.length){ toast('请先处理：'+block.join('；'),'warn'); return; }
+  const mid='M-'+w.products[0].split('-')[0]+'-'+String(S.models.length+1).padStart(2,'0');
+  S.models.push({id:mid, name:w.name.trim(), versions:[]});
+  w.products.forEach(c=>{ const p=S.products.find(x=>x.code===c); if(p){ p.model=mid; p.state='pending'; p.vram=0; } });
+  if(w.startTraining) S.queue.push({id:'job-'+Math.floor(200+Math.random()*99), model:mid, ds:'ds-new', status:'queued', progress:0});
+  toast('已创建 '+mid+(w.startTraining?'，训练已入队':'，未训练'),'ok');
+  S.wizard={step:1,name:'',object:'冲压件表面',products:[],datasetMode:'new',trainCount:0,defectCount:0,
+            imageSize:'256',backbone:'wide_resnet50_2',coreset:0.1,threshold:'recall',smoke:true,startTraining:true};
+  go('models');
+}
+function runArchive(){
+  const s=S.archiveStats;
+  if(s.pending<=0){ toast('没有待归档数据','ok'); return; }
+  S.archiveBatches.unshift({id:'AR-'+Math.floor(1000+Math.random()*9000), range:'11-01 ~ 11-15',
+    model:'M-BR-01', n:s.pending, gb:s.pendingGB, sha:'ok', at:'刚刚'});
+  S.storage.archive.used=+(S.storage.archive.used+s.pendingGB).toFixed(1);
+  S.storage.hot.used=+(S.storage.hot.used-s.pendingGB).toFixed(1);
+  toast('归档完成：'+fmt(s.pending)+' 张 / '+s.pendingGB+' GB · 校验回读通过','ok');
+  s.pending=0; s.pendingGB=0; render();
+}
+function previewCleanup(){
+  S.cleanupPreview={n:S.archiveStats.deletable, gb:S.archiveStats.deletableGB, prot:S.archiveStats.protected};
+  render(); toast('保护过滤后：可删 '+fmt(S.archiveStats.deletable)+' 张','warn');
+}
+function runCleanup(){
+  const cp=S.cleanupPreview;
+  if(!cp){ toast('请先点「预览清理」','warn'); return; }
+  const answer=prompt('将永久删除 '+fmt(cp.n)+' 张原图（'+cp.gb+' GB）。\n受保护 '+cp.prot+' 张不会删除。\n\n确认请输入删除条数：');
+  if(answer===null) return;
+  if(String(answer).replace(/,/g,'').trim()!==String(cp.n)){ toast('输入不匹配，已取消','warn'); return; }
+  S.storage.hot.used=+(S.storage.hot.used-cp.gb).toFixed(1);
+  S.archiveStats.deletable=0; S.archiveStats.deletableGB=0; S.cleanupPreview=null;
+  toast('已删除 '+fmt(cp.n)+' 张，跳过受保护 '+cp.prot+' 张，已写审计','ok'); render();
+}
+function setFilter(mid){ S.reviewFilter=mid; render(); }function reviewCurrent(){
+  return S.pool.filter(p=>!p.verdict && (S.reviewFilter==='all'||p.model===S.reviewFilter))[0];
+}
+function review(v){
+  const item=reviewCurrent(); if(!item) return;
+  item.verdict = v===1?'OK':v===0?'NG':'跳过'; S.budget.used+=6;
+  if(v!==-1){
+    const st=S.reviewStats[item.model]=S.reviewStats[item.model]||{ok:0,ng:0};
+    if(v===1) st.ok++; else st.ng++;
+    toast((v===1?'已标 OK（过杀）':'已标 NG')+' → 并入 '+item.model+' 的'+(v===1?'训练集':'验收集'),'ok');
+  }
+  render();
+}
+document.addEventListener('keydown',e=>{
+  if(CUR!=='review') return;
+  if(e.key==='1'){e.preventDefault();review(1);}
+  if(e.key==='2'){e.preventDefault();review(0);}
+  if(e.key===' '){e.preventDefault();review(-1);}
+});
+const _hp=hashPage(); if(_hp) CUR=_hp;
+render();
+try{ window.addEventListener('hashchange',()=>{ const p=hashPage(); if(p && p!==CUR){ CUR=p; render(); } }); }catch(e){}
+// 恢复页面加载时正在执行的任务（演示用）；截图模式 ?static=1 下不启动
+(function resume(){
+  try{ if(/[?&]static=1/.test(location.search)) return; }catch(e){ return; }
+  const running=S.queue.find(j=>j.status==='running');
+  if(running){ S.busy=true; advance(running); }
+})();
+</script>
+</body>
+</html>
