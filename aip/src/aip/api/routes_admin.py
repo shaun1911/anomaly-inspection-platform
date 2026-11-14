@@ -437,6 +437,53 @@ def list_cases(
     return [case.__dict__ for case in rows]
 
 
+@router.get("/cases/page")
+def page_cases(
+    code: str | None = None,
+    adjudicator: str | None = None,
+    verdict: str | None = None,
+    source: str | None = None,
+    part_no: str | None = None,
+    family: str | None = None,
+    conflict: bool | None = None,
+    include_archived: bool = False,
+    limit: int = 25,
+    offset: int = 0,
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> dict:
+    """分页版判例列表：带总数，供界面翻页；/cases 保留给脚本与小数据量场景。"""
+    rows = cases_mod.list_cases(
+        conn,
+        code=code,
+        adjudicator=adjudicator,
+        verdict=verdict,
+        source=source,
+        part_no=part_no,
+        family=family,
+        conflict=conflict,
+        include_archived=include_archived,
+        limit=limit,
+        offset=offset,
+    )
+    total = cases_mod.count_cases(
+        conn,
+        code=code,
+        adjudicator=adjudicator,
+        verdict=verdict,
+        source=source,
+        part_no=part_no,
+        family=family,
+        conflict=conflict,
+        include_archived=include_archived,
+    )
+    return {
+        "items": [c.__dict__ for c in rows],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
 @router.post("/cases", status_code=201)
 def create_case(body: CaseIn, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     try:

@@ -187,19 +187,48 @@ def list_cases(
 
 
 def count_cases(
-    conn: sqlite3.Connection, *, code: str | None = None, conflict: bool | None = None
+    conn: sqlite3.Connection,
+    *,
+    code: str | None = None,
+    adjudicator: str | None = None,
+    verdict: str | None = None,
+    source: str | None = None,
+    part_no: str | None = None,
+    family: str | None = None,
+    conflict: bool | None = None,
+    include_archived: bool = False,
 ) -> int:
-    clauses: list[str] = ["c.archived_at IS NULL"]
+    clauses: list[str] = []
     params: list[object] = []
+    joins = ""
+    if family is not None:
+        joins = " LEFT JOIN family f ON f.id = p.family_id"
+        clauses.append("f.name = ?")
+        params.append(family)
     if code:
         clauses.append("p.code = ?")
         params.append(code)
+    if adjudicator:
+        clauses.append("c.adjudicator = ?")
+        params.append(adjudicator)
+    if verdict:
+        clauses.append("c.verdict = ?")
+        params.append(verdict)
+    if source:
+        clauses.append("c.source = ?")
+        params.append(source)
+    if part_no:
+        clauses.append("c.part_no = ?")
+        params.append(part_no)
     if conflict is not None:
         clauses.append("c.conflict = ?")
         params.append(1 if conflict else 0)
+    if not include_archived:
+        clauses.append("c.archived_at IS NULL")
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     row = conn.execute(
         "SELECT count(*) c FROM case_item c JOIN product_code p ON p.id = c.product_code_id"
-        " WHERE " + " AND ".join(clauses),
+        + joins + where,
         params,
     ).fetchone()
     return int(row["c"])
