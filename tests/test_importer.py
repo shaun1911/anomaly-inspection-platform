@@ -40,7 +40,7 @@ def test_imports_ok_and_ng_with_deterministic_split(conn, tmp_path):
     assert report.total_imported == 14
     assert report.rejected == []
 
-    rows = conn.execute("SELECT split, count(*) c FROM dataset_item GROUP BY split").fetchall()
+    rows = conn.execute("SELECT split, count(*) c FROM import_item GROUP BY split").fetchall()
     counts = {r["split"]: r["c"] for r in rows}
     assert counts["train"] + counts["frozen_val"] == 14
     # 确定性：再导一次不应新增
@@ -53,11 +53,11 @@ def test_split_is_stable_for_same_file(conn, tmp_path):
     landing = tmp_path / "landing"
     _png(landing / "AB-1" / "ng" / "P1_0.png")
     import_landing(conn, landing, model_id=1)
-    first = conn.execute("SELECT split, sha256 FROM dataset_item").fetchone()
+    first = conn.execute("SELECT split, sha256 FROM import_item").fetchone()
 
-    conn.execute("DELETE FROM dataset_item")
+    conn.execute("DELETE FROM import_item")
     import_landing(conn, landing, model_id=1)
-    second = conn.execute("SELECT split, sha256 FROM dataset_item").fetchone()
+    second = conn.execute("SELECT split, sha256 FROM import_item").fetchone()
     assert first["sha256"] == second["sha256"]
     assert first["split"] == second["split"]
 

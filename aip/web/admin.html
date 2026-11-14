@@ -79,6 +79,7 @@
   .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
   button.act{background:var(--brand);color:#fff;border:0;border-radius:8px;padding:9px 14px;cursor:pointer;font-size:13px;font-weight:600}
+  a.ghost{background:var(--g3);color:var(--t1);border-radius:8px;padding:9px 14px;text-decoration:none;font-size:13px;display:inline-block}
   button.ghost{background:var(--g3);color:var(--t1);border:0;border-radius:8px;padding:9px 14px;cursor:pointer;font-size:13px}
   .todo{display:flex;flex-direction:column;gap:8px}
   .todo a{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;background:var(--g2);color:var(--t1);text-decoration:none;font-size:13px}
@@ -133,6 +134,7 @@
       <div class="group">质量</div>
       <a href="#/quality" data-nav="quality">复核队列</a>
       <a href="#/cases" data-nav="cases">判例库</a>
+      <a href="#/datasets" data-nav="datasets">数据集</a>
       <div class="group">其他</div>
       <a href="#/training" data-nav="training">训练与发布</a>
       <a href="#/system" data-nav="system">系统</a>
@@ -155,11 +157,33 @@
 </div>
 <div id="toasts" aria-live="polite"></div>
 
+<dialog id="dsPickDlg">
+  <form method="dialog" id="dsPickForm">
+    <h2 style="margin-bottom:12px">加入数据集（<span id="dsPickCount">0</span> 条判例）</h2>
+    <label for="dsPickList">选一个草稿数据集</label>
+    <select id="dsPickList"></select>
+    <p class="muted" style="margin:12px 0 4px">或新建：</p>
+    <label for="dsPickModel">模型</label><select id="dsPickModel"></select>
+    <label for="dsPickName">名称</label><input id="dsPickName" placeholder="M1-2026-W46">
+    <div class="row" style="margin-top:16px">
+      <button class="act" id="dsPickSave" value="save">加入</button>
+      <button class="ghost" value="cancel">取消</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="shotDlg">
+  <h2 id="shotDlgTitle" style="margin-bottom:12px">结果</h2>
+  <img id="shotDlgImg" alt="裁片" style="max-width:100%;border-radius:10px">
+  <div class="row" style="margin-top:14px"><button class="ghost" value="close" onclick="this.closest('dialog').close()">关闭</button></div>
+</dialog>
+
 <dialog id="caseDlg">
   <form method="dialog" id="caseForm">
     <h2 style="margin-bottom:12px">录入判例</h2>
     <label for="f_code">编码</label><input id="f_code" required placeholder="AB-1234-01">
-    <label for="f_path">裁片路径</label><input id="f_path" required placeholder="data/crops/xxx.png">
+    <label for="f_file">上传裁片</label><input id="f_file" type="file" accept="image/png,image/jpeg">
+    <label for="f_path">或手填已有路径</label><input id="f_path" placeholder="data/crops/xxx.png">
     <label for="f_part">件号（同件只录一条）</label><input id="f_part" placeholder="P-20261114-001">
     <label for="f_verdict">结论</label>
     <select id="f_verdict"><option value="ok">可接受 ok</option><option value="ng">不可接受 ng</option></select>
@@ -431,7 +455,7 @@ async function renderCode(code) {
       ${d.recent_results.length === 0 ? `<div class="empty">这个编码还没有判定记录。<b>下一步</b>：去工位面板扫码换型并推图。</div>` : `
       <table><caption class="sr-only">最近判定</caption>
         <thead><tr><th scope="col">#</th><th scope="col">分数</th><th scope="col">结论</th><th scope="col">确认</th><th scope="col">时间</th></tr></thead>
-        <tbody>${d.recent_results.map(r => `<tr>
+        <tbody>${d.recent_results.map(r => `<tr data-shot="${r.id}" style="cursor:pointer">
           <td>${r.id}</td><td>${r.score.toFixed(3)}</td><td>${tag(r.label)}</td>
           <td>${r.confirmed_by ? esc(r.confirmed_by) : (r.label === 'ok' ? '<span class="muted">—</span>' : '<span class="muted">待确认</span>')}</td>
           <td class="muted">${fmtTime(r.created_at)}</td></tr>`).join("")}
@@ -445,6 +469,14 @@ async function renderCode(code) {
           <span>${esc(e.title)}${e.detail ? ' <span class="muted">· ' + esc(e.detail) + '</span>' : ""}</span></div>`).join("")}
       </div>
     </section>`;
+
+  document.querySelectorAll("[data-shot]").forEach(tr => {
+    tr.onclick = () => {
+      $("shotDlgImg").src = `/results/${tr.dataset.shot}/image`;
+      $("shotDlgTitle").textContent = `结果 #${tr.dataset.shot}`;
+      $("shotDlg").showModal();
+    };
+  });
 
   $("btnToggle").onclick = async () => {
     try {
@@ -838,6 +870,7 @@ async function renderSettings() {
 }
 
 let caseState = {code: "", verdict: "", source: "", partNo: "", batchNo: "", conflict: false, showArchived: false, page: 0, pageSize: 25};
+let selectedCases = new Set();
 
 async function renderCases() {
   const params = new URLSearchParams({limit: String(caseState.pageSize), offset: String(caseState.page * caseState.pageSize)});
@@ -872,6 +905,7 @@ async function renderCases() {
       <h2>判例库 <span class="pill">共 ${total} 条</span>
         ${conflicts.length ? `<span class="pill" style="background:color-mix(in oklab,var(--bad) 18%,transparent);color:var(--bad)">冲突 ${conflicts.length}</span>` : ""}
         <span style="margin-left:auto">
+          <button class="ghost" id="btnAddDataset" disabled>加入数据集（0）</button>
           <button class="ghost" id="btnExport">导出 CSV</button>
           <button class="act" id="newCase">录入判例</button>
         </span></h2>
@@ -910,11 +944,13 @@ async function renderCases() {
       ${rows.length === 0 ? `<div class="empty">还没有判例。<b>为什么要有</b>：判例是训练数据来源，也是"这张为什么这么判"的证据。</div>` : `
       <table><caption class="sr-only">判例列表</caption>
         <thead><tr>
+          <th scope="col"><input type="checkbox" id="chkAll" aria-label="全选当前页"></th>
           <th scope="col">图</th><th scope="col">#</th><th scope="col">编码</th><th scope="col">件号</th><th scope="col">批次</th><th scope="col">结论</th>
           <th scope="col">理由</th><th scope="col">来源</th><th scope="col">裁决人</th>
           <th scope="col">时间</th><th scope="col">操作</th>
         </tr></thead>
         <tbody>${rows.map(c => `<tr>
+          <td><input type="checkbox" class="case-chk" value="${c.id}" ${selectedCases.has(c.id) ? "checked" : ""}></td>
           <td><img class="thumb" src="/api/cases/${c.id}/image" alt="判例 ${c.id}" loading="lazy"
                 onerror="this.style.visibility='hidden'"></td>
           <td>${c.id}</td>
@@ -939,6 +975,36 @@ async function renderCases() {
 
   $("newCase").onclick = () => $("caseDlg").showModal();
   $("btnExport").onclick = exportCsv;
+
+  const syncAdd = () => {
+    $("btnAddDataset").disabled = selectedCases.size === 0;
+    $("btnAddDataset").textContent = `加入数据集（${selectedCases.size}）`;
+  };
+  document.querySelectorAll(".case-chk").forEach(chk => {
+    chk.onchange = () => {
+      chk.checked ? selectedCases.add(Number(chk.value)) : selectedCases.delete(Number(chk.value));
+      syncAdd();
+    };
+  });
+  $("chkAll").onchange = (e) => {
+    document.querySelectorAll(".case-chk").forEach(chk => {
+      chk.checked = e.target.checked;
+      e.target.checked ? selectedCases.add(Number(chk.value)) : selectedCases.delete(Number(chk.value));
+    });
+    syncAdd();
+  };
+  syncAdd();
+
+  $("btnAddDataset").onclick = async () => {
+    const [datasets, models] = await Promise.all([api("/api/datasets"), api("/api/models")]);
+    const drafts = datasets.filter(d => d.status === "draft");
+    $("dsPickList").innerHTML = drafts.length
+      ? drafts.map(d => `<option value="${d.id}">#${d.id} ${esc(d.name)} · ${esc(d.model_code)} · ${d.count} 条</option>`).join("")
+      : '<option value="">没有草稿数据集，请在下方新建</option>';
+    $("dsPickModel").innerHTML = models.map(m => `<option value="${m.id}">${esc(m.code)}</option>`).join("");
+    $("dsPickCount").textContent = selectedCases.size;
+    $("dsPickDlg").showModal();
+  };
   document.querySelectorAll("[data-archive-case]").forEach(btn => {
     btn.onclick = async () => {
       if (!confirm("归档后该判例不参与训练，可随时恢复。")) return;
@@ -979,8 +1045,65 @@ const STATUS_LABEL = {
 };
 const stLabel = (s) => STATUS_LABEL[s] || s;
 
+async function renderDatasets() {
+  const [datasets, models] = await Promise.all([api("/api/datasets"), api("/api/models")]);
+
+  $("view").innerHTML = `
+    <section>
+      <h2>数据集 <span class="pill">${datasets.length}</span>
+        <span style="margin-left:auto"><button class="act" id="btnNewDataset">新建数据集</button></span></h2>
+      <p class="muted" style="margin:0 0 12px">
+        数据集是训练集快照：一个族、一个模型、一组判例。冻结后成员不可改，校验和保证训练可复现。
+      </p>
+      ${datasets.length === 0 ? `<div class="empty">还没有数据集。<b>怎么做</b>：在判例库勾选判例 → 加入数据集 → 冻结 → 训练时选择它。</div>` : `
+      <table><caption class="sr-only">数据集列表</caption>
+        <thead><tr><th scope="col">#</th><th scope="col">名称</th><th scope="col">族</th><th scope="col">模型</th>
+          <th scope="col">判例数</th><th scope="col">状态</th><th scope="col">校验和</th><th scope="col">操作</th></tr></thead>
+        <tbody>${datasets.map(d => `<tr>
+          <td>${d.id}</td><td>${esc(d.name)}</td><td>${esc(d.family || "-")}</td><td>${esc(d.model_code)}</td>
+          <td>${d.count}</td>
+          <td>${d.status === "frozen" ? '<span class="tag ok">已冻结</span>' : '<span class="tag candidate">草稿</span>'}</td>
+          <td class="muted">${d.checksum ? d.checksum.slice(0, 12) + "…" : "-"}</td>
+          <td>
+            <a class="ghost" href="/api/datasets/${d.id}/export.csv">导出</a>
+            ${d.status === "draft" ? `<button class="ghost" data-freeze="${d.id}">冻结</button>` : ""}
+          </td>
+        </tr>`).join("")}</tbody></table>`}
+    </section>
+
+    <section>
+      <h2>新建数据集</h2>
+      <div class="form">
+        <div><label for="ds_model">模型</label>
+          <select id="ds_model">${models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("")}</select></div>
+        <div><label for="ds_name">名称</label><input id="ds_name" placeholder="M1-2026-W46"></div>
+        <div><button class="act" id="btnCreateDataset">建数据集</button></div>
+      </div>
+    </section>`;
+
+  $("btnNewDataset").onclick = () => $("ds_name").focus();
+  $("btnCreateDataset").onclick = async () => {
+    try {
+      const r = await post("/api/datasets", {model_id: Number($("ds_model").value), name: $("ds_name").value.trim()});
+      toast("数据集已创建，去判例库勾选加入");
+      renderDatasets();
+    } catch (e) { toast(e.message, true); }
+  };
+  document.querySelectorAll("[data-freeze]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("冻结后成员不可再改，确认？")) return;
+      try {
+        const r = await post(`/api/datasets/${btn.dataset.freeze}/freeze`, {});
+        toast("已冻结 · " + r.checksum.slice(0, 12) + "…");
+        renderDatasets();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+}
+
 async function renderTraining() {
-  const [jobs, models] = await Promise.all([api("/api/train"), api("/api/models")]);
+  const [jobs, models, datasets] = await Promise.all([api("/api/train"), api("/api/models"), api("/api/datasets")]);
+  const frozen = datasets.filter(d => d.status === "frozen");
 
   $("view").innerHTML = `
     <section>
@@ -989,8 +1112,12 @@ async function renderTraining() {
         <div><label for="tr_model">模型</label>
           <select id="tr_model">${models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("")}</select>
         </div>
+        <div><label for="tr_dataset">数据集（已冻结）</label>
+          <select id="tr_dataset">${frozen.map(d => `<option value="${d.id}" data-model="${d.model_id}">#${d.id} ${esc(d.name)} · ${esc(d.model_code)} · ${d.count} 条</option>`).join("")}</select>
+        </div>
         <div><button class="act" id="btnTrain">开始训练</button></div>
       </div>
+      ${frozen.length === 0 ? '<p class="muted">还没有已冻结的数据集：先去「数据集」建一个并冻结。</p>' : ""}
       <p class="muted">当前是假训练器：只验证状态机与发布链路，指标为模拟值，不代表模型能力。</p>
     </section>
 
@@ -998,7 +1125,7 @@ async function renderTraining() {
       <h2>训练任务 <span class="pill">${jobs.length}</span></h2>
       ${jobs.length === 0 ? `<div class="empty">还没有训练任务。<b>下一步</b>：在上方选一个模型开始第一次训练。</div>` : `
       <table><caption class="sr-only">训练任务</caption>
-        <thead><tr><th scope="col">#</th><th scope="col">模型</th><th scope="col">状态</th><th scope="col">召回</th><th scope="col">过杀</th><th scope="col">样本</th><th scope="col">完成时间</th></tr></thead>
+        <thead><tr><th scope="col">#</th><th scope="col">模型</th><th scope="col">数据集</th><th scope="col">状态</th><th scope="col">召回</th><th scope="col">过杀</th><th scope="col">样本</th><th scope="col">完成时间</th></tr></thead>
         <tbody>${jobs.map(j => `<tr>
           <td>${j.id}</td><td>${esc(j.model_code)}</td>
           <td><span class="tag ${j.status === "succeeded" ? "ok" : j.status === "failed" ? "ng" : "gray"}">${esc(stLabel(j.status))}</span></td>
@@ -1026,7 +1153,7 @@ async function renderTraining() {
               <td>v${v.version_no}</td>
               <td><span class="tag ${v.status}">${esc(stLabel(v.status))}</span></td>
               <td>${v.status === "candidate"
-                ? `<button class="act" data-publish="${m.id}:${v.version_no}">发布为 assist</button>`
+                ? `<button class="act" data-publish="${m.id}:${v.version_no}">发布为生效</button>`
                 : v.status === "assist" ? '<span class="muted">当前生效</span>'
                 : v.status === "disabled" ? `<button class="ghost" data-revive="${m.id}:${v.version_no}">重新启用</button>`
                 : ""}</td>
@@ -1036,7 +1163,10 @@ async function renderTraining() {
 
   $("btnTrain").onclick = async () => {
     try {
-      const r = await post("/api/train", {model_id: Number($("tr_model").value)});
+      const dsId = Number($("tr_dataset").value);
+      if (!dsId) { toast("先选择一个已冻结的数据集", true); return; }
+      const ds = frozen.find(d => d.id === dsId);
+      const r = await post("/api/train", {model_id: ds.model_id, dataset_id: dsId});
       toast(`已训练出 v${r.version_no}，指标见列表`);
       renderTraining();
     } catch (e) { toast(e.message, true); }
@@ -1098,7 +1228,7 @@ function renderPlaceholder(title, need, items) {
 
 const TITLES = {
   workbench: "工作台", catalog: "编码与模型", quality: "复核队列", cases: "判例库",
-  training: "训练与发布", system: "系统", settings: "设置"
+  datasets: "数据集", training: "训练与发布", system: "系统", settings: "设置"
 };
 
 async function route() {
@@ -1114,6 +1244,7 @@ async function route() {
     if (name === "catalog") return await renderCatalog();
     if (name === "quality") return await renderQuality();
     if (name === "cases") return await renderCases();
+    if (name === "datasets") return await renderDatasets();
     if (name === "training") return await renderTraining();
     if (name === "system") return renderPlaceholder("系统", "站位与审计查询", [
       "站位心跳列表（/api/stations 已有，可先接）",
@@ -1147,9 +1278,18 @@ $("caseForm").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   if (ev.submitter && ev.submitter.value === "cancel") return;
   try {
+    let cropPath = $("f_path").value.trim();
+    const file = $("f_file").files[0];
+    if (file) {
+      const form = new FormData();
+      form.append("file", file);
+      const up = await api("/api/cases/upload", {method: "POST", body: form});
+      cropPath = up.crop_path;
+    }
+    if (!cropPath) { toast("请上传裁片或填写路径", true); return; }
     await post("/api/cases", {
       code: $("f_code").value.trim(),
-      crop_path: $("f_path").value.trim(),
+      crop_path: cropPath,
       verdict: $("f_verdict").value,
       adjudicator: $("f_adj").value.trim(),
       reason: $("f_reason").value || null,
@@ -1158,7 +1298,27 @@ $("caseForm").addEventListener("submit", async (ev) => {
     });
     $("caseDlg").close();
     $("caseForm").reset();
+    selectedCases.clear();
     toast("判例已入库");
+    renderCases();
+  } catch (e) { toast(e.message, true); }
+});
+
+$("dsPickForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if (ev.submitter && ev.submitter.value === "cancel") return;
+  try {
+    let dsId = Number($("dsPickList").value);
+    if (!dsId) {
+      const name = $("dsPickName").value.trim();
+      if (!name) { toast("新数据集需要一个名称", true); return; }
+      const created = await post("/api/datasets", {model_id: Number($("dsPickModel").value), name});
+      dsId = created.id;
+    }
+    const r = await post(`/api/datasets/${dsId}/items`, {case_ids: [...selectedCases]});
+    $("dsPickDlg").close();
+    selectedCases.clear();
+    toast(`已加入 ${r.added.length} 条，跳过 ${r.skipped.length} 条`);
     renderCases();
   } catch (e) { toast(e.message, true); }
 });

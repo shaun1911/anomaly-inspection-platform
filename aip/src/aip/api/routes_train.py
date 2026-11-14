@@ -36,6 +36,7 @@ def _fake_metrics(model_id: int, version_no: int) -> dict:
 
 class TrainIn(BaseModel):
     model_id: int
+    dataset_id: int
     note: str | None = None
 
 
@@ -47,6 +48,14 @@ def start_training(body: TrainIn, conn: sqlite3.Connection = Depends(get_conn)) 
     if model["archived_at"] is not None:
         raise ApiError("model_archived", "模型已归档，不能训练", "恢复模型或换一个", 409)
 
+    dataset = conn.execute("SELECT * FROM dataset WHERE id = ?", (body.dataset_id,)).fetchone()
+    if dataset is None:
+        raise ApiError("dataset_not_found", f"数据集 {body.dataset_id} 不存在", "先建数据集", 404)
+    if dataset["status"] != "frozen":
+        raise ApiError("dataset_not_frozen", "数据集尚未冻结，不能用于训练", "先冻结数据集", 409)
+    if int(dataset["model_id"]) != body.model_id:
+        raise ApiError("dataset_model_mismatch", "数据集属于另一个模型", "换数据集或换模型", 409)
+
     next_no = conn.execute(
         "SELECT COALESCE(MAX(version_no), 0) + 1 AS n FROM model_version WHERE model_id = ?",
         (body.model_id,),
@@ -55,15 +64,15 @@ def start_training(body: TrainIn, conn: sqlite3.Connection = Depends(get_conn)) 
 
     with tx(conn):
         cur = conn.execute(
-            "INSERT INTO train_job (model_id, status, started_at)"
-            " VALUES (?, 'running', strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
-            (body.model_id,),
+            "INSERT INTO train_job (model_id, dataset_id, status, started_at)"
+            " VALUES (?, ?, 'running', strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+            (body.model_id, body.dataset_id),
         )
         job_id = int(cur.lastrowid)
         conn.execute(
-            "INSERT INTO model_version (model_id, version_no, status, metrics_json)"
-            " VALUES (?, ?, 'candidate', ?)",
-            (body.model_id, next_no, json.dumps(metrics, ensure_ascii=False)),
+            "INSERT INTO model_version (model_id, version_no, status, metrics_json, dataset_id)"
+            " VALUES (?, ?, 'candidate', ?, ?)",
+            (body.model_id, next_no, json.dumps(metrics, ensure_ascii=False), body.dataset_id),
         )
         conn.execute(
             "UPDATE train_job SET status = 'succeeded', metrics_json = ?,"
@@ -71,7 +80,7 @@ def start_training(body: TrainIn, conn: sqlite3.Connection = Depends(get_conn)) 
             (json.dumps(metrics, ensure_ascii=False), job_id),
         )
         record(conn, actor="web", action="train.start", entity="model", entity_id=body.model_id,
-               payload={"version_no": next_no, "job_id": job_id})
+               payload={"version_no": next_no, "job_id": job_id, "dataset_id": body.dataset_id})
     return {"job_id": job_id, "model_id": body.model_id, "version_no": next_no, "metrics": metrics}
 
 
@@ -80,9 +89,10 @@ def list_train(
     model_id: int | None = None, limit: int = 50, conn: sqlite3.Connection = Depends(get_conn)
 ) -> list[dict]:
     sql = (
-        "SELECT t.id, t.model_id, m.code model_code, t.status, t.error_code,"
-        " t.metrics_json, t.started_at, t.finished_at, t.created_at"
+        "SELECT t.id, t.model_id, m.code model_code, t.dataset_id, d.name dataset_name,"
+        " t.status, t.error_code, t.metrics_json, t.started_at, t.finished_at, t.created_at"
         " FROM train_job t JOIN model m ON m.id = t.model_id"
+        " LEFT JOIN dataset d ON d.id = t.dataset_id"
     )
     params: list[object] = []
     if model_id is not None:

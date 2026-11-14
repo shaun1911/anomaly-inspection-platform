@@ -110,7 +110,7 @@ def import_landing(
                 try:
                     with tx(conn):
                         conn.execute(
-                            "INSERT INTO dataset_item"
+                            "INSERT INTO import_item"
                             " (model_id, source_type, source_id, split, sha256)"
                             " VALUES (?, 'import', ?, ?, ?)",
                             (model_id, str(path), split, sha),

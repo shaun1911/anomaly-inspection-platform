@@ -1,9 +1,13 @@
-"""P3a 验收：训练任务、候选版本、发布与回滚。"""
+"""P3a 验收：训练任务、候选版本、发布与回滚。
+
+训练必须引用已冻结的数据集（L3）。
+"""
 
 from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from aip import store, whitelist
 from aip.api.app import create_app
@@ -20,13 +24,28 @@ def client(tmp_path, monkeypatch):
     return TestClient(create_app(db))
 
 
-def _model(client) -> int:
-    return client.post("/api/models", json={"code": "M1"}).json()["id"]
+def _prepared(client, tmp_path) -> tuple[int, int]:
+    """建好：族/编码/模型/绑定/判例/冻结数据集，返回 (model_id, dataset_id)。"""
+    client.post("/api/codes", json={"code": "AB-1", "family": "支架类"})
+    model = client.post("/api/models", json={"code": "M1"}).json()
+    client.post("/api/bindings", json={"code": "AB-1", "model_id": model["id"]})
+
+    img = tmp_path / "c.png"
+    Image.new("RGB", (32, 32), (7, 7, 7)).save(img)
+    case = client.post(
+        "/api/cases",
+        json={"code": "AB-1", "crop_path": str(img), "verdict": "ok", "adjudicator": "z"},
+    ).json()
+
+    ds = client.post("/api/datasets", json={"model_id": model["id"], "name": "D1"}).json()
+    client.post(f"/api/datasets/{ds['id']}/items", json={"case_ids": [case["id"]]})
+    client.post(f"/api/datasets/{ds['id']}/freeze")
+    return model["id"], ds["id"]
 
 
-def test_training_creates_candidate_with_metrics(client):
-    mid = _model(client)
-    resp = client.post("/api/train", json={"model_id": mid})
+def test_training_creates_candidate_with_metrics(client, tmp_path):
+    mid, did = _prepared(client, tmp_path)
+    resp = client.post("/api/train", json={"model_id": mid, "dataset_id": did})
     assert resp.status_code == 201
     body = resp.json()
     assert body["version_no"] == 1
@@ -37,30 +56,43 @@ def test_training_creates_candidate_with_metrics(client):
 
     jobs = client.get("/api/train").json()
     assert jobs[0]["status"] == "succeeded"
+    assert jobs[0]["dataset_id"] == did
     assert jobs[0]["metrics"]["val_samples"] == 15
 
 
-def test_training_unknown_or_archived_model(client):
-    assert client.post("/api/train", json={"model_id": 999}).status_code == 404
-    mid = _model(client)
-    client.post(f"/api/models/{mid}/archive")
-    resp = client.post("/api/train", json={"model_id": mid})
+def test_training_requires_frozen_dataset(client, tmp_path):
+    mid, did = _prepared(client, tmp_path)
+    draft = client.post("/api/datasets", json={"model_id": mid, "name": "D2"}).json()
+    resp = client.post("/api/train", json={"model_id": mid, "dataset_id": draft["id"]})
     assert resp.status_code == 409
-    assert resp.json()["error_code"] == "model_archived"
+    assert resp.json()["error_code"] == "dataset_not_frozen"
 
 
-def test_cancel_only_queued(client):
-    mid = _model(client)
-    job = client.post("/api/train", json={"model_id": mid}).json()
+def test_training_rejects_wrong_model_dataset(client, tmp_path):
+    mid, did = _prepared(client, tmp_path)
+    other = client.post("/api/models", json={"code": "M2"}).json()
+    resp = client.post("/api/train", json={"model_id": other["id"], "dataset_id": did})
+    assert resp.status_code == 409
+    assert resp.json()["error_code"] == "dataset_model_mismatch"
+
+
+def test_training_unknown_model(client):
+    resp = client.post("/api/train", json={"model_id": 999, "dataset_id": 1})
+    assert resp.status_code == 404
+
+
+def test_cancel_only_queued(client, tmp_path):
+    mid, did = _prepared(client, tmp_path)
+    job = client.post("/api/train", json={"model_id": mid, "dataset_id": did}).json()
     resp = client.post(f"/api/train/{job['job_id']}/cancel")
     assert resp.status_code == 409
     assert resp.json()["error_code"] == "not_cancellable"
 
 
-def test_publish_demotes_previous_assist(client):
-    mid = _model(client)
-    client.post("/api/train", json={"model_id": mid})
-    client.post("/api/train", json={"model_id": mid})
+def test_publish_demotes_previous_assist(client, tmp_path):
+    mid, did = _prepared(client, tmp_path)
+    client.post("/api/train", json={"model_id": mid, "dataset_id": did})
+    client.post("/api/train", json={"model_id": mid, "dataset_id": did})
 
     client.put(f"/api/models/{mid}/versions/1/status", json={"status": "assist"})
     client.put(f"/api/models/{mid}/versions/2/status", json={"status": "assist"})
@@ -70,12 +102,10 @@ def test_publish_demotes_previous_assist(client):
     assert versions[1] == "disabled"
 
 
-def test_rollback_swaps_assist_and_updates_bindings(client):
-    mid = _model(client)
-    client.post("/api/codes", json={"code": "AB-1"})
-    client.post("/api/bindings", json={"code": "AB-1", "model_id": mid})
-    client.post("/api/train", json={"model_id": mid})
-    client.post("/api/train", json={"model_id": mid})
+def test_rollback_swaps_assist_and_updates_bindings(client, tmp_path):
+    mid, did = _prepared(client, tmp_path)
+    client.post("/api/train", json={"model_id": mid, "dataset_id": did})
+    client.post("/api/train", json={"model_id": mid, "dataset_id": did})
     client.put(f"/api/models/{mid}/versions/1/status", json={"status": "assist"})
     client.put(f"/api/models/{mid}/versions/2/status", json={"status": "assist"})
 
@@ -91,9 +121,9 @@ def test_rollback_swaps_assist_and_updates_bindings(client):
     assert binding["stage"] == "assist"
 
 
-def test_rollback_without_previous_is_409(client):
-    mid = _model(client)
-    client.post("/api/train", json={"model_id": mid})
+def test_rollback_without_previous_is_409(client, tmp_path):
+    mid, did = _prepared(client, tmp_path)
+    client.post("/api/train", json={"model_id": mid, "dataset_id": did})
     client.put(f"/api/models/{mid}/versions/1/status", json={"status": "assist"})
     resp = client.post(f"/api/models/{mid}/rollback")
     assert resp.status_code == 409
