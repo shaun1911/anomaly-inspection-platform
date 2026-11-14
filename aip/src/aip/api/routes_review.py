@@ -48,6 +48,8 @@ def queue(
     station: str | None = None,
     min_score: float | None = None,
     max_score: float | None = None,
+    family: str | None = None,
+    batch: str | None = None,
     sort: str = "oldest",
     group_by: str = "part",
     limit: int = 50,
@@ -58,8 +60,8 @@ def queue(
         raise ApiError("bad_label", "label 只能是 ng/gray", "重选", 400)
     if sort not in ("oldest", "newest", "score_desc", "score_asc"):
         raise ApiError("bad_sort", "sort 取值不合法", "重选", 400)
-    if group_by not in ("part", "result"):
-        raise ApiError("bad_group", "group_by 只能是 part/result", "重选", 400)
+    if group_by not in ("part", "result", "code", "family", "batch"):
+        raise ApiError("bad_group", "group_by 只能是 part/result/code/family/batch", "重选", 400)
 
     where = [
         "r.label IN ('ng','gray')",
@@ -76,6 +78,12 @@ def queue(
     if station:
         where.append("s.name = ?")
         params.append(station)
+    if family:
+        where.append("f.name = ?")
+        params.append(family)
+    if batch:
+        where.append("j.batch_no = ?")
+        params.append(batch)
     if min_score is not None:
         where.append("r.score >= ?")
         params.append(min_score)
@@ -87,6 +95,8 @@ def queue(
         " FROM inference_result r"
         " JOIN inference_job j ON j.id = r.job_id"
         " LEFT JOIN station s ON s.id = j.station_id"
+        " LEFT JOIN product_code p ON p.code = j.code"
+        " LEFT JOIN family f ON f.id = p.family_id"
     )
 
     order = {
@@ -144,6 +154,28 @@ def queue(
                 "max_score": r["max_score"],
                 "first_at": r["first_at"],
                 "result_ids": [int(x) for x in str(r["ids"]).split(",")],
+            }
+            for r in rows
+        ]
+    elif group_by in ("code", "family", "batch"):
+        dim = {"code": "j.code", "family": "COALESCE(f.name,'未分类')", "batch": "COALESCE(j.batch_no,'未填批次')"}[group_by]
+        alias = {"code": "code", "family": "family", "batch": "batch_no"}[group_by]
+        rows = conn.execute(
+            f"SELECT {dim} AS {alias}, count(*) n, count(DISTINCT COALESCE(j.part_no,'-')) parts,"
+            " min(r.created_at) first_at"
+            + joins + where_sql
+            + f" GROUP BY {dim}"
+            + (" ORDER BY first_at ASC" if sort in ("oldest",) else " ORDER BY n DESC")
+            + " LIMIT ? OFFSET ?",
+            params + [max(1, min(limit, 200)), max(0, offset)],
+        ).fetchall()
+        items = [
+            {
+                "kind": group_by,
+                "key": r[alias],
+                "count": r["n"],
+                "parts": r["parts"],
+                "first_at": r["first_at"],
             }
             for r in rows
         ]
