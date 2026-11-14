@@ -102,6 +102,8 @@
   .refrow img{width:110px;height:110px;object-fit:cover;border-radius:8px;border:1px solid var(--g3);background:var(--g2)}
   .refrow figcaption{font-size:11px;color:var(--t3);margin-top:4px;line-height:1.4}
   .thumb{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--g3);background:var(--g2)}
+  .savebar{position:sticky;bottom:0;display:flex;align-items:center;gap:12px;background:var(--g1);border:1px solid var(--g3);border-radius:12px;padding:12px 16px;box-shadow:0 -4px 20px rgba(0,0,0,.15)}
+  .savebar span{flex:1;color:var(--t2);font-size:13px}
   .wiz-step{border:1px solid var(--g3);border-radius:10px;padding:14px;margin-bottom:10px;opacity:.6}
   .wiz-step.cur{opacity:1;border-color:var(--brand);background:var(--g1)}
   .wiz-step.done{opacity:1;border-color:color-mix(in oklab,var(--ok) 50%,transparent)}
@@ -247,6 +249,10 @@ const ACTIONS = {
   "model.rollback": "回滚版本", "model.archive": "归档模型", "model.patch": "模型改名",
   "code.patch": "修改编码", "code.active": "启用/停用编码",
   "code.archive": "归档编码", "code.restore": "恢复编码", "family.create": "新建族",
+  "dataset.create": "新建数据集", "dataset.add": "加入判例", "dataset.remove": "移出判例",
+  "dataset.freeze": "冻结数据集", "batch.backfill": "回填批次",
+  "blind.create": "建抽检批次", "blind.close": "关闭抽检批次",
+  "model.smoke": "冒烟试判", "setting.bulk_update": "批量修改设置", "train.cancel": "取消训练",
 };
 const actionLabel = (a) => ACTIONS[a] || a;
 
@@ -262,7 +268,7 @@ async function renderWorkbench() {
 
   const todos = [];
   let hint = "";
-  if (overview.pending_review > 0) todos.push({href:"#/quality", text:"待确认的判定", n: overview.pending_review});
+  if (overview.pending_review > 0) todos.push({href:"#/quality", text:"待复核的判定", n: overview.pending_review});
   if (candidates.length) todos.push({href:"#/training", text:"待发布的候选版本", n: candidates.length});
   if (badStations.length) todos.push({href:"#/system", text:"异常站位", n: badStations.length});
   if (overview.cases === 0) hint = "判例库还是空的，录一条之后复核就有参考样例了";
@@ -272,7 +278,7 @@ async function renderWorkbench() {
       <a class="card" href="#/quality"><span>今日判定</span><b>${stats.total}</b></a>
       <a class="card" href="#/quality?label=ng"><span>NG</span><b>${stats.ng}</b></a>
       <a class="card warn" href="#/quality?label=gray"><span>灰区</span><b>${stats.gray}</b></a>
-      <a class="card bad" href="#/quality"><span>待确认</span><b>${stats.pending_review}</b></a>
+      <a class="card bad" href="#/quality"><span>待复核</span><b>${stats.pending_review}</b></a>
       <a class="card" href="#/quality"><span>NG 率</span><b>${(stats.ng_rate*100).toFixed(1)}%</b></a>
       <a class="card" href="#/quality"><span>灰区率</span><b>${(stats.gray_rate*100).toFixed(1)}%</b></a>
     </div>
@@ -497,7 +503,7 @@ async function renderCatalog() {
             <td>${b ? "M" + esc(b.model_id) : '<span class="muted">未绑定</span>'}</td>
             <td>${b ? tag(b.stage) : "-"}</td>
             <td>${c.archived_at
-              ? `<button class="ghost" data-restore="${esc(c.code)}">恢复</button>`
+              ? `<button class="ghost" data-restore="${esc(c.code)}">取消归档</button>`
               : `<button class="ghost" data-archive="${esc(c.code)}" ${b ? "disabled title=\"先解绑再归档\"" : ""}>归档</button>`}</td>
           </tr>`;
         }).join("")}</tbody></table>`}
@@ -639,7 +645,7 @@ async function renderCode(code) {
         <thead><tr><th scope="col">#</th><th scope="col">分数</th><th scope="col">结论</th><th scope="col">确认</th><th scope="col">时间</th></tr></thead>
         <tbody>${d.recent_results.map(r => `<tr data-shot="${r.id}" style="cursor:pointer">
           <td>${r.id}</td><td>${r.score.toFixed(3)}</td><td>${tag(r.label)}</td>
-          <td>${r.confirmed_by ? esc(r.confirmed_by) : (r.label === 'ok' ? '<span class="muted">—</span>' : '<span class="muted">待确认</span>')}</td>
+          <td>${r.confirmed_by ? esc(r.confirmed_by) : (r.label === 'ok' ? '<span class="muted">—</span>' : '<span class="muted">待复核</span>')}</td>
           <td class="muted">${fmtTime(r.created_at)}</td></tr>`).join("")}
         </tbody></table>`}
     </section>
@@ -771,7 +777,7 @@ async function renderQuality() {
   } else {
     $("view").innerHTML = `
       <section>
-        <h2>复核队列 <span class="pill">${q.summary.total} 条待处理</span>
+        <h2>复核队列 <span class="pill">${q.summary.total} 条待复核</span>
           <span class="pill">最旧 ${ageText(q.summary.oldest_at)}</span>
           ${q.summary.skipped_count > 0
             ? `<span style="margin-left:auto"><button class="ghost" id="btnSkipped">暂缓件 ${q.summary.skipped_count}</button></span>`
@@ -788,7 +794,7 @@ async function renderQuality() {
       </section>
       <section class="review">
         <div class="review-list">
-          <h2>待处理 <span class="pill">${items.length}</span></h2>
+          <h2>待复核 <span class="pill">${items.length}</span></h2>
           <div id="rlist" class="queue"></div>
           <div class="muted" style="margin-top:10px">${isGroup ? "点击分组下钻到件" : "J/K 切换 · Enter 接受 · X 改判 · 1–5 选理由"}</div>
         </div>
@@ -996,7 +1002,7 @@ async function renderQuality() {
               <td>${s.id}</td><td>${esc(s.code)}</td><td>${esc(s.part_no || "-")}</td>
               <td>${s.score.toFixed(3)}</td><td>${esc(s.reason || "-")}</td>
               <td>${esc(s.claimed_by || "-")}</td><td class="muted">${fmtTime(s.claimed_at)}</td>
-              <td><button class="ghost" data-unskip="${s.id}">恢复</button></td>
+              <td><button class="ghost" data-unskip="${s.id}">恢复暂缓</button></td>
             </tr>`).join("");
         document.querySelectorAll("[data-unskip]").forEach(btn => {
           btn.onclick = async () => {
@@ -1033,7 +1039,7 @@ async function renderQuality() {
               <td>${s.id}</td><td>${esc(s.code)}</td><td>${esc(s.part_no || "-")}</td>
               <td>${s.score.toFixed(3)}</td><td>${esc(s.reason || "-")}</td>
               <td>${esc(s.claimed_by || "-")}</td><td class="muted">${fmtTime(s.claimed_at)}</td>
-              <td><button class="ghost" data-unskip="${s.id}">恢复</button></td>
+              <td><button class="ghost" data-unskip="${s.id}">恢复暂缓</button></td>
             </tr>`).join("");
         document.querySelectorAll("[data-unskip]").forEach(btn => {
           btn.onclick = async () => {
@@ -1061,6 +1067,8 @@ async function renderQuality() {
 async function renderSettings() {
   const rows = await api("/api/settings");
   const groups = [...new Set(rows.map(r => r.group))];
+  const dirty = new Map();
+
   $("view").innerHTML = `
     <section>
       <h2>设置 <span class="pill">运行时可改 · 改动记审计</span></h2>
@@ -1070,18 +1078,16 @@ async function renderSettings() {
       ${groups.map(g => `
         <h2 style="margin-top:18px">${esc(g)}</h2>
         <table><caption class="sr-only">${esc(g)} 配置</caption>
-          <thead><tr><th scope="col">项</th><th scope="col">当前值</th><th scope="col">默认</th><th scope="col">修改</th><th scope="col">操作</th></tr></thead>
+          <thead><tr><th scope="col">项</th><th scope="col">当前值</th><th scope="col">默认</th><th scope="col">修改</th></tr></thead>
           <tbody>
             ${rows.filter(r => r.group === g).map(r => {
               const val = Array.isArray(r.value) ? r.value.join(",") : r.value;
               const def = Array.isArray(r.default) ? r.default.join(",") : r.default;
-              const k = esc(r.key);
               return `<tr>
                 <td>${esc(r.label)}<div class="muted">${esc(r.key)}${r.description ? " · " + esc(r.description) : ""}</div></td>
-                <td><input data-k="${k}" value="${esc(val)}" aria-label="${esc(r.label)}"></td>
+                <td><input data-k="${esc(r.key)}" data-kind="${r.kind}" value="${esc(val)}" aria-label="${esc(r.label)}"></td>
                 <td class="muted">${esc(def)}</td>
                 <td class="muted">${r.updated_by ? esc(r.updated_by) + "<br>" + fmtTime(r.updated_at) : "—"}</td>
-                <td><button class="ghost" data-save="${k}">保存</button></td>
               </tr>`;
             }).join("")}
           </tbody></table>`).join("")}
@@ -1092,27 +1098,84 @@ async function renderSettings() {
         <b>启动级</b>：端口、数据库路径、数据目录、日志级别、本班白名单 → 改配置文件后重启。<br>
         <b>版本绑定</b>：ROI、阈值 → 跟模型版本走，改它们等于产生新版本，不在通用设置里。
       </div>
-    </section>`;
+    </section>
+    <div class="savebar" id="setBar" hidden>
+      <span id="setCount">0 项未保存</span>
+      <button class="ghost" id="setReset">放弃修改</button>
+      <button class="act" id="setSave">保存修改</button>
+    </div>`;
 
-  document.querySelectorAll("[data-save]").forEach(btn => {
-    btn.onclick = async () => {
-      const key = btn.dataset.save;
-      const input = document.querySelector(`input[data-k="${key}"]`);
-      let value = input.value;
-      const row = rows.find(r => r.key === key);
-      if (row.kind === "int") value = Number(value);
-      else if (row.kind === "float") value = Number(value);
-      else if (row.kind === "list") value = value.split(",").map(s => s.trim()).filter(Boolean);
-      try {
-        await api("/api/settings/" + encodeURIComponent(key), {
-          method: "PUT", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({value, actor: "web"})
-        });
-        toast(`${row.label} 已保存`);
-        renderSettings();
-      } catch (e) { toast(e.message, true); }
-    };
+  const bar = $("setBar");
+  const count = $("setCount");
+  const sync = () => {
+    bar.hidden = dirty.size === 0;
+    count.textContent = `${dirty.size} 项未保存`;
+  };
+
+  document.querySelectorAll("input[data-k]").forEach(inp => {
+    inp.addEventListener("input", () => {
+      const row = rows.find(r => r.key === inp.dataset.k);
+      const text = inp.value;
+      let value = text;
+      if (row.kind === "int" || row.kind === "float") value = Number(text);
+      else if (row.kind === "list") value = text.split(",").map(s => s.trim()).filter(Boolean);
+      else if (row.kind === "bool") value = text === "true" || text === "1";
+      dirty.set(inp.dataset.k, value);
+      sync();
+    });
   });
+
+  $("setReset").onclick = () => renderSettings();
+  $("setSave").onclick = async () => {
+    try {
+      const r = await post("/api/settings/bulk", {values: Object.fromEntries(dirty), actor: "web"});
+      toast(`已保存 ${r.count} 项`);
+      renderSettings();
+    } catch (e) { toast(e.message, true); }
+  };
+}
+
+async function renderSystem() {
+  const [stations, audit, health] = await Promise.all([
+    api("/api/stations"), api("/api/audit/recent?limit=20"), api("/health")
+  ]);
+
+  $("view").innerHTML = `
+    <section>
+      <h2>服务</h2>
+      <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+        <div class="card"><span>状态</span><b style="font-size:16px">${esc(health.status)}</b></div>
+        <div class="card"><span>版本</span><b style="font-size:16px">${esc(health.version)}</b></div>
+        <div class="card"><span>数据库</span><b style="font-size:16px">${esc(health.db)}</b></div>
+        <div class="card"><span>队列深度</span><b style="font-size:16px">${health.queue_depth}</b></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>站位 <span class="pill">${stations.length}</span></h2>
+      ${stations.length === 0 ? `<div class="empty">还没有站位上报过心跳。工位面板换型后会出现在这里。</div>` : `
+      <table><caption class="sr-only">站位</caption>
+        <thead><tr><th scope="col">站位</th><th scope="col">健康</th><th scope="col">最后心跳</th><th scope="col">配置版本</th></tr></thead>
+        <tbody>${stations.map(s => `<tr>
+          <td>${esc(s.name)}</td>
+          <td>${s.health === "ok" ? '<span class="tag ok">正常</span>' : '<span class="tag gray">' + esc(s.health) + "</span>"}</td>
+          <td class="muted">${fmtTime(s.last_seen_at)}</td>
+          <td class="muted">${esc(s.last_config_rev || "-")}</td>
+        </tr>`).join("")}</tbody></table>`}
+    </section>
+
+    <section>
+      <h2>最近操作</h2>
+      ${audit.length === 0 ? `<div class="empty">还没有审计记录。</div>` : `
+      <table><caption class="sr-only">审计</caption>
+        <thead><tr><th scope="col">时间</th><th scope="col">动作</th><th scope="col">操作人</th><th scope="col">对象</th></tr></thead>
+        <tbody>${audit.map(a => `<tr>
+          <td class="muted">${fmtTime(a.created_at)}</td>
+          <td>${esc(actionLabel(a.action))}</td>
+          <td>${esc(a.actor)}</td>
+          <td class="muted">${esc(a.entity)}${a.entity_id ? " #" + esc(a.entity_id) : ""}</td>
+        </tr>`).join("")}</tbody></table>`}
+    </section>`;
 }
 
 let caseState = {code: "", verdict: "", source: "", partNo: "", batchNo: "", conflict: false, showArchived: false, page: 0, pageSize: 25};
@@ -1209,7 +1272,7 @@ async function renderCases() {
           <td>${esc(c.adjudicator)}</td>
           <td class="muted">${fmtTime(c.created_at)}</td>
           <td>${c.archived_at
-            ? `<button class="ghost" data-restore-case="${c.id}">恢复</button>`
+            ? `<button class="ghost" data-restore-case="${c.id}">取消归档</button>`
             : `<button class="ghost" data-archive-case="${c.id}">归档</button>`}</td>
         </tr>`).join("")}</tbody></table>
       <div class="row" style="margin-top:12px;align-items:center">
@@ -1655,10 +1718,7 @@ async function route() {
     if (name === "blind" && arg) return await renderBlindBatch(Number(arg));
     if (name === "blind") return await renderBlind();
     if (name === "training") return await renderTraining();
-    if (name === "system") return renderPlaceholder("系统", "站位与审计查询", [
-      "站位心跳列表（/api/stations 已有，可先接）",
-      "审计日志检索（/api/audit 需加筛选）"
-    ]);
+    if (name === "system") return await renderSystem();
     if (name === "settings") return await renderSettings();
     return await renderWorkbench();
   } catch (e) {

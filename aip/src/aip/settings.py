@@ -168,6 +168,38 @@ def set_value(conn: sqlite3.Connection, key: str, value: Any, *, actor: str) -> 
     return coerced
 
 
+def set_many(
+    conn: sqlite3.Connection, values: dict[str, Any], *, actor: str = "web"
+) -> dict[str, Any]:
+    """批量保存：任一键非法则整体拒绝，不做半套写入。"""
+    if not values:
+        raise ValueError("没有要保存的配置")
+    coerced: dict[str, Any] = {}
+    for key, value in values.items():
+        spec = BY_KEY.get(key)
+        if spec is None:
+            raise KeyError(f"未知配置项: {key}")
+        coerced[key] = _coerce(spec, value)
+
+    with tx(conn):
+        for key, value in coerced.items():
+            conn.execute(
+                "INSERT INTO setting (key, value, updated_by, updated_at)"
+                " VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+                " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+                " updated_by = excluded.updated_by, updated_at = excluded.updated_at",
+                (key, json.dumps(value, ensure_ascii=False), actor),
+            )
+        record(
+            conn,
+            actor=actor,
+            action="setting.bulk_update",
+            entity="setting",
+            payload={"keys": sorted(coerced), "values": coerced},
+        )
+    return coerced
+
+
 def gate_config(conn: sqlite3.Connection) -> dict[str, float]:
     """给入口守门用的四个阈值。"""
     return {

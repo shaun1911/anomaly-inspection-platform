@@ -25,6 +25,22 @@ def list_settings(conn: sqlite3.Connection = Depends(get_conn)) -> list[dict]:
     return settings_mod.all_settings(conn)
 
 
+class BulkIn(BaseModel):
+    values: dict[str, Any]
+    actor: str = "web"
+
+
+@router.post("/settings/bulk")
+def bulk_update(body: BulkIn, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    try:
+        saved = settings_mod.set_many(conn, body.values, actor=body.actor)
+    except KeyError as exc:
+        raise ApiError("unknown_setting", str(exc), "刷新页面重试", 404) from exc
+    except ValueError as exc:
+        raise ApiError("invalid_setting", str(exc), "按提示范围修正", 400) from exc
+    return {"saved": saved, "count": len(saved)}
+
+
 @router.put("/settings/{key}")
 def update_setting(
     key: str, body: SettingIn, conn: sqlite3.Connection = Depends(get_conn)

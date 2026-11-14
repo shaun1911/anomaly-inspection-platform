@@ -21,7 +21,7 @@ def test_panel_is_served(tmp_path):
     body = resp.text
     assert "工位面板" in body
     assert "换型" in body
-    assert "待确认" in body
+    assert "待复核" in body
     assert "/review/pending" in body
 
 

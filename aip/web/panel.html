@@ -107,8 +107,8 @@
   </div>
 
   <section>
-    <h2>④ 待确认 <span class="pill" id="pendingCount">0 件</span></h2>
-    <div class="queue" id="pending"><div class="empty">没有待确认的件</div></div>
+    <h2>④ 待复核 <span class="pill" id="pendingCount">0 件</span></h2>
+    <div class="queue" id="pending"><div class="empty">没有待复核的件</div></div>
   </section>
 </main>
 
@@ -231,7 +231,7 @@ async function refresh() {
     const pending = await api("/review/pending?station=" + encodeURIComponent(station));
     $("pendingCount").textContent = pending.count + " 件";
     $("pending").innerHTML = pending.count === 0
-      ? '<div class="empty">没有待确认的件</div>'
+      ? '<div class="empty">没有待复核的件</div>'
       : pending.items.map(it => `
         <div class="item" data-id="${it.result_id}">
           <span class="score">${it.score.toFixed(3)}</span>
