@@ -135,6 +135,7 @@
       <a href="#/quality" data-nav="quality">复核队列</a>
       <a href="#/cases" data-nav="cases">判例库</a>
       <a href="#/datasets" data-nav="datasets">数据集</a>
+      <a href="#/blind" data-nav="blind">抽检</a>
       <div class="group">其他</div>
       <a href="#/training" data-nav="training">训练与发布</a>
       <a href="#/system" data-nav="system">系统</a>
@@ -1165,6 +1166,166 @@ async function renderDatasets() {
   });
 }
 
+async function renderBlind() {
+  const [batches, codes] = await Promise.all([api("/api/blind/batches"), api("/api/codes")]);
+  $("view").innerHTML = `
+    <section>
+      <h2>抽检批次 <span class="pill">${batches.length}</span></h2>
+      <p class="muted" style="margin:0 0 12px">
+        盲判：抽样时不显示系统结论，判完才揭盲。关批需质量 / 产线 / 技术三方签字。
+      </p>
+      ${batches.length === 0 ? `<div class="empty">还没有抽检批次。<b>怎么做</b>：在下方建一个，逐件盲判后关批。</div>` : `
+      <table><caption class="sr-only">抽检批次</caption>
+        <thead><tr><th scope="col">周次</th><th scope="col">进度</th><th scope="col">状态</th>
+          <th scope="col">召回</th><th scope="col">过杀率</th><th scope="col">签字</th><th scope="col">操作</th></tr></thead>
+        <tbody>${batches.map(b => `<tr>
+          <td>${esc(b.week)}</td>
+          <td>${b.judged} / ${b.total}</td>
+          <td>${b.status === "closed" ? '<span class="tag ok">已关批</span>' : '<span class="tag candidate">进行中</span>'}</td>
+          <td>${b.metrics && b.metrics.recall != null ? (b.metrics.recall * 100).toFixed(1) + "%" : "-"}</td>
+          <td>${b.metrics && b.metrics.overkill_rate != null ? (b.metrics.overkill_rate * 100).toFixed(1) + "%" : "-"}</td>
+          <td class="muted">${b.signed_quality ? esc(b.signed_quality) + " / " + esc(b.signed_line) + " / " + esc(b.signed_tech) : "-"}</td>
+          <td><a class="ghost" href="#/blind/${b.id}">${b.status === "closed" ? "看指标" : "继续判"}</a></td>
+        </tr>`).join("")}</tbody></table>`}
+    </section>
+
+    <section>
+      <h2>新建抽检批次</h2>
+      <div class="form">
+        <div><label for="bl_week">周次</label><input id="bl_week" placeholder="2026-W46"></div>
+        <div><label for="bl_size">抽样数</label><input id="bl_size" value="300" inputmode="numeric"></div>
+        <div><label for="bl_code">编码（可选）</label>
+          <select id="bl_code"><option value="">全部</option>
+            ${codes.map(c => `<option value="${esc(c.code)}">${esc(c.code)}</option>`).join("")}
+          </select></div>
+        <div><button class="act" id="btnBlind">建批次</button></div>
+      </div>
+    </section>`;
+
+  $("btnBlind").onclick = async () => {
+    try {
+      const r = await post("/api/blind/batches", {
+        week: $("bl_week").value.trim(),
+        sample_size: Number($("bl_size").value) || 300,
+        code: $("bl_code").value || null,
+        sampled_by: "admin"
+      });
+      toast(`已抽 ${r.sampled} 件`);
+      location.hash = "#/blind/" + r.id;
+    } catch (e) { toast(e.message, true); }
+  };
+}
+
+async function renderBlindBatch(id) {
+  const b = await api(`/api/blind/batches/${id}`);
+  const isOpen = b.status === "open";
+  const pending = b.items.filter(i => !i.human_label);
+  const cur = pending[0] || null;
+
+  const metrics = b.metrics ? `
+    <div class="cards">
+      <div class="card"><span>人判 NG</span><b>${b.metrics.human_ng}</b></div>
+      <div class="card"><span>漏检</span><b>${b.metrics.missed}</b></div>
+      <div class="card"><span>召回</span><b>${b.metrics.recall != null ? (b.metrics.recall*100).toFixed(1)+"%" : "-"}</b></div>
+      <div class="card bad"><span>过杀</span><b>${b.metrics.overkill}</b></div>
+      <div class="card"><span>过杀率</span><b>${b.metrics.overkill_rate != null ? (b.metrics.overkill_rate*100).toFixed(1)+"%" : "-"}</b></div>
+      <div class="card warn"><span>灰区率</span><b>${(b.metrics.gray_rate*100).toFixed(1)}%</b></div>
+    </div>
+    ${b.metrics.low_confidence ? '<p class="muted" style="color:var(--warn)">人判 NG 少于门槛，本次为低置信关批。</p>' : ""}` : "";
+
+  $("view").innerHTML = `
+    <section>
+      <h2>${esc(b.week)} <span class="pill">${b.judged} / ${b.total}</span>
+        <span class="pill">${isOpen ? "进行中" : "已关批"}</span></h2>
+      ${metrics}
+      ${!isOpen ? `<p class="muted" style="margin:10px 0 0">签字：质量 ${esc(b.signed_quality || "-")} · 产线 ${esc(b.signed_line || "-")} · 技术 ${esc(b.signed_tech || "-")} · ${fmtTime(b.signed_at)}</p>` : ""}
+    </section>
+
+    ${isOpen ? `
+    <section class="review">
+      <div class="review-list">
+        <h2>待判 <span class="pill">${pending.length}</span></h2>
+        <div class="muted">盲判中：不显示系统结论。快捷键 O=OK · N=NG · G=灰区</div>
+      </div>
+      <div class="review-detail">
+        ${cur ? `
+          <div class="shot"><img id="blindShot" src="${cur.image_url}" alt="抽样 ${cur.id}"></div>
+          <div class="kv">
+            <div>件号</div><div>${esc(cur.part_no || "-")}</div>
+            <div>进度</div><div>${b.judged} / ${b.total}</div>
+          </div>
+          <div class="row" style="margin-top:14px">
+            <button class="act" id="jOk">OK</button>
+            <button class="ghost" id="jGray">灰区</button>
+            <button class="ghost" id="jNg">NG</button>
+          </div>` : `
+          <div class="empty">全部判完，可以关批（需三方签字）。</div>
+          <div class="form" style="grid-template-columns:1fr 1fr 1fr;margin-top:12px">
+            <div><label for="signQ">质量签字</label><input id="signQ" placeholder="姓名"></div>
+            <div><label for="signL">产线签字</label><input id="signL" placeholder="姓名"></div>
+            <div><label for="signT">技术签字</label><input id="signT" placeholder="姓名"></div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button class="act" id="btnClose">关批并冻结指标</button>
+          </div>`}
+      </div>
+    </section>` : `
+    <section>
+      <h2>逐件对照（关批后揭盲）</h2>
+      <table><caption class="sr-only">抽样明细</caption>
+        <thead><tr><th scope="col">#</th><th scope="col">件号</th><th scope="col">人判</th><th scope="col">系统</th></tr></thead>
+        <tbody>${b.items.map(i => `<tr><td>${i.id}</td><td>${esc(i.part_no || "-")}</td>
+          <td>${tag(i.human_label)}</td><td>${tag(i.system_label)}</td></tr>`).join("")}</tbody></table>
+    </section>`}
+  `;
+
+  if (!isOpen) return;
+
+  async function judge(label) {
+    if (!cur) return;
+    await post(`/api/blind/items/${cur.id}/judge`, {human_label: label, judge: "admin"});
+    renderBlindBatch(id);
+  }
+  if (cur) {
+    $("jOk").onclick = () => judge("ok");
+    $("jGray").onclick = () => judge("gray");
+    $("jNg").onclick = () => judge("ng");
+    window.__blindKeys = (ev) => {
+      const k = ev.key.toLowerCase();
+      if (k === "o") $("jOk").click();
+      else if (k === "n") $("jNg").click();
+      else if (k === "g") $("jGray").click();
+    };
+  } else {
+    $("btnClose").onclick = async () => {
+      try {
+        const r = await post(`/api/blind/batches/${id}/close`, {
+          signed_quality: $("signQ").value.trim(),
+          signed_line: $("signL").value.trim(),
+          signed_tech: $("signT").value.trim(),
+          force: false
+        });
+        toast("已关批，指标已冻结");
+        renderBlindBatch(id);
+      } catch (e) {
+        if (e.body?.error_code === "low_ng" &&
+            confirm(e.message + "\n\n仍要以低置信关批？")) {
+          await post(`/api/blind/batches/${id}/close`, {
+            signed_quality: $("signQ").value.trim(),
+            signed_line: $("signL").value.trim(),
+            signed_tech: $("signT").value.trim(),
+            force: true
+          });
+          toast("已低置信关批");
+          renderBlindBatch(id);
+        } else {
+          toast(e.message, true);
+        }
+      }
+    };
+  }
+}
+
 async function renderTraining() {
   const [jobs, models, datasets] = await Promise.all([api("/api/train"), api("/api/models"), api("/api/datasets")]);
   const frozen = datasets.filter(d => d.status === "frozen");
@@ -1292,7 +1453,7 @@ function renderPlaceholder(title, need, items) {
 
 const TITLES = {
   workbench: "工作台", catalog: "编码与模型", quality: "复核队列", cases: "判例库",
-  datasets: "数据集", training: "训练与发布", system: "系统", settings: "设置"
+  datasets: "数据集", blind: "抽检", training: "训练与发布", system: "系统", settings: "设置"
 };
 
 async function route() {
@@ -1309,6 +1470,8 @@ async function route() {
     if (name === "quality") return await renderQuality();
     if (name === "cases") return await renderCases();
     if (name === "datasets") return await renderDatasets();
+    if (name === "blind" && arg) return await renderBlindBatch(Number(arg));
+    if (name === "blind") return await renderBlind();
     if (name === "training") return await renderTraining();
     if (name === "system") return renderPlaceholder("系统", "站位与审计查询", [
       "站位心跳列表（/api/stations 已有，可先接）",
@@ -1391,6 +1554,7 @@ document.addEventListener("keydown", (ev) => {
   const tagName = (ev.target.tagName || "").toLowerCase();
   if (tagName === "input" || tagName === "select" || tagName === "textarea") return;
   if (location.hash.startsWith("#/quality") && window.__reviewKeys) window.__reviewKeys(ev);
+  if (location.hash.startsWith("#/blind/") && window.__blindKeys) window.__blindKeys(ev);
 });
 health(); route();
 setInterval(health, 20000);
