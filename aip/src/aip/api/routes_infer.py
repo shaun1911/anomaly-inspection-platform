@@ -124,9 +124,9 @@ def submit(
             station_id = int(st["id"])
         cur = conn.execute(
             "INSERT INTO inference_job"
-            " (code, part_no, batch_no, station_id, idempotency_key, status)"
-            " VALUES (?, ?, ?, ?, ?, 'queued')",
-            (code, part, batch, station_id, key),
+            " (code, part_no, batch_no, batch_source, station_id, idempotency_key, status)"
+            " VALUES (?, ?, ?, ?, ?, ?, 'queued')",
+            (code, part, batch, "station" if batch else None, station_id, key),
         )
         job_id = int(cur.lastrowid)
 

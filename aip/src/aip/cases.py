@@ -82,14 +82,16 @@ def create_case(
     part_no = (part_no or "").strip() or None
     batch_no = (batch_no or "").strip() or None
 
+    batch_source = "manual" if batch_no else None
     if batch_no is None and result_id is not None:
         row_batch = conn.execute(
-            "SELECT j.batch_no FROM inference_result r JOIN inference_job j ON j.id = r.job_id"
-            " WHERE r.id = ?",
+            "SELECT j.batch_no, j.batch_source FROM inference_result r"
+            " JOIN inference_job j ON j.id = r.job_id WHERE r.id = ?",
             (result_id,),
         ).fetchone()
         if row_batch is not None:
             batch_no = row_batch["batch_no"]
+            batch_source = row_batch["batch_source"] if batch_no else None
 
     if part_no is not None:
         existing = conn.execute(
@@ -124,10 +126,10 @@ def create_case(
         cur = conn.execute(
             "INSERT INTO case_item"
             " (product_code_id, crop_path, verdict, reason, adjudicator, sha256, source,"
-            "  result_id, model_version_id, part_no, batch_no)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "  result_id, model_version_id, part_no, batch_no, batch_source)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (row["id"], crop_path, verdict, reason, adjudicator, sha, source, result_id,
-             model_version_id, part_no, batch_no),
+             model_version_id, part_no, batch_no, batch_source),
         )
         case_id = int(cur.lastrowid)
         record(conn, actor=adjudicator, action="case.create", entity="case_item",
