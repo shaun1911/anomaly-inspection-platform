@@ -169,6 +169,14 @@
 </div>
 <div id="toasts" aria-live="polite"></div>
 
+<dialog id="auditDlg">
+  <h2 id="auditTitle" style="margin-bottom:12px">数据集核对</h2>
+  <table><caption class="sr-only">成员变化</caption>
+    <thead><tr><th scope="col">判例</th><th scope="col">变化</th><th scope="col">说明</th></tr></thead>
+    <tbody id="auditBody"></tbody></table>
+  <div class="row" style="margin-top:14px"><button class="ghost" onclick="this.closest('dialog').close()">关闭</button></div>
+</dialog>
+
 <dialog id="dsPickDlg">
   <form method="dialog" id="dsPickForm">
     <h2 style="margin-bottom:12px">加入数据集（<span id="dsPickCount">0</span> 条判例）</h2>
@@ -1375,6 +1383,7 @@ async function renderDatasets() {
           <td class="muted">${d.checksum ? d.checksum.slice(0, 12) + "…" : "-"}</td>
           <td>
             <a class="ghost" href="/api/datasets/${d.id}/export.csv">导出</a>
+            ${d.status === "frozen" ? `<button class="ghost" data-audit="${d.id}">核对</button>` : ""}
             ${d.status === "draft" ? `<button class="ghost" data-freeze="${d.id}">冻结</button>` : ""}
           </td>
         </tr>`).join("")}</tbody></table>`}
@@ -1398,6 +1407,24 @@ async function renderDatasets() {
       renderDatasets();
     } catch (e) { toast(e.message, true); }
   };
+  document.querySelectorAll("[data-audit]").forEach(btn => {
+    btn.onclick = async () => {
+      try {
+        const a = await api(`/api/datasets/${btn.dataset.audit}/audit`);
+        const rows = [];
+        a.verdict_changed.forEach(x => rows.push(`<tr><td>${x.case_id}</td><td>改判</td><td>${esc(x.before)} → ${esc(x.after)}</td></tr>`));
+        a.image_changed.forEach(x => rows.push(`<tr><td>${x.case_id}</td><td>图片变化</td><td>sha256 不一致</td></tr>`));
+        a.archived.forEach(x => rows.push(`<tr><td>${x.case_id}</td><td>已归档</td><td>不再参与训练</td></tr>`));
+        a.missing.forEach(x => rows.push(`<tr><td>${x.case_id}</td><td>已删除</td><td>判例不存在</td></tr>`));
+        $("auditBody").innerHTML = rows.length
+          ? rows.join("")
+          : `<tr><td colspan="3" class="empty">未发现变化${a.no_snapshot ? "（但该数据集有 " + a.no_snapshot + " 条没有快照，无法核对）" : ""}</td></tr>`;
+        $("auditTitle").textContent = `数据集 #${a.dataset_id} 核对 · ${a.clean ? "干净" : "有变化"}`;
+        $("auditDlg").showModal();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+
   document.querySelectorAll("[data-freeze]").forEach(btn => {
     btn.onclick = async () => {
       if (!confirm("冻结后成员不可再改，确认？")) return;

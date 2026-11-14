@@ -10,6 +10,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, UploadFile, File, Response
 from pydantic import BaseModel
 
+from .. import dataset_audit
 from .. import datasets as ds_mod
 from ..store import tx
 from ..audit import record
@@ -84,6 +85,14 @@ def remove_item(
         record(conn, actor="web", action="dataset.remove", entity="dataset",
                entity_id=dataset_id, payload={"case_id": case_id})
     return {"removed": case_id}
+
+
+@router.get("/datasets/{dataset_id}/audit")
+def audit_dataset(dataset_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    try:
+        return dataset_audit.audit(conn, dataset_id)
+    except ds_mod.DatasetError as exc:
+        raise ApiError(exc.code, str(exc), "刷新列表", exc.status) from exc
 
 
 @router.post("/datasets/{dataset_id}/freeze")

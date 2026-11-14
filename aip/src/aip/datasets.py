@@ -132,6 +132,9 @@ def freeze(conn: sqlite3.Connection, dataset_id: int, *, actor: str = "web") -> 
             " frozen_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
             (checksum, dataset_id),
         )
+        from .dataset_audit import snapshot
+
+        snapshot(conn, dataset_id)
         record(conn, actor=actor, action="dataset.freeze", entity="dataset",
                entity_id=dataset_id, payload={"checksum": checksum, "count": len(rows)})
     return checksum
