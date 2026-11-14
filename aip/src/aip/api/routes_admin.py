@@ -303,6 +303,7 @@ class CaseIn(BaseModel):
     source: str = "manual"
     result_id: int | None = None
     model_version_id: int | None = None
+    part_no: str | None = None
 
 
 class CasePatch(BaseModel):
@@ -384,6 +385,7 @@ def list_cases(
     adjudicator: str | None = None,
     verdict: str | None = None,
     source: str | None = None,
+    part_no: str | None = None,
     conflict: bool | None = None,
     include_archived: bool = False,
     limit: int = 50,
@@ -396,6 +398,7 @@ def list_cases(
         adjudicator=adjudicator,
         verdict=verdict,
         source=source,
+        part_no=part_no,
         conflict=conflict,
         include_archived=include_archived,
         limit=limit,
@@ -417,6 +420,7 @@ def create_case(body: CaseIn, conn: sqlite3.Connection = Depends(get_conn)) -> d
             source=body.source,
             result_id=body.result_id,
             model_version_id=body.model_version_id,
+            part_no=body.part_no,
         )
     except cases_mod.DuplicateCase as exc:
         raise ApiError(

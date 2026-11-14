@@ -160,6 +160,7 @@
     <h2 style="margin-bottom:12px">录入判例</h2>
     <label for="f_code">编码</label><input id="f_code" required placeholder="AB-1234-01">
     <label for="f_path">裁片路径</label><input id="f_path" required placeholder="data/crops/xxx.png">
+    <label for="f_part">件号（同件只录一条）</label><input id="f_part" placeholder="P-20261114-001">
     <label for="f_verdict">结论</label>
     <select id="f_verdict"><option value="ok">可接受 ok</option><option value="ng">不可接受 ng</option></select>
     <label for="f_reason">一句话理由</label><input id="f_reason" placeholder="边部划痕">
@@ -788,13 +789,14 @@ async function renderSettings() {
   });
 }
 
-let caseState = {code: "", verdict: "", source: "", conflict: false, showArchived: false};
+let caseState = {code: "", verdict: "", source: "", partNo: "", conflict: false, showArchived: false};
 
 async function renderCases() {
   const params = new URLSearchParams({limit: "50"});
   if (caseState.code) params.set("code", caseState.code);
   if (caseState.verdict) params.set("verdict", caseState.verdict);
   if (caseState.source) params.set("source", caseState.source);
+  if (caseState.partNo) params.set("part_no", caseState.partNo);
   if (caseState.conflict) params.set("conflict", "true");
   if (caseState.showArchived) params.set("include_archived", "true");
 
@@ -838,6 +840,8 @@ async function renderCases() {
             <option value="result" ${caseState.source === "result" ? "selected" : ""}>复核转</option>
             <option value="import" ${caseState.source === "import" ? "selected" : ""}>导入</option>
           </select></div>
+        <div><label for="cq_part">件号</label>
+          <input id="cq_part" value="${esc(caseState.partNo || "")}" placeholder="精确件号"></div>
         <div><label for="cq_arch">归档</label>
           <select id="cq_arch">
             <option value="" ${!caseState.showArchived ? "selected" : ""}>不含已归档</option>
@@ -852,7 +856,7 @@ async function renderCases() {
       ${rows.length === 0 ? `<div class="empty">还没有判例。<b>为什么要有</b>：判例是训练数据来源，也是"这张为什么这么判"的证据。</div>` : `
       <table><caption class="sr-only">判例列表</caption>
         <thead><tr>
-          <th scope="col">图</th><th scope="col">#</th><th scope="col">编码</th><th scope="col">结论</th>
+          <th scope="col">图</th><th scope="col">#</th><th scope="col">编码</th><th scope="col">件号</th><th scope="col">结论</th>
           <th scope="col">理由</th><th scope="col">来源</th><th scope="col">裁决人</th>
           <th scope="col">时间</th><th scope="col">操作</th>
         </tr></thead>
@@ -861,6 +865,7 @@ async function renderCases() {
                 onerror="this.style.visibility='hidden'"></td>
           <td>${c.id}</td>
           <td>${esc(c.code)}</td>
+          <td>${esc(c.part_no || "-")}</td>
           <td>${tag(c.verdict)}${c.conflict ? ' <span class="tag ng">冲突</span>' : ""}</td>
           <td>${esc(c.reason || "-")}</td>
           <td class="muted">${esc(c.source || "manual")}</td>
@@ -892,6 +897,11 @@ async function renderCases() {
   $("cq_verdict").onchange = (e) => { caseState.verdict = e.target.value; renderCases(); };
   $("cq_source").onchange = (e) => { caseState.source = e.target.value; renderCases(); };
   $("cq_arch").onchange = (e) => { caseState.showArchived = e.target.value === "1"; renderCases(); };
+  $("cq_part").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    caseState.partNo = e.target.value.trim();
+    renderCases();
+  });
 }
 
 async function renderTraining() {
@@ -1061,7 +1071,8 @@ $("caseForm").addEventListener("submit", async (ev) => {
       verdict: $("f_verdict").value,
       adjudicator: $("f_adj").value.trim(),
       reason: $("f_reason").value || null,
-      source: $("f_source").value
+      source: $("f_source").value,
+      part_no: $("f_part").value.trim() || null
     });
     $("caseDlg").close();
     $("caseForm").reset();

@@ -90,3 +90,42 @@ def test_filters_by_verdict_source_and_audit_written(client, tmp_path):
 
     audit = client.get("/api/audit/recent").json()
     assert any(a["action"] == "case.create" for a in audit)
+
+
+def test_same_part_no_is_one_case(client, tmp_path):
+    _seed(client)
+    a = _img(tmp_path, "a.png", (11, 11, 11))
+    b = _img(tmp_path, "b.png", (22, 22, 22))
+    first = client.post(
+        "/api/cases",
+        json={"code": "AB-1", "crop_path": a, "verdict": "ok", "adjudicator": "z", "part_no": "P-100"},
+    )
+    assert first.status_code == 201
+
+    dup = client.post(
+        "/api/cases",
+        json={"code": "AB-1", "crop_path": b, "verdict": "ok", "adjudicator": "z", "part_no": "P-100"},
+    )
+    assert dup.status_code == 409
+    assert dup.json()["error_code"] == "case_duplicate"
+
+    rows = client.get("/api/cases", params={"part_no": "P-100"}).json()
+    assert len(rows) == 1
+    assert rows[0]["part_no"] == "P-100"
+
+
+def test_same_part_different_verdict_flags_conflict(client, tmp_path):
+    _seed(client)
+    a = _img(tmp_path, "a.png", (33, 33, 33))
+    b = _img(tmp_path, "b.png", (44, 44, 44))
+    case_id = client.post(
+        "/api/cases",
+        json={"code": "AB-1", "crop_path": a, "verdict": "ok", "adjudicator": "z", "part_no": "P-200"},
+    ).json()["id"]
+    client.post(
+        "/api/cases",
+        json={"code": "AB-1", "crop_path": b, "verdict": "ng", "adjudicator": "z", "part_no": "P-200"},
+    )
+    conflicts = client.get("/api/cases/conflicts").json()
+    assert [c["id"] for c in conflicts] == [case_id]
+

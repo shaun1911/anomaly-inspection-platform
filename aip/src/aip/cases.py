@@ -41,6 +41,7 @@ class Case:
     model_version_id: int | None = None
     conflict: int = 0
     archived_at: str | None = None
+    part_no: str | None = None
 
 
 def _sha256(path: str) -> str | None:
@@ -65,6 +66,7 @@ def create_case(
     source: str = "manual",
     result_id: int | None = None,
     model_version_id: int | None = None,
+    part_no: str | None = None,
 ) -> int:
     if verdict not in VERDICTS:
         raise ValueError(f"verdict 只能是 {VERDICTS}，收到 {verdict!r}")
@@ -74,6 +76,22 @@ def create_case(
     row = conn.execute("SELECT id FROM product_code WHERE code = ?", (product_code,)).fetchone()
     if row is None:
         raise LookupError(f"未知产品编码: {product_code}")
+
+    part_no = (part_no or "").strip() or None
+
+    if part_no is not None:
+        existing = conn.execute(
+            "SELECT id, verdict FROM case_item WHERE product_code_id = ? AND part_no = ?",
+            (row["id"], part_no),
+        ).fetchone()
+        if existing is not None:
+            conflict = existing["verdict"] != verdict
+            if conflict:
+                with tx(conn):
+                    conn.execute("UPDATE case_item SET conflict = 1 WHERE id = ?", (existing["id"],))
+                    record(conn, actor=adjudicator, action="case.conflict", entity="case_item",
+                           entity_id=existing["id"], payload={"attempted": verdict, "part_no": part_no})
+            raise DuplicateCase(existing["id"], conflict)
 
     sha = _sha256(crop_path)
     if sha is not None:
@@ -94,9 +112,10 @@ def create_case(
         cur = conn.execute(
             "INSERT INTO case_item"
             " (product_code_id, crop_path, verdict, reason, adjudicator, sha256, source,"
-            "  result_id, model_version_id)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (row["id"], crop_path, verdict, reason, adjudicator, sha, source, result_id, model_version_id),
+            "  result_id, model_version_id, part_no)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (row["id"], crop_path, verdict, reason, adjudicator, sha, source, result_id,
+             model_version_id, part_no),
         )
         case_id = int(cur.lastrowid)
         record(conn, actor=adjudicator, action="case.create", entity="case_item",
@@ -120,6 +139,7 @@ def list_cases(
     adjudicator: str | None = None,
     verdict: str | None = None,
     source: str | None = None,
+    part_no: str | None = None,
     conflict: bool | None = None,
     include_archived: bool = False,
     limit: int = 50,
@@ -141,6 +161,9 @@ def list_cases(
     if source is not None:
         clauses.append("c.source = ?")
         params.append(source)
+    if part_no is not None:
+        clauses.append("c.part_no = ?")
+        params.append(part_no)
     if conflict is not None:
         clauses.append("c.conflict = ?")
         params.append(1 if conflict else 0)
@@ -250,4 +273,5 @@ def _to_case(row: sqlite3.Row) -> Case:
         model_version_id=row["model_version_id"] if "model_version_id" in keys else None,
         conflict=row["conflict"] if "conflict" in keys else 0,
         archived_at=row["archived_at"] if "archived_at" in keys else None,
+        part_no=row["part_no"] if "part_no" in keys else None,
     )
