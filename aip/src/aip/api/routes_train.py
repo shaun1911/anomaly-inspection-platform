@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 from pydantic import BaseModel
 
 from ..audit import record
+from ..inference.service import GATE_MESSAGES, FakePredictor, check_gate, label_for
+from ..settings import gate_config
 from ..store import tx
 from .deps import get_conn
 from .errors import ApiError
@@ -108,6 +111,66 @@ def list_train(
         item.pop("metrics_json", None)
         out.append(item)
     return out
+
+
+@router.post("/models/{model_id}/versions/{version_no}/smoke")
+def smoke(
+    model_id: int,
+    version_no: int,
+    file: UploadFile = File(...),
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> dict:
+    """冒烟：用候选版本试判一张图，不写生产结果、不动绑定。"""
+    version = conn.execute(
+        "SELECT id, status FROM model_version WHERE model_id = ? AND version_no = ?",
+        (model_id, version_no),
+    ).fetchone()
+    if version is None:
+        raise ApiError("version_not_found", f"版本 v{version_no} 不存在", "刷新", 404)
+
+    config = conn.execute(
+        "SELECT roi_rect FROM config_rev WHERE model_version_id = ? ORDER BY rev DESC LIMIT 1",
+        (version["id"],),
+    ).fetchone()
+    threshold = conn.execute(
+        "SELECT th_lo, th_hi FROM threshold_rev WHERE model_version_id = ?"
+        " ORDER BY rev DESC LIMIT 1",
+        (version["id"],),
+    ).fetchone()
+    th_lo, th_hi = (threshold["th_lo"], threshold["th_hi"]) if threshold else (0.45, 0.60)
+
+    payload = file.file.read()
+    if not payload:
+        raise ApiError("empty_image", "上传内容为空", "重新选择", 400)
+
+    import hashlib
+
+    db_file = Path(conn.execute("PRAGMA database_list").fetchone()[2])
+    target_dir = db_file.parent / "smoke"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    path = target_dir / f"{hashlib.sha256(payload).hexdigest()}.png"
+    path.write_bytes(payload)
+
+    gate = check_gate(path, gate_config(conn))
+    if gate is not None:
+        message, action = GATE_MESSAGES.get(gate, ("裁片不合格", "重新取图"))
+        return {"passed": False, "gate": gate, "message": message, "action": action}
+
+    pred = FakePredictor().predict(path)
+    label = label_for(pred.score, th_lo, th_hi)
+    with tx(conn):
+        record(conn, actor="web", action="model.smoke", entity="model_version",
+               entity_id=f"{model_id}:{version_no}",
+               payload={"score": pred.score, "label": label})
+    return {
+        "passed": True,
+        "score": pred.score,
+        "label": label,
+        "th_lo": th_lo,
+        "th_hi": th_hi,
+        "roi_rect": json.loads(config["roi_rect"]) if config else None,
+        "version_status": version["status"],
+    }
 
 
 @router.post("/train/{job_id}/cancel")

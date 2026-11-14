@@ -102,6 +102,14 @@
   .refrow img{width:110px;height:110px;object-fit:cover;border-radius:8px;border:1px solid var(--g3);background:var(--g2)}
   .refrow figcaption{font-size:11px;color:var(--t3);margin-top:4px;line-height:1.4}
   .thumb{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--g3);background:var(--g2)}
+  .wiz-step{border:1px solid var(--g3);border-radius:10px;padding:14px;margin-bottom:10px;opacity:.6}
+  .wiz-step.cur{opacity:1;border-color:var(--brand);background:var(--g1)}
+  .wiz-step.done{opacity:1;border-color:color-mix(in oklab,var(--ok) 50%,transparent)}
+  .wiz-head{display:flex;align-items:center;gap:10px;font-size:14px}
+  .wiz-no{width:26px;height:26px;border-radius:50%;background:var(--g2);display:flex;align-items:center;justify-content:center;font-weight:700}
+  .wiz-step.done .wiz-no{background:color-mix(in oklab,var(--ok) 25%,transparent);color:var(--ok)}
+  .wiz-step.cur .wiz-no{background:var(--brand);color:#fff}
+  .wiz-body{margin-top:12px}
   .chip-static{background:var(--g2);border:1px solid var(--g3);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--t2)}
   .item .score{width:48px;font-variant-numeric:tabular-nums;color:var(--t2)}
   .shot{background:var(--g2);border-radius:10px;min-height:320px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:12px}
@@ -130,6 +138,7 @@
     <nav aria-label="主导航">
       <a href="#/workbench" data-nav="workbench">工作台</a>
       <div class="group">生产</div>
+      <a href="#/wizard" data-nav="wizard">新建向导</a>
       <a href="#/catalog" data-nav="catalog">编码与模型</a>
       <div class="group">质量</div>
       <a href="#/quality" data-nav="quality">复核队列</a>
@@ -286,6 +295,178 @@ async function renderWorkbench() {
 }
 
 let showArchived = false;
+
+let wiz = { code: "", modelId: null };
+
+async function renderWizard() {
+  const [codes, models, bindings, datasets] = await Promise.all([
+    api("/api/codes"), api("/api/models"), api("/api/bindings"), api("/api/datasets")
+  ]);
+  const codeRow = codes.find(c => c.code === wiz.code);
+  const binding = wiz.code ? bindings.find(b => b.code === wiz.code && !b.active_to) : null;
+  const model = binding ? models.find(m => m.id === binding.model_id) : null;
+  const cases = wiz.code ? await api("/api/cases?code=" + encodeURIComponent(wiz.code) + "&limit=200") : [];
+  const versions = model ? model.versions : [];
+  const candidate = versions.find(v => v.status === "candidate");
+  const assist = versions.find(v => v.status === "assist");
+
+  const steps = [
+    { title: "建编码", done: !!codeRow, hint: "产品编码是入口，操作工只认它" },
+    { title: "建模型并绑定", done: !!binding, hint: "模型提供判断能力，一个模型可服务多个编码" },
+    { title: "导入样品判例", done: cases.length > 0, hint: "每张图给一个结论，判例是训练数据来源" },
+    { title: "数据集冻结并训练", done: !!candidate || !!assist, hint: "训练只读冻结快照，可复现" },
+    { title: "冒烟并发布", done: !!assist, hint: "用候选版本试判一张图，再发布为生效" },
+  ];
+  const current = steps.findIndex(s => !s.done);
+
+  const step = (i, body) => `
+    <div class="wiz-step ${steps[i].done ? "done" : i === current ? "cur" : ""}">
+      <div class="wiz-head">
+        <span class="wiz-no">${steps[i].done ? "✓" : i + 1}</span>
+        <b>${steps[i].title}</b>
+        <span class="muted">${steps[i].hint}</span>
+      </div>
+      ${i === current ? `<div class="wiz-body">${body}</div>` : ""}
+    </div>`;
+
+  $("view").innerHTML = `
+    <section>
+      <h2>新建向导 <span class="pill">一条链路：编码 → 模型 → 样品 → 训练 → 发布</span></h2>
+      <p class="muted" style="margin:0 0 12px">只显示当前该做的一步；完成后自动进入下一步，随时可从左侧导航离开。</p>
+      ${step(0, `<div class="form">
+          <div><label for="wz_code">编码</label><input id="wz_code" placeholder="AB-1234-01"></div>
+          <div><label for="wz_family">族</label><input id="wz_family" list="wzFamilies" placeholder="支架类"></div>
+          <div><label for="wz_part">零件</label><input id="wz_part" placeholder="全型"></div>
+          <div><button class="act" id="wzCreateCode">建编码</button></div>
+        </div>
+        ${codes.length ? `<div class="form"><div><label for="wz_pick">或选择已有编码</label>
+          <select id="wz_pick"><option value="">—</option>${codes.map(c => `<option value="${esc(c.code)}">${esc(c.code)}</option>`).join("")}</select>
+        </div></div>` : ""}`)}
+
+      ${step(1, `<div class="form">
+          <div><label for="wz_model">模型编码</label><input id="wz_model" placeholder="M1"></div>
+          <div><label for="wz_model_name">名称</label><input id="wz_model_name" placeholder="支架-全型"></div>
+          <div><button class="act" id="wzCreateModel">建模型并绑定到 ${esc(wiz.code)}</button></div>
+        </div>
+        ${models.length ? `<div class="form"><div><label for="wz_model_pick">或绑定已有模型</label>
+          <select id="wz_model_pick"><option value="">—</option>${models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("")}</select>
+        </div></div>` : ""}`)}
+
+      ${step(2, `<div class="form">
+          <div><label for="wz_file">裁片</label><input id="wz_file" type="file" accept="image/png,image/jpeg"></div>
+          <div><label for="wz_verdict">结论</label><select id="wz_verdict"><option value="ok">可接受 ok</option><option value="ng">缺陷 ng</option></select></div>
+          <div><button class="act" id="wzAddCase">录入判例</button></div>
+        </div>
+        <p class="muted">已录入 <b>${cases.length}</b> 条。建议先录 5–10 条（含至少 1 条 NG）再训练。</p>`)}
+
+      ${step(3, `<div class="form">
+          <div><button class="act" id="wzTrain">建数据集 → 冻结 → 训练</button></div>
+        </div>
+        <p class="muted">数据集会自动包含该编码的全部判例，并冻结校验和。</p>`)}
+
+      ${step(4, `<div class="form">
+          <div><label for="wz_smoke">冒烟图</label><input id="wz_smoke" type="file" accept="image/png,image/jpeg"></div>
+          <div><button class="act" id="wzSmoke">用候选版本试判</button></div>
+        </div>
+        <div id="wzSmokeOut" class="muted"></div>
+        ${candidate ? `<div class="row" style="margin-top:10px"><button class="act" id="wzPublish">发布 v${candidate.version_no} 为生效</button></div>` : ""}
+        ${assist ? `<p class="muted">已发布：v${assist.version_no} 生效中。</p>` : ""}`)}
+    </section>`;
+
+  if (!codeRow && codes.length) {
+    $("wz_pick").onchange = (e) => { if (e.target.value) { wiz.code = e.target.value; renderWizard(); } };
+  }
+  if ($("wzCreateCode")) {
+    $("wzCreateCode").onclick = async () => {
+      try {
+        await post("/api/codes", {code: $("wz_code").value.trim(), family: $("wz_family").value.trim() || null, part: $("wz_part").value.trim() || null});
+        wiz.code = $("wz_code").value.trim();
+        toast("编码已创建");
+        renderWizard();
+      } catch (e) { toast(e.message, true); }
+    };
+  }
+  if ($("wzCreateModel")) {
+    $("wzCreateModel").onclick = async () => {
+      try {
+        const m = await post("/api/models", {code: $("wz_model").value.trim(), name: $("wz_model_name").value.trim() || null});
+        await post("/api/bindings", {code: wiz.code, model_id: m.id});
+        wiz.modelId = m.id;
+        toast("模型已创建并绑定");
+        renderWizard();
+      } catch (e) { toast(e.message, true); }
+    };
+  }
+  if ($("wz_model_pick")) {
+    $("wz_model_pick").onchange = async (e) => {
+      if (!e.target.value) return;
+      try {
+        await post("/api/bindings", {code: wiz.code, model_id: Number(e.target.value)});
+        toast("已绑定");
+        renderWizard();
+      } catch (err) { toast(err.message, true); }
+    };
+  }
+  if ($("wzAddCase")) {
+    $("wzAddCase").onclick = async () => {
+      const file = $("wz_file").files[0];
+      if (!file) { toast("先选一张裁片", true); return; }
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        const up = await api("/api/cases/upload", {method: "POST", body: form});
+        await post("/api/cases", {
+          code: wiz.code, crop_path: up.crop_path, verdict: $("wz_verdict").value,
+          adjudicator: "admin", part_no: "WIZ-" + Date.now()
+        });
+        toast("判例已录入");
+        renderWizard();
+      } catch (e) { toast(e.message, true); }
+    };
+  }
+  if ($("wzTrain")) {
+    $("wzTrain").onclick = async () => {
+      try {
+        const ds = await post("/api/datasets", {model_id: model.id, name: `WIZ-${wiz.code}-${new Date().toISOString().slice(0, 10)}`});
+        await post(`/api/datasets/${ds.id}/items`, {case_ids: cases.map(c => c.id)});
+        await post(`/api/datasets/${ds.id}/freeze`, {});
+        const job = await post("/api/train", {model_id: model.id, dataset_id: ds.id});
+        toast(`训练完成，产出 v${job.version_no}`);
+        renderWizard();
+      } catch (e) { toast(e.message, true); }
+    };
+  }
+  if ($("wzSmoke")) {
+    $("wzSmoke").onclick = async () => {
+      const file = $("wz_smoke").files[0];
+      if (!file) { toast("先选一张冒烟图", true); return; }
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        const r = await api(`/api/models/${model.id}/versions/${(candidate || assist).version_no}/smoke`, {method: "POST", body: form});
+        if (!r.passed) {
+          $("wzSmokeOut").innerHTML = `<div class="banner warn">冒烟未通过：${esc(r.message)}<small>${esc(r.action)}</small></div>`;
+          return;
+        }
+        const color = r.label === "ok" ? "ok" : r.label === "ng" ? "bad" : "warn";
+        $("wzSmokeOut").innerHTML = `<div class="banner ${color}">${r.label.toUpperCase()} · 分数 ${r.score.toFixed(3)}<small>阈值 ${r.th_lo} / ${r.th_hi}</small></div>`;
+      } catch (e) { toast(e.message, true); }
+    };
+  }
+  if ($("wzPublish")) {
+    $("wzPublish").onclick = async () => {
+      if (!confirm("发布后该模型下所有编码立即使用新版本，旧版本降为已停用。确认？")) return;
+      try {
+        await api(`/api/models/${model.id}/versions/${candidate.version_no}/status`, {
+          method: "PUT", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({status: "assist"})
+        });
+        toast(`v${candidate.version_no} 已发布`);
+        renderWizard();
+      } catch (e) { toast(e.message, true); }
+    };
+  }
+}
 
 async function renderCatalog() {
   const [codes, bindings, models, families] = await Promise.all([
@@ -1452,7 +1633,7 @@ function renderPlaceholder(title, need, items) {
 /* ---------- 路由 ---------- */
 
 const TITLES = {
-  workbench: "工作台", catalog: "编码与模型", quality: "复核队列", cases: "判例库",
+  workbench: "工作台", wizard: "新建向导", catalog: "编码与模型", quality: "复核队列", cases: "判例库",
   datasets: "数据集", blind: "抽检", training: "训练与发布", system: "系统", settings: "设置"
 };
 
@@ -1466,6 +1647,7 @@ async function route() {
   $("title").textContent = name === "code" ? "编码详情" : (TITLES[name] || "工作台");
   try {
     if (name === "code" && arg) return await renderCode(decodeURIComponent(arg));
+    if (name === "wizard") return await renderWizard();
     if (name === "catalog") return await renderCatalog();
     if (name === "quality") return await renderQuality();
     if (name === "cases") return await renderCases();

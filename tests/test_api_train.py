@@ -128,3 +128,54 @@ def test_rollback_without_previous_is_409(client, tmp_path):
     resp = client.post(f"/api/models/{mid}/rollback")
     assert resp.status_code == 409
     assert resp.json()["error_code"] == "no_previous"
+
+
+def test_smoke_on_candidate_version(client):
+    client.post("/api/codes", json={"code": "AB-1"})
+    mid = client.post("/api/models", json={"code": "M1"}).json()["id"]
+    client.post(f"/api/models/{mid}/versions", json={"version_no": 1})
+
+    import numpy as np
+    from PIL import Image as PILImage
+    import io as _io
+
+    rng = np.random.default_rng(1)
+    arr = np.clip(np.full((64, 64, 3), 120, dtype=np.int16) + rng.integers(-40, 40, (64, 64, 3)), 0, 255).astype("uint8")
+    buf = _io.BytesIO()
+    PILImage.fromarray(arr, "RGB").save(buf, format="PNG")
+
+    resp = client.post(
+        f"/api/models/{mid}/versions/1/smoke",
+        files={"file": ("s.png", buf.getvalue(), "image/png")},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["passed"] is True
+    assert body["label"] in ("ok", "gray", "ng")
+    assert 0 <= body["score"] <= 1
+
+
+def test_smoke_rejects_tiny_image_and_unknown_version(client):
+    client.post("/api/codes", json={"code": "AB-1"})
+    mid = client.post("/api/models", json={"code": "M1"}).json()["id"]
+    client.post(f"/api/models/{mid}/versions", json={"version_no": 1})
+
+    import io as _io
+    from PIL import Image as PILImage
+
+    buf = _io.BytesIO()
+    PILImage.new("RGB", (8, 8), (0, 0, 0)).save(buf, format="PNG")
+    small = client.post(
+        f"/api/models/{mid}/versions/1/smoke",
+        files={"file": ("s.png", buf.getvalue(), "image/png")},
+    )
+    assert small.status_code == 200
+    assert small.json()["passed"] is False
+    assert small.json()["gate"] == "crop_too_small"
+
+    missing = client.post(
+        f"/api/models/{mid}/versions/9/smoke",
+        files={"file": ("s.png", buf.getvalue(), "image/png")},
+    )
+    assert missing.status_code == 404
+
