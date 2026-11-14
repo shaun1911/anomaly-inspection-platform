@@ -42,6 +42,7 @@ class Case:
     conflict: int = 0
     archived_at: str | None = None
     part_no: str | None = None
+    batch_no: str | None = None
 
 
 def _sha256(path: str) -> str | None:
@@ -67,6 +68,7 @@ def create_case(
     result_id: int | None = None,
     model_version_id: int | None = None,
     part_no: str | None = None,
+    batch_no: str | None = None,
 ) -> int:
     if verdict not in VERDICTS:
         raise ValueError(f"verdict 只能是 {VERDICTS}，收到 {verdict!r}")
@@ -78,6 +80,16 @@ def create_case(
         raise LookupError(f"未知产品编码: {product_code}")
 
     part_no = (part_no or "").strip() or None
+    batch_no = (batch_no or "").strip() or None
+
+    if batch_no is None and result_id is not None:
+        row_batch = conn.execute(
+            "SELECT j.batch_no FROM inference_result r JOIN inference_job j ON j.id = r.job_id"
+            " WHERE r.id = ?",
+            (result_id,),
+        ).fetchone()
+        if row_batch is not None:
+            batch_no = row_batch["batch_no"]
 
     if part_no is not None:
         existing = conn.execute(
@@ -112,10 +124,10 @@ def create_case(
         cur = conn.execute(
             "INSERT INTO case_item"
             " (product_code_id, crop_path, verdict, reason, adjudicator, sha256, source,"
-            "  result_id, model_version_id, part_no)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "  result_id, model_version_id, part_no, batch_no)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (row["id"], crop_path, verdict, reason, adjudicator, sha, source, result_id,
-             model_version_id, part_no),
+             model_version_id, part_no, batch_no),
         )
         case_id = int(cur.lastrowid)
         record(conn, actor=adjudicator, action="case.create", entity="case_item",
@@ -140,6 +152,7 @@ def list_cases(
     verdict: str | None = None,
     source: str | None = None,
     part_no: str | None = None,
+    batch_no: str | None = None,
     family: str | None = None,
     conflict: bool | None = None,
     include_archived: bool = False,
@@ -170,6 +183,9 @@ def list_cases(
     if part_no is not None:
         clauses.append("c.part_no = ?")
         params.append(part_no)
+    if batch_no is not None:
+        clauses.append("c.batch_no = ?")
+        params.append(batch_no)
     if conflict is not None:
         clauses.append("c.conflict = ?")
         params.append(1 if conflict else 0)
@@ -194,6 +210,7 @@ def count_cases(
     verdict: str | None = None,
     source: str | None = None,
     part_no: str | None = None,
+    batch_no: str | None = None,
     family: str | None = None,
     conflict: bool | None = None,
     include_archived: bool = False,
@@ -220,6 +237,9 @@ def count_cases(
     if part_no:
         clauses.append("c.part_no = ?")
         params.append(part_no)
+    if batch_no:
+        clauses.append("c.batch_no = ?")
+        params.append(batch_no)
     if conflict is not None:
         clauses.append("c.conflict = ?")
         params.append(1 if conflict else 0)
@@ -309,4 +329,5 @@ def _to_case(row: sqlite3.Row) -> Case:
         conflict=row["conflict"] if "conflict" in keys else 0,
         archived_at=row["archived_at"] if "archived_at" in keys else None,
         part_no=row["part_no"] if "part_no" in keys else None,
+        batch_no=row["batch_no"] if "batch_no" in keys else None,
     )

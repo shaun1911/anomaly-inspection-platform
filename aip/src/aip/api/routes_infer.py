@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import sqlite3
 from pathlib import Path
 
@@ -17,6 +18,19 @@ from .deps import get_conn
 from .errors import ApiError
 
 router = APIRouter(tags=["infer"])
+
+_BATCH_RE = re.compile(r"^[A-Za-z0-9._\-/]+$")
+
+
+def _normalize_batch(value: str | None) -> str | None:
+    text = (value or "").strip()
+    if not text:
+        return None
+    if len(text) > 64:
+        raise ApiError("batch_too_long", "批次号超过 64 字符", "核对批次号", 400)
+    if not _BATCH_RE.match(text):
+        raise ApiError("batch_invalid", "批次号只能包含字母、数字、. _ - /", "核对批次号", 400)
+    return text
 
 DEFAULT_TH = (0.4, 0.7)
 
@@ -67,10 +81,14 @@ def submit(
     code: str = Form(...),
     station: str = Form("unknown"),
     part_no: str | None = Form(None),
+    batch_no: str | None = Form(None),
     image: UploadFile = File(...),
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     conn: sqlite3.Connection = Depends(get_conn),
 ) -> dict:
+    batch = _normalize_batch(batch_no)
+    part = (part_no or "").strip() or None
+
     if not whitelist.is_allowed(code):
         raise ApiError("not_in_shift", f"编码 {code} 不在本班白名单", "联系技师或换件", 403)
 
@@ -105,9 +123,10 @@ def submit(
         else:
             station_id = int(st["id"])
         cur = conn.execute(
-            "INSERT INTO inference_job (code, part_no, station_id, idempotency_key, status)"
-            " VALUES (?, ?, ?, ?, 'queued')",
-            (code, part_no, station_id, key),
+            "INSERT INTO inference_job"
+            " (code, part_no, batch_no, station_id, idempotency_key, status)"
+            " VALUES (?, ?, ?, ?, ?, 'queued')",
+            (code, part, batch, station_id, key),
         )
         job_id = int(cur.lastrowid)
 
@@ -136,6 +155,9 @@ def get_job(job_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
         "job_id": job_id,
         "status": job["status"],
         "error_code": job["error_code"],
+        "code": job["code"],
+        "part_no": job["part_no"],
+        "batch_no": job["batch_no"],
         "result": {
             "id": result["id"],
             "score": result["score"],

@@ -46,7 +46,7 @@
 
   main{padding:18px 22px;display:grid;gap:16px;align-content:start}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px}
-  .card{background:var(--g1);border:1px solid var(--g3);border-radius:12px;padding:14px}
+  .card{background:var(--g1);text-decoration:none;color:inherit;display:block;border:1px solid var(--g3);border-radius:12px;padding:14px}
   .card b{display:block;font-size:22px;margin-top:4px;font-variant-numeric:tabular-nums}
   .card span{color:var(--t3);font-size:12px}
   .card.warn b{color:var(--warn)}
@@ -202,6 +202,20 @@ function toast(msg, bad=false) {
 const tag = (label) => `<span class="tag ${esc(label)}">${esc(label)}</span>`;
 const fmtTime = (s) => s ? s.replace("T", " ").replace(/\.\d+Z$/, "") : "-";
 
+const ACTIONS = {
+  "version.status": "版本状态变更", "binding.create": "绑定模型", "binding.unbind": "解除绑定",
+  "config.create": "保存 ROI", "threshold.create": "保存阈值",
+  "review.confirm": "复核确认", "review.claim": "领取", "review.skip": "暂缓",
+  "review.release": "释放", "review.restore": "恢复暂缓",
+  "case.create": "录入判例", "case.patch": "修改判例", "case.delete": "删除判例",
+  "case.archive": "归档判例", "case.restore": "恢复判例", "case.conflict": "判例冲突",
+  "setting.update": "修改设置", "train.start": "启动训练", "train.cancel": "取消训练",
+  "model.rollback": "回滚版本", "model.archive": "归档模型", "model.patch": "模型改名",
+  "code.patch": "修改编码", "code.active": "启用/停用编码",
+  "code.archive": "归档编码", "code.restore": "恢复编码", "family.create": "新建族",
+};
+const actionLabel = (a) => ACTIONS[a] || a;
+
 /* ---------- 视图 ---------- */
 
 async function renderWorkbench() {
@@ -213,33 +227,34 @@ async function renderWorkbench() {
   const badStations = overview.stations.filter(s => s.health !== "ok");
 
   const todos = [];
+  let hint = "";
   if (overview.pending_review > 0) todos.push({href:"#/quality", text:"待确认的判定", n: overview.pending_review});
   if (candidates.length) todos.push({href:"#/training", text:"待发布的候选版本", n: candidates.length});
   if (badStations.length) todos.push({href:"#/system", text:"异常站位", n: badStations.length});
-  if (overview.cases === 0) todos.push({href:"#/cases", text:"判例库还是空的，先录一条", n: "→"});
+  if (overview.cases === 0) hint = "判例库还是空的，录一条之后复核就有参考样例了";
 
   $("view").innerHTML = `
     <div class="cards">
-      <div class="card"><span>今日判定</span><b>${stats.total}</b></div>
-      <div class="card"><span>NG</span><b>${stats.ng}</b></div>
-      <div class="card warn"><span>灰区</span><b>${stats.gray}</b></div>
-      <div class="card bad"><span>待确认</span><b>${stats.pending_review}</b></div>
-      <div class="card"><span>NG 率</span><b>${(stats.ng_rate*100).toFixed(1)}%</b></div>
-      <div class="card"><span>灰区率</span><b>${(stats.gray_rate*100).toFixed(1)}%</b></div>
+      <a class="card" href="#/quality"><span>今日判定</span><b>${stats.total}</b></a>
+      <a class="card" href="#/quality?label=ng"><span>NG</span><b>${stats.ng}</b></a>
+      <a class="card warn" href="#/quality?label=gray"><span>灰区</span><b>${stats.gray}</b></a>
+      <a class="card bad" href="#/quality"><span>待确认</span><b>${stats.pending_review}</b></a>
+      <a class="card" href="#/quality"><span>NG 率</span><b>${(stats.ng_rate*100).toFixed(1)}%</b></a>
+      <a class="card" href="#/quality"><span>灰区率</span><b>${(stats.gray_rate*100).toFixed(1)}%</b></a>
     </div>
 
     <section>
       <h2>要你处理的 <span class="pill">${todos.length} 项</span></h2>
       <div class="todo">
         ${todos.length ? todos.map(t => `<a href="${t.href}"><span>${esc(t.text)}</span><span class="n">${t.n}</span></a>`).join("")
-          : `<div class="empty">今天没有待处理事项。<b>下一步</b>：去「编码与模型」建一个编码，或去「判例库」录一条判例。</div>`}
+          : `<div class="empty">今天没有待处理事项。${hint ? "<br>" + esc(hint) : ""}</div>`}
       </div>
     </section>
 
     <section>
       <h2>最近操作</h2>
       ${audit.length ? `<div class="timeline">${audit.map(a => `
-        <div class="tl"><time>${fmtTime(a.created_at)}</time><span class="kind">${esc(a.action)}</span>
+        <div class="tl"><time>${fmtTime(a.created_at)}</time><span class="kind">${esc(actionLabel(a.action))}</span>
         <span>${esc(a.actor)} · ${esc(a.entity)}${a.entity_id ? " #" + esc(a.entity_id) : ""}</span></div>`).join("")}</div>`
         : `<div class="empty">还没有记录。改阈值、换绑定、发布版本都会出现在这里。</div>`}
     </section>`;
@@ -325,7 +340,8 @@ async function renderCatalog() {
         <tbody>${models.map(m => `<tr>
           <td>${m.id}</td><td>${esc(m.code)}</td><td>${esc(m.name || "-")}</td>
           <td>${m.versions.length ? m.versions.map(v => `<span class="tag ${v.status}">v${v.version_no} ${v.status}</span>`).join(" ") : '<span class="muted">无版本</span>'}</td>
-        </tr>`).join("")}</tbody></table>`}
+        </tr>`).join("")}</tbody></table>
+`}
     </section>`;
 
   document.querySelectorAll("tr[data-code]").forEach(tr => {
@@ -335,6 +351,7 @@ async function renderCatalog() {
   document.querySelectorAll("[data-archive]").forEach(btn => {
     btn.onclick = async (ev) => {
       ev.stopPropagation();
+      if (!confirm(`归档 ${btn.dataset.archive}？归档后从列表与选择器消失，历史保留。`)) return;
       try { await post(`/api/codes/${encodeURIComponent(btn.dataset.archive)}/archive`, {}); toast("已归档"); renderCatalog(); }
       catch (e) { toast(e.message, true); }
     };
@@ -559,7 +576,7 @@ async function renderQuality() {
           </div>
           <div class="row" style="margin-bottom:8px">
             <button class="ghost" id="rClaim">领取这一件</button>
-            <button class="ghost" id="rSkip">暂缓</button>
+            <button class="ghost" id="rSkip" disabled>暂缓（先选理由）</button>
           </div>
           <div class="row">
             <button class="act" id="rAccept">接受系统结论</button>
@@ -598,6 +615,9 @@ async function renderQuality() {
         <div>编码</div><div>${esc(cur.code)}</div>
         <div>件号</div><div>${esc(cur.part_no || "-")}</div>
         <div>待处理</div><div>${ids.length} 张</div>
+        <div>系统结论</div><div>${cur.kind === "part" ? `NG/灰区 ${cur.count} 张` : tag(cur.label)}</div>
+        <div>分数</div><div>${cur.kind === "part" ? cur.min_score.toFixed(3) + " ~ " + cur.max_score.toFixed(3) : cur.score.toFixed(3)}</div>
+        <div>批次</div><div>${esc(cur.batch_no || "-")}</div>
         <div>首次时间</div><div>${fmtTime(cur.first_at || cur.created_at)}</div>
         <div>位置</div><div>${idx + 1} / ${items.length}</div>`;
       $("rshots").textContent = "结果号：" + ids.join(", ");
@@ -628,7 +648,12 @@ async function renderQuality() {
 
     paint();
     document.querySelectorAll("#rreasons button").forEach(b => {
-      b.onclick = () => { reason = b.dataset.r; paint(); };
+      b.onclick = () => {
+        reason = b.dataset.r;
+        paint();
+        $("rSkip").disabled = false;
+        $("rSkip").textContent = "暂缓";
+      };
     });
     async function loadRefs() {
       const cur = items[idx];
@@ -812,20 +837,24 @@ async function renderSettings() {
   });
 }
 
-let caseState = {code: "", verdict: "", source: "", partNo: "", conflict: false, showArchived: false};
+let caseState = {code: "", verdict: "", source: "", partNo: "", batchNo: "", conflict: false, showArchived: false, page: 0, pageSize: 25};
 
 async function renderCases() {
-  const params = new URLSearchParams({limit: "50"});
+  const params = new URLSearchParams({limit: String(caseState.pageSize), offset: String(caseState.page * caseState.pageSize)});
   if (caseState.code) params.set("code", caseState.code);
   if (caseState.verdict) params.set("verdict", caseState.verdict);
   if (caseState.source) params.set("source", caseState.source);
   if (caseState.partNo) params.set("part_no", caseState.partNo);
+  if (caseState.batchNo) params.set("batch_no", caseState.batchNo);
   if (caseState.conflict) params.set("conflict", "true");
   if (caseState.showArchived) params.set("include_archived", "true");
 
-  const [rows, codes, conflicts] = await Promise.all([
-    api("/api/cases?" + params), api("/api/codes?include_archived=true"), api("/api/cases/conflicts")
+  const [data, codes, conflicts] = await Promise.all([
+    api("/api/cases/page?" + params), api("/api/codes?include_archived=true"), api("/api/cases/conflicts")
   ]);
+  const rows = data.items;
+  const total = data.total;
+  const pages = Math.max(1, Math.ceil(total / caseState.pageSize));
 
   const exportCsv = () => {
     const head = ["id", "code", "verdict", "reason", "source", "adjudicator", "created_at"];
@@ -840,7 +869,7 @@ async function renderCases() {
 
   $("view").innerHTML = `
     <section>
-      <h2>判例库 <span class="pill">${rows.length}</span>
+      <h2>判例库 <span class="pill">共 ${total} 条</span>
         ${conflicts.length ? `<span class="pill" style="background:color-mix(in oklab,var(--bad) 18%,transparent);color:var(--bad)">冲突 ${conflicts.length}</span>` : ""}
         <span style="margin-left:auto">
           <button class="ghost" id="btnExport">导出 CSV</button>
@@ -865,6 +894,8 @@ async function renderCases() {
           </select></div>
         <div><label for="cq_part">件号</label>
           <input id="cq_part" value="${esc(caseState.partNo || "")}" placeholder="精确件号"></div>
+        <div><label for="cq_batch">批次</label>
+          <input id="cq_batch" value="${esc(caseState.batchNo || "")}" placeholder="精确批次号"></div>
         <div><label for="cq_arch">归档</label>
           <select id="cq_arch">
             <option value="" ${!caseState.showArchived ? "selected" : ""}>不含已归档</option>
@@ -879,7 +910,7 @@ async function renderCases() {
       ${rows.length === 0 ? `<div class="empty">还没有判例。<b>为什么要有</b>：判例是训练数据来源，也是"这张为什么这么判"的证据。</div>` : `
       <table><caption class="sr-only">判例列表</caption>
         <thead><tr>
-          <th scope="col">图</th><th scope="col">#</th><th scope="col">编码</th><th scope="col">件号</th><th scope="col">结论</th>
+          <th scope="col">图</th><th scope="col">#</th><th scope="col">编码</th><th scope="col">件号</th><th scope="col">批次</th><th scope="col">结论</th>
           <th scope="col">理由</th><th scope="col">来源</th><th scope="col">裁决人</th>
           <th scope="col">时间</th><th scope="col">操作</th>
         </tr></thead>
@@ -889,6 +920,7 @@ async function renderCases() {
           <td>${c.id}</td>
           <td>${esc(c.code)}</td>
           <td>${esc(c.part_no || "-")}</td>
+          <td>${esc(c.batch_no || "-")}</td>
           <td>${tag(c.verdict)}${c.conflict ? ' <span class="tag ng">冲突</span>' : ""}</td>
           <td>${esc(c.reason || "-")}</td>
           <td class="muted">${esc(c.source || "manual")}</td>
@@ -897,7 +929,12 @@ async function renderCases() {
           <td>${c.archived_at
             ? `<button class="ghost" data-restore-case="${c.id}">恢复</button>`
             : `<button class="ghost" data-archive-case="${c.id}">归档</button>`}</td>
-        </tr>`).join("")}</tbody></table>`}
+        </tr>`).join("")}</tbody></table>
+      <div class="row" style="margin-top:12px;align-items:center">
+        <button class="ghost" id="casePrev" ${caseState.page === 0 ? "disabled" : ""}>上一页</button>
+        <span class="muted" style="flex:1;text-align:center">第 ${caseState.page + 1} / ${pages} 页 · 共 ${total} 条</span>
+        <button class="ghost" id="caseNext" ${caseState.page + 1 >= pages ? "disabled" : ""}>下一页</button>
+      </div>`}
     </section>`;
 
   $("newCase").onclick = () => $("caseDlg").showModal();
@@ -923,9 +960,24 @@ async function renderCases() {
   $("cq_part").addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     caseState.partNo = e.target.value.trim();
+    caseState.page = 0;
     renderCases();
   });
+  $("cq_batch").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    caseState.batchNo = e.target.value.trim();
+    caseState.page = 0;
+    renderCases();
+  });
+  if ($("casePrev")) $("casePrev").onclick = () => { caseState.page = Math.max(0, caseState.page - 1); renderCases(); };
+  if ($("caseNext")) $("caseNext").onclick = () => { caseState.page += 1; renderCases(); };
 }
+
+const STATUS_LABEL = {
+  candidate: "候选", assist: "生效中", shadow: "影子", disabled: "已停用",
+  succeeded: "成功", failed: "失败", running: "运行中", queued: "排队中", cancelled: "已取消"
+};
+const stLabel = (s) => STATUS_LABEL[s] || s;
 
 async function renderTraining() {
   const [jobs, models] = await Promise.all([api("/api/train"), api("/api/models")]);
@@ -949,7 +1001,7 @@ async function renderTraining() {
         <thead><tr><th scope="col">#</th><th scope="col">模型</th><th scope="col">状态</th><th scope="col">召回</th><th scope="col">过杀</th><th scope="col">样本</th><th scope="col">完成时间</th></tr></thead>
         <tbody>${jobs.map(j => `<tr>
           <td>${j.id}</td><td>${esc(j.model_code)}</td>
-          <td><span class="tag ${j.status === "succeeded" ? "ok" : j.status === "failed" ? "ng" : "gray"}">${esc(j.status)}</span></td>
+          <td><span class="tag ${j.status === "succeeded" ? "ok" : j.status === "failed" ? "ng" : "gray"}">${esc(stLabel(j.status))}</span></td>
           <td>${j.metrics ? (j.metrics.recall * 100).toFixed(1) + "%" : "-"}</td>
           <td>${j.metrics ? (j.metrics.overkill * 100).toFixed(1) + "%" : "-"}</td>
           <td>${j.metrics ? j.metrics.train_samples : "-"}</td>
@@ -972,7 +1024,7 @@ async function renderTraining() {
             <thead><tr><th scope="col">版本</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
             <tbody>${m.versions.map(v => `<tr>
               <td>v${v.version_no}</td>
-              <td><span class="tag ${v.status}">${v.status}</span></td>
+              <td><span class="tag ${v.status}">${esc(stLabel(v.status))}</span></td>
               <td>${v.status === "candidate"
                 ? `<button class="act" data-publish="${m.id}:${v.version_no}">发布为 assist</button>`
                 : v.status === "assist" ? '<span class="muted">当前生效</span>'
@@ -992,6 +1044,7 @@ async function renderTraining() {
   document.querySelectorAll("[data-publish]").forEach(btn => {
     btn.onclick = async () => {
       const [mid, vno] = btn.dataset.publish.split(":");
+      if (!confirm(`发布 ${btn.dataset.name} v${vno}？\n\n验证期进入"生效"后，该模型下所有编码立即使用新版本；旧版本降为已停用。`)) return;
       try {
         await api(`/api/models/${mid}/versions/${vno}/status`, {
           method: "PUT", headers: {"Content-Type": "application/json"},
@@ -1015,9 +1068,15 @@ async function renderTraining() {
   });
   document.querySelectorAll("[data-rollback]").forEach(btn => {
     btn.onclick = async () => {
-      if (!confirm("回滚到上一个版本？当前 assist 会降为 disabled。")) return;
+      const mid = Number(btn.dataset.rollback);
+      const m = models.find(x => x.id === mid);
+      const cur = m && m.versions.find(v => v.status === "assist");
+      const prev = m && m.versions.filter(v => v.status === "disabled" && cur && v.version_no < cur.version_no)
+        .sort((a, b) => b.version_no - a.version_no)[0];
+      if (!cur || !prev) { toast("没有可回退的版本", true); return; }
+      if (!confirm(`回滚：v${cur.version_no} → v${prev.version_no}？\n当前版本会降为已停用。`)) return;
       try {
-        const r = await post(`/api/models/${btn.dataset.rollback}/rollback`, {});
+        const r = await post(`/api/models/${mid}/rollback`, {});
         toast(`已回滚 v${r.from} → v${r.to}`); renderTraining();
       } catch (e) { toast(e.message, true); }
     };

@@ -122,7 +122,8 @@ def queue(
 
     if group_by == "part":
         rows = conn.execute(
-            "SELECT j.code, COALESCE(j.part_no,'-') part_no, count(*) n,"
+            "SELECT j.code, COALESCE(j.part_no,'-') part_no, COALESCE(j.batch_no,'-') batch_no,"
+            " count(*) n,"
             " min(r.score) min_score, max(r.score) max_score,"
             " min(r.created_at) first_at, group_concat(r.id) ids"
             + joins
@@ -137,6 +138,7 @@ def queue(
                 "kind": "part",
                 "code": r["code"],
                 "part_no": r["part_no"],
+                "batch_no": r["batch_no"],
                 "count": r["n"],
                 "min_score": r["min_score"],
                 "max_score": r["max_score"],
@@ -148,7 +150,7 @@ def queue(
     else:
         rows = conn.execute(
             "SELECT r.id, r.score, r.label, r.created_at, r.review_status,"
-            " r.claimed_by, r.claimed_at, j.code, j.part_no"
+            " r.claimed_by, r.claimed_at, j.code, j.part_no, j.batch_no"
             + joins
             + where_sql
             + " " + order

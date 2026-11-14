@@ -31,6 +31,15 @@
   .chip{background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:500}
   .chip small{color:var(--t3);font-size:11px}
   .chip.on{background:var(--pri);border-color:var(--pri);color:#fff}
+  #offlineBar{background:var(--bad);color:#fff;padding:14px 20px;font-size:16px;font-weight:600;text-align:center}
+  .banner{margin-top:12px;border-radius:10px;padding:18px;font-size:22px;font-weight:700;text-align:center;background:var(--g2)}
+  .banner small{display:block;font-size:13px;font-weight:400;color:var(--t2);margin-top:6px}
+  .banner.ok{background:color-mix(in oklab,var(--ok) 22%,transparent);color:var(--ok)}
+  .banner.bad{background:color-mix(in oklab,var(--bad) 22%,transparent);color:var(--bad)}
+  .banner.warn{background:color-mix(in oklab,var(--warn) 24%,transparent);color:var(--warn)}
+  button{min-height:56px;font-size:17px}
+  .chip{min-height:56px;font-size:16px;padding:12px 18px}
+  input,select{min-height:52px;font-size:17px}
   .status{margin-top:12px;padding:12px;border-radius:8px;background:var(--g2);font-size:14px;min-height:44px}
   .status.ok{background:rgba(52,199,89,.15);border:1px solid var(--ok)}
   .status.bad{background:rgba(255,59,48,.15);border:1px solid var(--bad)}
@@ -63,6 +72,7 @@
   <div class="spacer"></div>
   <span class="pill" id="healthPill">健康检查中…</span>
 </header>
+<div id="offlineBar" hidden>服务已断开 —— 请停止推图，联系技师</div>
 
 <main>
   <div style="display:flex;flex-direction:column;gap:16px">
@@ -73,7 +83,11 @@
       <label>选择产品（只列启用中的）</label>
       <div class="chips" id="codePick"><span class="muted">加载中…</span></div>
       <label style="margin-top:10px">或扫码/输入编码</label>
-      <input id="code" value="AB-1234-01" placeholder="扫描或输入编码">
+      <input id="code" placeholder="扫描或输入编码（回车即换型）" autofocus>
+      <label style="margin-top:10px">件号（可扫码）</label>
+      <input id="partNo" placeholder="P-20261114-0001">
+      <label style="margin-top:10px">批次（可选）</label>
+      <input id="batchNo" placeholder="2026-11-B01">
       <div class="row"><button id="btnLoad">换型</button></div>
       <div class="status" id="loadStatus">尚未换型</div>
     </section>
@@ -101,16 +115,16 @@
 <dialog id="reviewDlg">
   <h2 style="margin-bottom:12px">确认这一件</h2>
   <div class="dialog-body">
-    <div class="preview" id="preview">裁片预览</div>
+    <div class="preview" id="preview"><span class="muted">加载裁片中…</span></div>
     <div>
       <div class="kv" id="detail"></div>
       <label style="margin-top:14px">改判理由（仅在改判时选）</label>
       <div class="reasons" id="reasons"></div>
       <div class="row" style="margin-top:16px">
-        <button class="ok" id="btnAccept">接受系统结论</button>
+        <button class="ok" id="btnAccept">确认</button>
       </div>
       <div class="row">
-        <button class="bad" id="btnFlip">改判</button>
+        <button class="bad" id="btnFlip" disabled>改判（先选理由）</button>
         <button class="ghost" id="btnCancel">取消</button>
       </div>
     </div>
@@ -120,6 +134,7 @@
 <script>
 const REASONS = ["划痕","脏污","压伤","误报","其他"];
 const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 let current = null;   // {code, model_version_id, ...}
 let selectedReason = null;
 
@@ -149,10 +164,18 @@ async function health() {
   try {
     const h = await api("/health");
     $("healthPill").textContent = `服务 ${h.status} · 队列 ${h.queue_depth}`;
+    $("offlineBar").hidden = true;
+    $("btnInfer").disabled = !current;
   } catch {
     $("healthPill").textContent = "服务不可用";
+    $("offlineBar").hidden = false;
+    $("btnInfer").disabled = true;
   }
 }
+
+$("code").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("btnLoad").click();
+});
 
 $("btnLoad").onclick = async () => {
   const code = $("code").value.trim();
@@ -161,9 +184,10 @@ $("btnLoad").onclick = async () => {
     const cfg = await api("/station/config?code=" + encodeURIComponent(code));
     current = cfg;
     $("modelPill").textContent = `模型 v${cfg.version_no} · ROI ${cfg.roi_rev}`;
-    show($("loadStatus"), `就绪：${code} → 模型 v${cfg.version_no}，ROI ${JSON.stringify(cfg.roi_rect)}`, "ok");
+    $("loadStatus").innerHTML = `<div class="banner ok">就绪 · ${esc(code)} · 模型 v${cfg.version_no}<small>站位 ${esc($("station").value.trim())} · ROI rev ${cfg.roi_rev}</small></div>`;
     $("btnInfer").disabled = false;
-    show($("inferStatus"), "等待推图");
+    $("inferStatus").innerHTML = "等待推图";
+    $("file").focus();
     await api("/station/heartbeat", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({station: $("station").value.trim(), config_rev: `${cfg.model_version_id}:${cfg.roi_rev}`})
@@ -182,6 +206,8 @@ $("btnInfer").onclick = async () => {
   const form = new FormData();
   form.append("code", $("code").value.trim());
   form.append("station", $("station").value.trim());
+  if ($("partNo").value.trim()) form.append("part_no", $("partNo").value.trim());
+  if ($("batchNo").value.trim()) form.append("batch_no", $("batchNo").value.trim());
   form.append("image", file);
   try {
     const job = await api("/infer", {method: "POST", body: form,
@@ -189,8 +215,10 @@ $("btnInfer").onclick = async () => {
     const detail = await api("/infer/" + job.job_id);
     const r = detail.result;
     if (!r) { show($("inferStatus"), "任务未产生结果：" + detail.status, "bad"); return; }
-    show($("inferStatus"), `${r.label.toUpperCase()} · 分数 ${r.score.toFixed(3)} · result #${r.id}`,
-      r.label === "ok" ? "ok" : (r.label === "ng" ? "bad" : ""));
+    const color = r.label === "ok" ? "ok" : (r.label === "ng" ? "bad" : "warn");
+    const note = r.label === "gray" ? "灰区 · 需人工确认" : (r.label === "ng" ? "NG · 待人工确认" : "OK");
+    $("inferStatus").innerHTML = `<div class="banner ${color}">${note}<small>分数 ${r.score.toFixed(3)} · 结果 #${r.id}</small></div>`;
+    $("file").value = "";
     await refresh();
   } catch (e) {
     show($("inferStatus"), `${e.message}｜${e.body?.action || ""}`, "bad");
@@ -239,14 +267,21 @@ async function openReview(resultId) {
     <div>系统结论</div><div>${tag(r.label)}</div>
     <div>分数</div><div>${r.score.toFixed(3)}</div>
     <div>原图尺寸</div><div>${r.original_w}×${r.original_h}</div>`;
-  $("preview").innerHTML = `<span>裁片 #${r.id}<br>（演示版不加载图片）</span>`;
+  $("preview").innerHTML = `<img src="/results/${r.id}/image" alt="裁片 #${r.id}">`;
   selectedReason = null;
+  const labelText = r.label === "ok" ? "OK" : (r.label === "ng" ? "NG" : "灰区");
+  $("btnAccept").textContent = `确认 ${labelText}（保持系统结论）`;
+  $("btnAccept").className = r.label === "ok" ? "ok" : "bad";
+  $("btnFlip").disabled = true;
+  $("btnFlip").textContent = "改判（先选理由）";
   $("reasons").innerHTML = REASONS.map(x => `<button data-r="${x}">${x}</button>`).join("");
   document.querySelectorAll("#reasons button").forEach(b => {
     b.onclick = () => {
       selectedReason = b.dataset.r;
       document.querySelectorAll("#reasons button").forEach(x => x.classList.remove("sel"));
       b.classList.add("sel");
+      $("btnFlip").disabled = false;
+      $("btnFlip").textContent = `改判为 ${r.label === "ng" ? "OK" : "NG"}`;
     };
   });
   $("reviewDlg").showModal();
@@ -256,6 +291,8 @@ $("btnCancel").onclick = () => $("reviewDlg").close();
 
 $("btnAccept").onclick = async () => {
   const r = current.review;
+  const label = r.label === "ok" ? "OK" : (r.label === "ng" ? "NG" : "灰区");
+  if (!confirm(`确认保持系统结论「${label}」？`)) return;
   await confirm(r.label);
 };
 
@@ -299,6 +336,7 @@ async function loadPicker() {
 loadPicker();
 health();
 refresh();
+setInterval(health, 15000);
 setInterval(refresh, 15000);
 </script>
 </body>
