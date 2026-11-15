@@ -370,7 +370,7 @@ let wiz = { code: "", modelId: null };
 let trainingState = { q: "", family: "", jobModel: "" };
 let datasetState = { q: "", family: "", model: "", status: "" };
 let blindState = { q: "", status: "" };
-let systemState = { auditAction: "", auditActor: "", auditPage: 0, auditPageSize: 20 };
+let systemState = { auditAction: "", auditActor: "", auditSince: "", auditUntil: "", auditPage: 0, auditPageSize: 20 };
 
 const fmtBytes = (n) => {
   if (n == null) return "—";
@@ -1635,6 +1635,8 @@ async function renderSystem() {
   });
   if (systemState.auditAction) params.set("action", systemState.auditAction);
   if (systemState.auditActor) params.set("actor", systemState.auditActor);
+  if (systemState.auditSince) params.set("since", systemState.auditSince);
+  if (systemState.auditUntil) params.set("until", systemState.auditUntil);
 
   const [stations, auditData, health] = await Promise.all([
     api("/api/stations"), api("/api/audit?" + params), api("/health")
@@ -1686,7 +1688,10 @@ async function renderSystem() {
           <option value="">全部动作</option>
           ${Object.keys(ACTIONS).map(k => `<option value="${k}" ${systemState.auditAction === k ? "selected" : ""}>${esc(actionLabel(k))}</option>`).join("")}
         </select>
-        <input id="sys_actor" value="${esc(systemState.auditActor)}" placeholder="操作人，回车筛选" style="max-width:200px">
+        <input id="sys_actor" value="${esc(systemState.auditActor)}" placeholder="操作人，回车筛选" style="max-width:180px">
+        <input id="sys_since" type="datetime-local" value="${esc(systemState.auditSince)}" title="起始时间（UTC）" style="max-width:210px">
+        <input id="sys_until" type="datetime-local" value="${esc(systemState.auditUntil)}" title="结束时间（UTC）" style="max-width:210px">
+        <span class="muted" title="时间按 UTC 存储与比较">UTC</span>
         <button class="ghost" id="sys_reset">重置</button>
       </div>
       ${audit.length === 0 ? `<div class="empty">${systemState.auditAction || systemState.auditActor ? "当前筛选下没有记录。" : "还没有审计记录。"}</div>` : `

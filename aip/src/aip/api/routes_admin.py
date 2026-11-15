@@ -204,10 +204,29 @@ def system_metrics(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     }
 
 
+def _norm_time(value: str, end: bool = False) -> str:
+    """把 2026-11-15 / 2026-11-15T09:30 统一成 ISO Z（按 UTC 处理）。
+
+    end=True 时按"当天/当分钟末尾"处理，避免 until 只覆盖到 00:00:00。
+    """
+    text = value.strip().replace(" ", "T")
+    if len(text) == 10:
+        text += "T23:59:59.999" if end else "T00:00:00.000"
+    elif len(text) == 16:
+        text += ":59.999" if end else ":00.000"
+    elif "." not in text:
+        text += ".000"
+    if text.endswith("Z"):
+        text = text[:-1]
+    return text + "Z"
+
+
 @router.get("/audit")
 def audit_page(
     action: str | None = None,
     actor: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
     limit: int = 50,
     offset: int = 0,
     conn: sqlite3.Connection = Depends(get_conn),
@@ -220,6 +239,12 @@ def audit_page(
     if actor:
         clauses.append("actor LIKE ?")
         params.append(f"%{actor.strip()}%")
+    if since:
+        clauses.append("created_at >= ?")
+        params.append(_norm_time(since))
+    if until:
+        clauses.append("created_at <= ?")
+        params.append(_norm_time(until, end=True))
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
 
     total = conn.execute(f"SELECT count(*) c FROM audit_log{where}", params).fetchone()["c"]
