@@ -106,6 +106,77 @@ def add_items(
     return {"added": added, "skipped": skipped}
 
 
+VAL_RATIO = {"ok": 0.2, "ng": 0.5}
+
+
+def _split_for(case_id: int, verdict: str) -> str:
+    """确定性划分：按 case_id 稳定散列，同一条判例永远落在同一侧。"""
+    ratio = VAL_RATIO.get(verdict, 0.2)
+    bucket = (case_id * 2654435761) % 100
+    return "frozen_val" if bucket < int(ratio * 100) else "train"
+
+
+def assign_splits(conn: sqlite3.Connection, dataset_id: int) -> dict:
+    """按类别比例划分 train / frozen_val；每类至少保留一条训练样本。"""
+    rows = conn.execute(
+        "SELECT i.case_id, i.verdict_at_freeze, c.verdict"
+        " FROM dataset_item i LEFT JOIN case_item c ON c.id = i.case_id"
+        " WHERE i.dataset_id = ? ORDER BY i.case_id",
+        (dataset_id,),
+    ).fetchall()
+
+    by_class: dict[str, list[int]] = {"ok": [], "ng": []}
+    for r in rows:
+        verdict = r["verdict_at_freeze"] or r["verdict"]
+        if verdict in by_class:
+            by_class[verdict].append(int(r["case_id"]))
+
+    split_of: dict[int, str] = {}
+    for verdict, ids in by_class.items():
+        ratio = VAL_RATIO[verdict]
+        n = len(ids)
+        val_n = 0 if n < 2 else max(1, round(n * ratio))
+        val_n = min(val_n, n - 1)  # 至少留一条训练
+        # 稳定排序：按散列值挑验证样本
+        ranked = sorted(ids, key=lambda cid: (cid * 2654435761) % 1000)
+        for cid in ranked[:val_n]:
+            split_of[cid] = "frozen_val"
+        for cid in ranked[val_n:]:
+            split_of[cid] = "train"
+
+    for cid, split in split_of.items():
+        conn.execute(
+            "UPDATE dataset_item SET split = ? WHERE dataset_id = ? AND case_id = ?",
+            (split, dataset_id, cid),
+        )
+    return {
+        "train": sum(1 for v in split_of.values() if v == "train"),
+        "val": sum(1 for v in split_of.values() if v == "frozen_val"),
+    }
+
+
+def _summary(conn: sqlite3.Connection, dataset_id: int) -> dict:
+    rows = conn.execute(
+        "SELECT c.verdict, i.split, count(*) n"
+        " FROM dataset_item i JOIN case_item c ON c.id = i.case_id"
+        " WHERE i.dataset_id = ? GROUP BY c.verdict, i.split",
+        (dataset_id,),
+    ).fetchall()
+    out = {"total": 0, "ok": 0, "ng": 0,
+           "train_ok": 0, "train_ng": 0, "val_ok": 0, "val_ng": 0}
+    for r in rows:
+        n = int(r["n"])
+        verdict = r["verdict"]
+        out["total"] += n
+        if verdict in ("ok", "ng"):
+            out[verdict] += n
+        if r["split"] == "frozen_val":
+            out["val_" + verdict] += n
+        else:
+            out["train_" + verdict] += n
+    return out
+
+
 def freeze(conn: sqlite3.Connection, dataset_id: int, *, actor: str = "web") -> str:
     ds = conn.execute("SELECT * FROM dataset WHERE id = ?", (dataset_id,)).fetchone()
     if ds is None:
@@ -134,6 +205,7 @@ def freeze(conn: sqlite3.Connection, dataset_id: int, *, actor: str = "web") -> 
         )
         from .dataset_audit import snapshot
 
+        assign_splits(conn, dataset_id)
         snapshot(conn, dataset_id)
         record(conn, actor=actor, action="dataset.freeze", entity="dataset",
                entity_id=dataset_id, payload={"checksum": checksum, "count": len(rows)})
@@ -160,6 +232,7 @@ def get_dataset(conn: sqlite3.Connection, dataset_id: int) -> dict:
     out = dict(ds)
     out["items"] = [dict(r) for r in items]
     out["count"] = len(items)
+    out["summary"] = _summary(conn, dataset_id)
     return out
 
 
@@ -167,7 +240,15 @@ def list_datasets(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:
     rows = conn.execute(
         "SELECT d.id, d.name, d.status, d.checksum, d.frozen_at, d.created_at,"
         " f.name AS family, m.code AS model_code,"
-        " (SELECT count(*) FROM dataset_item i WHERE i.dataset_id = d.id) AS count"
+        " (SELECT count(*) FROM dataset_item i WHERE i.dataset_id = d.id) AS count,"
+        " (SELECT count(*) FROM dataset_item i JOIN case_item c ON c.id = i.case_id"
+        "   WHERE i.dataset_id = d.id AND c.verdict = 'ok') AS ok_count,"
+        " (SELECT count(*) FROM dataset_item i JOIN case_item c ON c.id = i.case_id"
+        "   WHERE i.dataset_id = d.id AND c.verdict = 'ng') AS ng_count,"
+        " (SELECT count(*) FROM dataset_item i JOIN case_item c ON c.id = i.case_id"
+        "   WHERE i.dataset_id = d.id AND i.split = 'frozen_val' AND c.verdict = 'ok') AS val_ok,"
+        " (SELECT count(*) FROM dataset_item i JOIN case_item c ON c.id = i.case_id"
+        "   WHERE i.dataset_id = d.id AND i.split = 'frozen_val' AND c.verdict = 'ng') AS val_ng"
         " FROM dataset d LEFT JOIN family f ON f.id = d.family_id"
         " JOIN model m ON m.id = d.model_id"
         " ORDER BY d.id DESC LIMIT ?",

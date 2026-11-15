@@ -198,6 +198,16 @@
 </div>
 <div id="toasts" aria-live="polite"></div>
 
+<dialog id="datasetDlg" style="width:min(860px,94vw)">
+  <h2 id="datasetTitle" style="margin-bottom:8px">数据集</h2>
+  <p id="datasetSummary" class="muted" style="margin:0 0 12px"></p>
+  <table><caption class="sr-only">数据集成员</caption>
+    <thead><tr><th scope="col">判例</th><th scope="col">编码</th><th scope="col">件号</th>
+      <th scope="col">结论</th><th scope="col">划分</th><th scope="col">理由</th></tr></thead>
+    <tbody id="datasetBody"></tbody></table>
+  <div class="row" style="margin-top:14px"><button class="ghost" onclick="this.closest('dialog').close()">关闭</button></div>
+</dialog>
+
 <dialog id="auditDlg">
   <h2 id="auditTitle" style="margin-bottom:12px">数据集核对</h2>
   <table><caption class="sr-only">成员变化</caption>
@@ -1472,13 +1482,20 @@ async function renderDatasets() {
       ${datasets.length === 0 ? `<div class="empty">还没有数据集。<b>怎么做</b>：在判例库勾选判例 → 加入数据集 → 冻结 → 训练时选择它。</div>` : `
       <table><caption class="sr-only">数据集列表</caption>
         <thead><tr><th scope="col">#</th><th scope="col">名称</th><th scope="col">族</th><th scope="col">模型</th>
-          <th scope="col">判例数</th><th scope="col">状态</th><th scope="col">校验和</th><th scope="col">操作</th></tr></thead>
+          <th scope="col">总数</th><th scope="col">OK</th><th scope="col">NG</th>
+          <th scope="col">验证 OK</th><th scope="col">验证 NG</th>
+          <th scope="col">状态</th><th scope="col">校验和</th><th scope="col">操作</th></tr></thead>
         <tbody>${datasets.map(d => `<tr>
           <td>${d.id}</td><td>${esc(d.name)}</td><td>${esc(d.family || "-")}</td><td>${esc(d.model_code)}</td>
           <td>${d.count}</td>
+          <td>${d.ok_count}</td>
+          <td>${d.ng_count}</td>
+          <td>${d.val_ok}</td>
+          <td>${d.val_ng}</td>
           <td>${d.status === "frozen" ? '<span class="tag ok">已冻结</span>' : '<span class="tag candidate">草稿</span>'}</td>
           <td class="muted">${d.checksum ? d.checksum.slice(0, 12) + "…" : "-"}</td>
           <td>
+            <button class="ghost" data-detail="${d.id}">明细</button>
             <a class="ghost" href="/api/datasets/${d.id}/export.csv">导出</a>
             ${d.status === "frozen" ? `<button class="ghost" data-audit="${d.id}">核对</button>` : ""}
             ${d.status === "draft" ? `<button class="ghost" data-freeze="${d.id}">冻结</button>` : ""}
@@ -1505,6 +1522,28 @@ async function renderDatasets() {
       renderDatasets();
     } catch (e) { toast(e.message, true); }
   };
+  document.querySelectorAll("[data-detail]").forEach(btn => {
+    btn.onclick = async () => {
+      try {
+        const d = await api(`/api/datasets/${btn.dataset.detail}`);
+        const s = d.summary || {};
+        $("datasetTitle").textContent = `数据集 #${d.id} ${d.name}`;
+        $("datasetSummary").textContent =
+          `共 ${s.total} 条 · OK ${s.ok} / NG ${s.ng} · 训练 OK ${s.train_ok} NG ${s.train_ng}` +
+          ` · 验证 OK ${s.val_ok} NG ${s.val_ng}（状态：${d.status === "frozen" ? "已冻结" : "草稿"}）`;
+        $("datasetBody").innerHTML = d.items.length
+          ? d.items.map(it => `<tr>
+              <td>${it.case_id}</td><td>${esc(it.code)}</td><td>${esc(it.part_no || "-")}</td>
+              <td>${tag(it.verdict)}</td>
+              <td>${it.split === "frozen_val" ? '<span class="tag candidate">验证</span>' : "训练"}</td>
+              <td>${esc(it.reason || "-")}</td>
+            </tr>`).join("")
+          : '<tr><td colspan="6" class="empty">数据集为空</td></tr>';
+        $("datasetDlg").showModal();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+
   document.querySelectorAll("[data-audit]").forEach(btn => {
     btn.onclick = async () => {
       try {
