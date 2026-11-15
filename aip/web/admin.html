@@ -258,22 +258,25 @@
   .wiz-body{margin-top:12px}
   .chip-static{background:var(--g2);border:1px solid var(--g3);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--t2)}
   .item .score{flex:0 0 76px;white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums;color:var(--t2)}
-  .shot{background:var(--g2);border-radius:8px;height:clamp(110px,15vh,180px);flex:0 0 auto;
+  .hero{display:grid;grid-template-columns:1fr 186px;gap:12px;align-items:stretch;flex:0 0 auto}
+  .hero-side{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .shot{background:var(--g2);border-radius:8px;min-height:170px;height:100%;flex:0 0 auto;position:relative;
     display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:10px}
-  .shot img{max-width:100%;max-height:420px;image-rendering:pixelated}
+  .shot img{position:absolute;inset:0;margin:auto;width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
   .kv{display:grid;grid-template-columns:76px 1fr;gap:4px 12px;font-size:12px;line-height:1.45}
   .kv.kv2{grid-template-columns:52px 1fr 64px 1fr}
   .kv div:nth-child(odd){color:var(--t3)}
   #rRefs{max-height:none;overflow:visible}
-  .ref-strip{display:flex;gap:8px;align-items:center;overflow:hidden}
-  .ref-strip figure{margin:0;width:54px}
-  .ref-strip img{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid var(--g3);background:var(--g2);cursor:zoom-in}
+  .ref-strip{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+  .ref-group{display:flex;flex-direction:column;gap:4px}
+  .ref-thumbs{display:flex;gap:6px;flex-wrap:wrap}
+  .ref-strip figure{margin:0;width:84px}
+  .ref-strip img{width:84px;height:84px;object-fit:cover;border-radius:6px;border:1px solid var(--g3);background:var(--g2);cursor:zoom-in}
     border:1px solid var(--g3);background:var(--g2);cursor:zoom-in}
   .ref-strip figcaption{display:none}
-  .ref-more{width:54px;height:54px;border-radius:6px;border:1px dashed var(--g3);
+  .ref-more{width:84px;height:84px;border-radius:6px;border:1px dashed var(--g3);
     background:var(--g2);color:var(--t2);font-size:12px;cursor:pointer}
-  .ref-strip .tag{flex:0 0 auto;margin-left:6px}
-  .ref-strip .tag:first-child{margin-left:0}
+  .ref-strip .tag{flex:0 0 auto}
   .ref-strip .tag.ok{background:color-mix(in oklab,var(--ok) 16%,transparent);color:var(--ok)}
   .ref-strip .tag.ng{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad)}
   .reasons{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
@@ -1155,13 +1158,15 @@ async function renderQuality() {
               : `<kbd>J</kbd>/<kbd>K</kbd> 切换 · <kbd>O</kbd>/<kbd>N</kbd> 判 OK/NG · <kbd>Enter</kbd> 接受 · <kbd>1–5</kbd> 理由`}</div>
           </div>
           <div class="review-detail">
-            <div class="shot"><img id="shot" alt="裁片"></div>
+            <div class="hero">
+              <div class="shot"><img id="shot" alt="裁片"></div>
+              <div class="hero-side">
+                <button class="ghost" id="rRefBtn">参考样例（可能影响判断）</button>
+                <div id="rRefs" hidden></div>
+              </div>
+            </div>
             <div class="kv" id="rmeta"></div>
             <div id="rshots" class="muted" style="margin-top:6px"></div>
-            <div style="margin-top:10px">
-              <button class="ghost" id="rRefBtn">参考样例（可能影响判断）</button>
-              <div id="rRefs" hidden style="margin-top:8px"></div>
-            </div>
             <div class="reasons" id="rreasons">
               ${REASONS.map((r, i) => `<button class="ghost" data-r="${r}">${i + 1}. ${r}</button>`).join("")}
             </div>
@@ -1314,10 +1319,14 @@ async function renderQuality() {
         const ngShow = refs.ng.slice(0, 2);
         const extra = (refs.ok.length - okShow.length) + (refs.ng.length - ngShow.length);
         box.innerHTML = `<div class="ref-strip">
-          <span class="tag ok">OK ${refs.ok.length}</span>
-          ${okShow.map(c => thumb(c, "ok")).join("") || '<span class="muted">暂无</span>'}
-          <span class="tag ng">NG ${refs.ng.length}</span>
-          ${ngShow.map(c => thumb(c, "ng")).join("") || '<span class="muted">暂无</span>'}
+          <div class="ref-group">
+            <span class="tag ok">OK ${refs.ok.length}</span>
+            <div class="ref-thumbs">${okShow.map(c => thumb(c, "ok")).join("") || '<span class="muted">暂无</span>'}</div>
+          </div>
+          <div class="ref-group">
+            <span class="tag ng">NG ${refs.ng.length}</span>
+            <div class="ref-thumbs">${ngShow.map(c => thumb(c, "ng")).join("") || '<span class="muted">暂无</span>'}</div>
+          </div>
           ${extra > 0 ? `<button class="ref-more" id="refMore">+${extra}</button>` : ""}
         </div>
         ${refs.note ? `<div class="muted" style="margin-top:2px">${esc(refs.note)}</div>` : ""}`;
