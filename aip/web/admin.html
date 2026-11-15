@@ -141,6 +141,9 @@
   }
   .form-tight input,.form-tight select{min-width:0;max-width:340px}
   .form-tight > div:last-child button{width:180px}
+  .input-with-action{display:flex;gap:8px;align-items:center}
+  .input-with-action input{flex:1}
+  .input-with-action button{min-height:38px;white-space:nowrap}
   .settings-layout{display:grid;grid-template-columns:200px 1fr;gap:18px;align-items:start}
   .settings-nav{display:flex;flex-direction:column;gap:6px}
   .settings-tab{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
@@ -1343,7 +1346,17 @@ async function renderSettings() {
                 const def = Array.isArray(r.default) ? r.default.join(",") : r.default;
                 return `<tr data-row="${esc((r.label + " " + r.key).toLowerCase())}">
                   <td>${esc(r.label)}<div class="muted">${esc(r.key)}${r.description ? " · " + esc(r.description) : ""}</div></td>
-                  <td><input data-k="${esc(r.key)}" data-kind="${r.kind}" value="${esc(val)}" aria-label="${esc(r.label)}"></td>
+                  <td>
+                    <div class="input-with-action">
+                      ${r.kind === "bool"
+                        ? `<select data-k="${esc(r.key)}" data-kind="bool" aria-label="${esc(r.label)}">
+                             <option value="true" ${String(val) === "true" ? "selected" : ""}>开启</option>
+                             <option value="false" ${String(val) !== "true" ? "selected" : ""}>关闭</option>
+                           </select>`
+                        : `<input data-k="${esc(r.key)}" data-kind="${r.kind}" value="${esc(val)}" aria-label="${esc(r.label)}">`}
+                      ${r.key === "station.token" ? `<button class="ghost" data-copy-token title="复制到剪贴板">复制</button>` : ""}
+                    </div>
+                  </td>
                   <td class="muted">${esc(def)}</td>
                   <td class="muted">${r.updated_by ? esc(r.updated_by) + "<br>" + fmtTime(r.updated_at) : "—"}</td>
                 </tr>`;
@@ -1373,8 +1386,8 @@ async function renderSettings() {
     count.textContent = `${dirty.size} 项未保存`;
   };
 
-  document.querySelectorAll("input[data-k]").forEach(inp => {
-    inp.addEventListener("input", () => {
+  document.querySelectorAll("[data-k]").forEach(inp => {
+    ["input", "change"].forEach(evt => inp.addEventListener(evt, () => {
       const row = rows.find(r => r.key === inp.dataset.k);
       let value = inp.value;
       if (row.kind === "int" || row.kind === "float") value = Number(value);
@@ -1382,7 +1395,7 @@ async function renderSettings() {
       else if (row.kind === "bool") value = value === "true" || value === "1";
       dirty.set(inp.dataset.k, value);
       sync();
-    });
+    }));
   });
 
   document.querySelectorAll(".settings-tab").forEach(tab => {
@@ -1400,6 +1413,28 @@ async function renderSettings() {
       tr.hidden = q !== "" && !tr.dataset.row.includes(q);
     });
   });
+
+  document.querySelectorAll("[data-copy-token]").forEach(btn => {
+    btn.onclick = async () => {
+      const input = document.querySelector('input[data-k="station.token"]');
+      try {
+        await navigator.clipboard.writeText(input.value);
+        toast("令牌已复制，粘贴到工位客户端配置");
+      } catch {
+        input.select();
+        toast("已选中，请按 Ctrl+C 复制", true);
+      }
+    };
+  });
+
+  if (group === "接入") {
+    const note = document.createElement("p");
+    note.className = "muted";
+    note.style.margin = "0 0 10px";
+    note.textContent = "令牌明文显示，便于现场录入工位客户端；请勿外传，换人/换线时及时更换。";
+    const body = document.querySelector(".settings-body");
+    if (body) body.insertBefore(note, body.children[1] || null);
+  }
 
   if (group === "服务") {
     api("/api/model-cache").then(c => {
