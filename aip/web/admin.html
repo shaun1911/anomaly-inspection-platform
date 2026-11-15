@@ -39,10 +39,11 @@
   aside{background:var(--g1);border-right:1px solid var(--g3);padding:14px 10px;position:sticky;top:0;height:100vh;overflow:auto}
   .logo{display:flex;align-items:center;gap:8px;padding:6px 10px 14px;font-weight:600}
   .logo i{width:10px;height:10px;border-radius:3px;background:var(--brand);display:inline-block}
-  nav a{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;color:var(--t2);text-decoration:none;font-size:13px;margin-bottom:2px}
+  nav a{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;color:var(--t2);text-decoration:none;font-size:13px;margin-bottom:2px;line-height:1.35}
   nav a:hover{background:var(--g2);color:var(--t1)}
-  nav a[aria-current="page"]{background:var(--g2);color:var(--t1);font-weight:600}
-  nav .group{margin:14px 10px 6px;font-size:11px;color:var(--t3);letter-spacing:.04em}
+  nav a[aria-current="page"]{background:var(--g2);color:var(--t1);font-weight:600;box-shadow:inset 3px 0 0 var(--brand)}
+  nav .group{margin:16px 10px 6px;padding-top:12px;border-top:1px solid var(--g3);font-size:11px;color:var(--t3);letter-spacing:.14em}
+  nav .group:first-of-type{border-top:0;padding-top:0;margin-top:8px}
   .side-foot{margin-top:18px;padding:10px;border-top:1px solid var(--g3);font-size:11px;color:var(--t3)}
 
   header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--g1);border-bottom:1px solid var(--g3);position:sticky;top:0;z-index:4}
