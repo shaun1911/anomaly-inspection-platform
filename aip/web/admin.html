@@ -160,7 +160,7 @@
   .review-detail{background:var(--g1);border:1px solid var(--g3);border-radius:8px;padding:10px 12px;
     display:flex;flex-direction:column;min-height:0;overflow:auto}
   .review-actions{display:flex;gap:10px;margin-top:4px}
-  .review-actions button{flex:1;min-height:40px}
+  .review-actions button{flex:1;min-height:38px}
   .queue{display:flex;flex-direction:column;gap:4px;flex:1;min-height:0;overflow:auto}
   .item{display:flex;align-items:center;gap:8px;padding:9px;border-radius:8px;background:var(--g2);cursor:pointer;font-size:13px}
   .item.on{outline:2px solid var(--brand)}
@@ -239,25 +239,26 @@
   .wiz-body{margin-top:12px}
   .chip-static{background:var(--g2);border:1px solid var(--g3);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--t2)}
   .item .score{flex:0 0 76px;white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums;color:var(--t2)}
-  .shot{background:var(--g2);border-radius:8px;height:clamp(120px,16vh,190px);flex:0 0 auto;
+  .shot{background:var(--g2);border-radius:8px;height:clamp(110px,15vh,180px);flex:0 0 auto;
     display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:10px}
   .shot img{max-width:100%;max-height:420px;image-rendering:pixelated}
-  .kv{display:grid;grid-template-columns:76px 1fr;gap:4px 12px;font-size:12px;line-height:1.5}
+  .kv{display:grid;grid-template-columns:76px 1fr;gap:4px 12px;font-size:12px;line-height:1.45}
   .kv.kv2{grid-template-columns:52px 1fr 64px 1fr}
   .kv div:nth-child(odd){color:var(--t3)}
   #rRefs{max-height:none;overflow:visible}
   .ref-strip{display:flex;gap:8px;align-items:center;overflow:hidden}
-  .ref-strip figure{margin:0;width:56px}
-  .ref-strip img{width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--g3);background:var(--g2);cursor:zoom-in}
+  .ref-strip figure{margin:0;width:54px}
+  .ref-strip img{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid var(--g3);background:var(--g2);cursor:zoom-in}
     border:1px solid var(--g3);background:var(--g2);cursor:zoom-in}
   .ref-strip figcaption{display:none}
-  .ref-more{width:56px;height:56px;border-radius:6px;border:1px dashed var(--g3);
+  .ref-more{width:54px;height:54px;border-radius:6px;border:1px dashed var(--g3);
     background:var(--g2);color:var(--t2);font-size:12px;cursor:pointer}
   .ref-strip .tag{flex:0 0 auto;margin-left:6px}
   .ref-strip .tag:first-child{margin-left:0}
   .ref-strip .tag.ok{background:color-mix(in oklab,var(--ok) 16%,transparent);color:var(--ok)}
   .ref-strip .tag.ng{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad)}
-  .reasons{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  .reasons{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+  .review-tip{font-size:12px;margin-top:6px;line-height:1.4}
   .reasons button{padding:6px 10px;font-size:12px;min-height:32px}
   .review-detail .row button{min-height:38px}
   .reasons button.sel{background:var(--brand);color:#fff}
@@ -1119,7 +1120,7 @@ async function renderQuality() {
           <div class="review-list">
             <div class="review-list-head">待复核 <span class="pill">${items.length}</span></div>
             <div id="rlist" class="queue"></div>
-            <div class="muted review-hint">${isGroup ? "点击分组下钻到件" : "J/K 切换 · Enter 接受 · X 改判 · 1–5 选理由"}</div>
+            <div class="muted review-hint">${isGroup ? "点击分组下钻到件" : "J/K 切换 · Enter 接受 · O 判 OK · N 判 NG · 1–5 理由"}</div>
           </div>
           <div class="review-detail">
             <div class="shot"><img id="shot" alt="裁片"></div>
@@ -1133,11 +1134,12 @@ async function renderQuality() {
               ${REASONS.map((r, i) => `<button class="ghost" data-r="${r}">${i + 1}. ${r}</button>`).join("")}
             </div>
             <div class="row review-actions">
-              <button class="ghost" id="rClaim">领取</button>
+              <button class="ghost" id="rOk">判为 OK</button>
+              <button class="ghost" id="rNg">判为 NG</button>
               <button class="ghost" id="rSkip" disabled>暂缓</button>
-              <button class="act" id="rAccept">接受结论</button>
-              <button class="ghost" id="rFlip">改判</button>
+              <button class="ghost" id="rClaim" title="标记为已领取，便于交接；不影响结论">领取</button>
             </div>
+            <div class="muted review-tip">与系统结论一致时可直接判；判为相反结论或处理灰区前，先在上方选一个理由。</div>
           </div>
         </div>`}
     </section>`;
@@ -1194,14 +1196,16 @@ async function renderQuality() {
         $("rRefBtn").parentElement.style.display = "none";
         document.querySelector("#rreasons").parentElement.style.display = "none";
         document.querySelector("#rClaim").parentElement.style.display = "none";
-        document.querySelector("#rAccept").parentElement.parentElement.style.display = "none";
+        document.querySelector("#rOk").parentElement.style.display = "none";
+        document.querySelector(".review-tip").style.display = "none";
         return;
       }
       $("shot").parentElement.style.display = "";
       $("rRefBtn").parentElement.style.display = "";
       document.querySelector("#rreasons").parentElement.style.display = "";
       document.querySelector("#rClaim").parentElement.style.display = "";
-      document.querySelector("#rAccept").parentElement.parentElement.style.display = "";
+      document.querySelector("#rOk").parentElement.style.display = "";
+      document.querySelector(".review-tip").style.display = "";
 
       const cur = items[idx];
       const ids = groupIds(cur);
@@ -1221,16 +1225,26 @@ async function renderQuality() {
       $("rRefs").innerHTML = "";
       if (autoRefs) loadRefs();
       document.querySelectorAll("#rreasons button").forEach(b => b.classList.toggle("sel", b.dataset.r === reason));
+      const sysLabel = cur.kind === "part" ? null : cur.label;
+      $("rOk").className = sysLabel === "ok" ? "act" : "ghost";
+      $("rNg").className = sysLabel === "ng" ? "act" : "ghost";
     }
 
     async function each(ids, fn) {
       for (const id of ids) { try { await fn(id); } catch (e) { toast(`#${id}: ${e.message}`, true); } }
     }
 
-    async function confirmGroup(opts) {
+    async function judge(verdict) {
       const cur = items[idx];
-      await each(groupIds(cur), (id) => post(`/review/${id}/confirm`, {...opts, note: reason, confirmed_by: actor}));
-      toast(`已确认 ${groupIds(cur).length} 张`);
+      const sysLabel = cur.kind === "part" ? null : cur.label;
+      if (sysLabel !== verdict && !reason) {
+        toast(`判为 ${verdict.toUpperCase()} 前先选一个理由`, true);
+        return;
+      }
+      await each(groupIds(cur), (id) => post(`/review/${id}/confirm`, {
+        verdict, note: reason, confirmed_by: actor
+      }));
+      toast(`已判为 ${verdict.toUpperCase()}（${groupIds(cur).length} 张）`);
       renderQuality();
     }
 
@@ -1316,17 +1330,22 @@ async function renderQuality() {
       toast("已暂缓");
       removeCurrent();
     };
-    $("rAccept").onclick = () => confirmGroup({});          // 各张保留各自结论
-    $("rFlip").onclick = () => {
-      if (!reason) { toast("改判前先选一个理由", true); return; }
-      confirmGroup({flip: true});                            // 各张翻转到相反结论
-    };
+    $("rOk").onclick = () => judge("ok");
+    $("rNg").onclick = () => judge("ng");
 
     window.__reviewKeys = (ev) => {
       if (ev.key === "j" || ev.key === "J") { idx = Math.min(idx + 1, items.length - 1); reason = null; paint(); }
       else if (ev.key === "k" || ev.key === "K") { idx = Math.max(idx - 1, 0); reason = null; paint(); }
-      else if (ev.key === "Enter") { ev.preventDefault(); $("rAccept").click(); }
-      else if (ev.key === "x" || ev.key === "X") { $("rFlip").click(); }
+      else if (ev.key === "Enter") {
+        ev.preventDefault();
+        const cur = items[idx];
+        const sys = cur.kind === "part" ? null : cur.label;
+        if (sys === "ok") $("rOk").click();
+        else if (sys === "ng") $("rNg").click();
+        else toast("灰区或分组：请明确判为 OK 或 NG", true);
+      }
+      else if (ev.key === "o" || ev.key === "O") { $("rOk").click(); }
+      else if (ev.key === "n" || ev.key === "N") { $("rNg").click(); }
       else if (/^[1-5]$/.test(ev.key)) { reason = REASONS[Number(ev.key) - 1]; paint(); }
     };
 

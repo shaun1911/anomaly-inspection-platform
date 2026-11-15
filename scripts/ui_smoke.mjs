@@ -97,6 +97,10 @@ async function main() {
     });
     return JSON.parse(r.result?.result?.value || "{}");
   })();
+  const semantics = await (async () => { const r = await send("Runtime.evaluate", { expression: `JSON.stringify({ ok: document.getElementById("rOk")?.textContent, ng: document.getElementById("rNg")?.textContent, tip: document.querySelector(".review-tip")?.textContent || "" })`, returnByValue: true }); return JSON.parse(r.result?.result?.value || "{}"); })();
+  const semanticsOk = semantics.ok?.includes("OK") && semantics.ng?.includes("NG") && semantics.tip.includes("理由");
+  failures.push(...(semanticsOk ? [] : [{ page: "review-semantics", snippet: JSON.stringify(semantics) }]));
+  console.log(`${semanticsOk ? "ok  " : "FAIL"} review-semantics`);
   const fitOk = !fit.vw || fit.vw < 1400 || (fit.page <= fit.vh + 1 && fit.actions <= fit.vh + 1);
   failures.push(...(fitOk ? [] : [{ page: "review-fit", snippet: JSON.stringify(fit) }]));
   console.log(`${fitOk ? "ok  " : "FAIL"} review-fit (${fit.page}/${fit.vh}, actions ${fit.actions})`);
