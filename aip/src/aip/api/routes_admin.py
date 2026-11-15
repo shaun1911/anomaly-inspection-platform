@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .. import cases as cases_mod
+from .. import metrics as metrics_mod
 from ..audit import record
 from ..store import tx
 from .deps import get_conn
@@ -81,6 +82,51 @@ def audit_recent(
         (max(1, min(limit, 100)),),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+@router.get("/metrics")
+def system_metrics(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    db_file = Path(conn.execute("PRAGMA database_list").fetchone()[2])
+    data_dir = db_file.parent
+
+    assist = conn.execute(
+        "SELECT m.code AS model_code, mv.version_no, mv.onnx_path, mv.dataset_id,"
+        " (SELECT count(*) FROM binding b"
+        "   WHERE b.model_id = m.id AND b.active_to IS NULL) AS bound_codes"
+        " FROM model_version mv JOIN model m ON m.id = mv.model_id"
+        " WHERE mv.status = 'assist' ORDER BY m.code"
+    ).fetchall()
+
+    return {
+        "service": {
+            "status": "ok",
+            "version": "0.1.0",
+            "uptime_s": metrics_mod.uptime(),
+            "db": "ok",
+            "queue_depth": 0,
+        },
+        "cpu": {"percent": metrics_mod.cpu_percent()},
+        "memory": metrics_mod.memory(),
+        "process": {"rss": metrics_mod.process_rss()},
+        "disk": metrics_mod.disk(data_dir),
+        "gpu": metrics_mod.gpu(),
+        "models": {
+            "predictor": "FakePredictor",
+            "loaded": 0,
+            "note": "当前为确定性假预测器，不常驻真实模型；接 anomalib 后此处显示常驻模型与显存占用",
+            "items": [
+                {
+                    "model_code": r["model_code"],
+                    "version_no": r["version_no"],
+                    "onnx_path": r["onnx_path"],
+                    "onnx_ready": bool(r["onnx_path"]),
+                    "dataset_id": r["dataset_id"],
+                    "bound_codes": r["bound_codes"],
+                }
+                for r in assist
+            ],
+        },
+    }
 
 
 @router.get("/models")

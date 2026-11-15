@@ -336,6 +336,19 @@ const ACTIONS = {
 };
 const actionLabel = (a) => ACTIONS[a] || a;
 
+const fmtBytes = (n) => {
+  if (n == null) return "—";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let v = Number(n), i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
+  return v.toFixed(v >= 10 || i === 0 ? 0 : 1) + " " + units[i];
+};
+const fmtUptime = (s) => {
+  if (s == null) return "—";
+  const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+  return h > 0 ? `${h} 小时 ${m} 分` : `${m} 分`;
+};
+
 function need(el, label) {
   if (el && String(el.value ?? "").trim()) return true;
   if (el) { el.classList.add("missing"); el.focus(); }
@@ -361,10 +374,11 @@ document.addEventListener("input", (ev) => {
 /* ---------- 视图 ---------- */
 
 async function renderWorkbench() {
-  const [stats, overview, audit, models, datasets, queue] = await Promise.all([
+  const [stats, overview, audit, models, datasets, queue, metrics] = await Promise.all([
     api("/api/stats/today"), api("/api/overview"), api("/api/audit/recent?limit=8"),
-    api("/api/models"), api("/api/datasets"), api("/review/queue?limit=1")
+    api("/api/models"), api("/api/datasets"), api("/review/queue?limit=1"), api("/api/metrics")
   ]);
+  const gpu = metrics.gpu && metrics.gpu[0];
 
   const candidates = models.flatMap(m =>
     m.versions.filter(v => v.status === "candidate").map(v => ({code: m.code, vno: v.version_no})));
@@ -400,6 +414,35 @@ async function renderWorkbench() {
     </div>
 
     <section>
+      <h2>服务与资源 <span class="pill">10 秒刷新</span></h2>
+      <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        <div class="card"><span>服务状态</span><b class="metric" id="m_status" style="font-size:18px">${esc(metrics.service.status)}</b>
+          <span id="m_uptime" class="muted">已运行 ${fmtUptime(metrics.service.uptime_s)}</span></div>
+        <div class="card"><span>CPU</span><b class="metric" id="m_cpu" style="font-size:18px">${metrics.cpu.percent == null ? "—" : metrics.cpu.percent + "%"}</b></div>
+        <div class="card"><span>内存</span><b class="metric" id="m_mem" style="font-size:18px">${metrics.memory ? metrics.memory.percent + "%" : "—"}</b>
+          <span id="m_mem_detail" class="muted">${metrics.memory ? fmtBytes(metrics.memory.used) + " / " + fmtBytes(metrics.memory.total) : ""}</span></div>
+        <div class="card"><span>服务进程</span><b class="metric" id="m_rss" style="font-size:18px">${fmtBytes(metrics.process.rss)}</b></div>
+        <div class="card"><span>磁盘（数据目录）</span><b class="metric" id="m_disk" style="font-size:18px">${metrics.disk ? metrics.disk.percent + "%" : "—"}</b>
+          <span id="m_disk_detail" class="muted">${metrics.disk ? "剩 " + fmtBytes(metrics.disk.free) : ""}</span></div>
+        <div class="card"><span>GPU</span><b class="metric" id="m_gpu" style="font-size:18px">${gpu ? gpu.util.toFixed(0) + "%" : "无"}</b>
+          <span id="m_gpu_detail" class="muted">${gpu ? esc(gpu.name) + " · " + fmtBytes(gpu.mem_used) + " / " + fmtBytes(gpu.mem_total) : ""}</span></div>
+      </div>
+
+      <h2 style="margin-top:16px">模型加载情况</h2>
+      <p class="muted" style="margin:0 0 10px">${esc(metrics.models.note)}（预测器：${esc(metrics.models.predictor)}，常驻 ${metrics.models.loaded} 个）</p>
+      ${metrics.models.items.length === 0 ? `<div class="empty">还没有生效模型。</div>` : `
+      <table><caption class="sr-only">生效模型</caption>
+        <thead><tr><th scope="col">模型</th><th scope="col">生效版本</th><th scope="col">ONNX</th>
+          <th scope="col">数据集</th><th scope="col">服务编码数</th></tr></thead>
+        <tbody>${metrics.models.items.map(m => `<tr>
+          <td>${esc(m.model_code)}</td><td>v${m.version_no}</td>
+          <td>${m.onnx_ready ? '<span class="tag ok">已导出</span>' : '<span class="tag gray">未导出</span>'}</td>
+          <td class="muted">${m.dataset_id ? "#" + m.dataset_id : "-"}</td>
+          <td>${m.bound_codes}</td>
+        </tr>`).join("")}</tbody></table>`}
+    </section>
+
+    <section>
       <h2>需要处理的 <span class="pill">${active.length} 类 / ${todos.reduce((n,t)=>n+t.count,0)} 项</span></h2>
       ${active.length === 0 ? `<div class="empty">今天没有待办。<b>下一步</b>：去「新建向导」建一条新产品线，或去「判例库」补充样本。</div>` : `
       <div class="todo-grid">
@@ -419,6 +462,30 @@ async function renderWorkbench() {
         <span>${esc(a.actor)} · ${esc(a.entity)}${a.entity_id ? " #" + esc(a.entity_id) : ""}</span></div>`).join("")}</div>`
         : `<div class="empty">还没有记录。改阈值、换绑定、发布版本都会出现在这里。</div>`}
     </section>`;
+
+  if (window.__wbTimer) clearInterval(window.__wbTimer);
+  window.__wbTimer = setInterval(async () => {
+    if (!location.hash.startsWith("#/workbench") && location.hash !== "") {
+      clearInterval(window.__wbTimer);
+      window.__wbTimer = null;
+      return;
+    }
+    try {
+      const m = await api("/api/metrics");
+      const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+      const g = m.gpu && m.gpu[0];
+      set("m_status", m.service.status);
+      set("m_uptime", "已运行 " + fmtUptime(m.service.uptime_s));
+      set("m_cpu", m.cpu.percent == null ? "—" : m.cpu.percent + "%");
+      set("m_mem", m.memory ? m.memory.percent + "%" : "—");
+      set("m_mem_detail", m.memory ? fmtBytes(m.memory.used) + " / " + fmtBytes(m.memory.total) : "");
+      set("m_rss", fmtBytes(m.process.rss));
+      set("m_disk", m.disk ? m.disk.percent + "%" : "—");
+      set("m_disk_detail", m.disk ? "剩 " + fmtBytes(m.disk.free) : "");
+      set("m_gpu", g ? g.util.toFixed(0) + "%" : "无");
+      set("m_gpu_detail", g ? g.name + " · " + fmtBytes(g.mem_used) + " / " + fmtBytes(g.mem_total) : "");
+    } catch { /* 指标失败不影响页面的其它部分 */ }
+  }, 10000);
 }
 
 async function renderWizard() {
