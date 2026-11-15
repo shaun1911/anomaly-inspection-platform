@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="color-scheme" content="light dark">
+<meta name="description" content="AIP 工业表面缺陷检测平台：编码与模型管理、复核队列、数据集与训练发布、抽检与系统运维。">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AIP 服务端</title>
 <dialog id="keysDlg" style="width:min(520px,92vw)">
@@ -31,7 +32,9 @@
 </script>
 <style>
 /* Hallmark stamp · 2026-11-15 · system: project tokens, no theme dealt · build: restyle (audit follow-up) · critique: dense ops console, structure kept */
-/* waive 56 · .table-wrap thead sticky lives inside its own overflow container, not the page */
+/* waive 56 · thead sticky lives inside .table-wrap, not the page; aside/header sticky in separate grid columns */
+/* waive 24b · 2px spacing grid kept for a dense ops console; 4px baseline where it matters */
+/* waive 38iii · count badges in section heads are data, not accent words */
   :root{
     color-scheme: light dark;
     --brand:#C2410C;
@@ -61,6 +64,9 @@
   html,body{background:var(--g0);overflow-x:clip}
   body{margin:0;color:var(--t1);font:15px/1.5 "Microsoft YaHei",system-ui,sans-serif}
   :focus-visible{outline:3px solid var(--ring);outline-offset:2px;border-radius:6px}
+  button:active,a.ghost:active{transform:translateY(1px)}
+  button:disabled,button[disabled]{opacity:.55;cursor:not-allowed}
+  button:disabled:active{transform:none}
 
   .shell{display:grid;grid-template-columns:196px 1fr;min-height:100vh}
   aside{background:var(--g1);border-right:1px solid var(--g3);padding:14px 10px;position:sticky;top:0;height:100vh;overflow:auto}
@@ -78,10 +84,10 @@
   .side-foot a:hover{color:var(--t1)}
 
   header{display:flex;align-items:center;gap:12px;padding:9px 16px;background:var(--g1);border-bottom:1px solid var(--g3);position:sticky;top:0;z-index:4}
-  header h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap}
+  header h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap;text-wrap:balance}
   .search{flex:1;max-width:420px;position:relative}
   .search-drop{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:20;background:var(--g1);
-    border:1px solid var(--g3);border-radius:10px;box-shadow:var(--shadow-pop);
+    border:1px solid var(--g3);border-radius:10px;
     padding:6px;max-height:360px;overflow:auto}
   .search-group{padding:6px 8px 2px;font-size:12px;color:var(--t3)}
   .search-item{display:flex;gap:8px;align-items:center;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px}
@@ -89,7 +95,7 @@
   .search-item .muted{margin-left:auto}
   .search-keys{padding:6px 8px 2px;margin-top:4px;border-top:1px solid var(--g3);
     font-size:12px;color:var(--t2)}
-  .search input{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:8px 12px;font-size:13px}
+  .search input{width:100%;background:var(--g1);border:1px solid var(--g3);color:var(--t1);border-radius:6px;padding:8px 12px;font-size:13px}
   .theme-sel{background:var(--g2);color:var(--t1);border:1px solid var(--g3);border-radius:6px;padding:4px 8px;font-size:13px;min-height:30px;width:auto;flex:0 0 auto}
   .pill{padding:4px 10px;border-radius:999px;background:var(--g2);color:var(--t2);font-size:12px}
 
@@ -106,8 +112,8 @@
   .card.bad b{color:var(--bad)}
 
   section{background:var(--g1);border:1px solid var(--g3);border-radius:8px;padding:12px}
-  h2{font-size:13px;margin:0 0 10px;color:var(--t1);font-weight:600;display:flex;align-items:center;gap:8px;letter-spacing:.06em;border-bottom:1px solid var(--g3);padding-bottom:8px}
-  h2 .pill{font-weight:400}
+  h2{font-size:13px;margin:0 0 10px;color:var(--t1);font-weight:600;display:flex;align-items:center;gap:8px;text-wrap:balance;letter-spacing:.06em;border-bottom:1px solid var(--g3);padding-bottom:8px}
+  h2 .pill{font-weight:400;color:inherit;background:transparent;border:0;padding:0;font-size:12px}
 
   table{width:100%;border-collapse:collapse;font-size:13px}
   td,th{font-variant-numeric:tabular-nums}
@@ -242,7 +248,7 @@
     border:1px solid var(--g3);background:var(--g2);text-decoration:none;color:inherit}
   .todo-card:hover{border-color:var(--brand)}
   .todo-title{font-size:13px;color:var(--t2)}
-  .todo-count{font-size:28px;line-height:1.1}
+  .todo-count{font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums}
   .todo-card.warn .todo-count{color:var(--warn)}
   .todo-card.bad .todo-count{color:var(--bad)}
   .todo-hint{font-size:12px;color:var(--t3)}
