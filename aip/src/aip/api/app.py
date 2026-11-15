@@ -19,7 +19,7 @@ VERSION = "0.1.0"
 
 
 def create_app(db_path: str | Path | None = None) -> FastAPI:
-    app = FastAPI(title="AIP", version=VERSION)
+    app = FastAPI(title="AIP", version=VERSION, docs_url=None, redoc_url=None)
     app.state.db_path = Path(db_path) if db_path is not None else store.default_db_path()
     install_error_handlers(app)
 

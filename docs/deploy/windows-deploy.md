@@ -181,7 +181,12 @@ git checkout <上一个提交或 tag>
 
 升级前先做一次整目录备份——**数据比代码重要**。
 
-## 9. 验证部署是否成功
+'## 8.5 API 文档（离线）
+
+部署后访问 `http://<本机IP>:8100/docs` 即可看到 Swagger UI——UI 资源（约 1.9MB）随服务分发，**不需要外网**。
+写接口的请求体已内置示例，点「Try it out」会预填。Markdown 版说明见 `docs/api/README.md`。
+
+## 9. 验证部署是否成功'
 
 ```powershell
 # 本机

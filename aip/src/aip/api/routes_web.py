@@ -18,6 +18,7 @@ import sqlite3
 router = APIRouter(tags=["web"])
 
 WEB_DIR = Path(__file__).resolve().parents[3] / "web"
+SWAGGER_DIR = WEB_DIR / "swagger"
 
 
 def _page(name: str) -> FileResponse:
@@ -34,3 +35,16 @@ def panel(conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
 @router.get("/admin", include_in_schema=False)
 def admin() -> FileResponse:
     return _page("admin.html")
+
+
+@router.get("/docs", include_in_schema=False)
+def docs() -> FileResponse:
+    return _page("swagger.html")
+
+
+@router.get("/swagger/{name}", include_in_schema=False)
+def swagger_asset(name: str) -> FileResponse:
+    path = (SWAGGER_DIR / name).resolve()
+    if SWAGGER_DIR.resolve() not in path.parents or not path.is_file():
+        raise HTTPException(status_code=404, detail="asset not found")
+    return FileResponse(path)

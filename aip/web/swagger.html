@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>AIP · API 文档</title>
+<link rel="icon" href="/swagger/favicon-32x32.png">
+<link rel="stylesheet" href="/swagger/swagger-ui.css">
+<style>
+  body{margin:0;background:#fff}
+  .topbar{background:#1f2937;color:#f9fafb;padding:10px 20px;font:14px/1.5 "Microsoft YaHei",system-ui,sans-serif}
+  .topbar a{color:#fdba74;text-decoration:none}
+  .topbar span{opacity:.75;margin-left:10px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  AIP API 文档 · <a href="/openapi.json">openapi.json</a>
+  <span>离线可用（资源已随服务分发）</span>
+</div>
+<div id="swagger-ui"></div>
+<script src="/swagger/swagger-ui-bundle.js"></script>
+<script>
+  window.ui = SwaggerUIBundle({
+    url: "/openapi.json",
+    dom_id: "#swagger-ui",
+    presets: [SwaggerUIBundle.presets.apis],
+    layout: "BaseLayout",
+    deepLinking: true,
+    displayRequestDuration: true,
+    tryItOutEnabled: true,
+  });
+</script>
+</body>
+</html>
