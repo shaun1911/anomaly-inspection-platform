@@ -42,6 +42,7 @@ def test_page_state_declarations_exist():
         "let reviewState =",
         "let caseState =",
         "let settingsState =",
+        "let showArchived =",
         "const TITLES =",
         "const ACTIONS =",
     ]

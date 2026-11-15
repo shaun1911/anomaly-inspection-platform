@@ -697,6 +697,8 @@ async function renderWizard() {
   }
 }
 
+let showArchived = false;
+
 async function renderCatalog() {
   const [codes, bindings, models, families] = await Promise.all([
     api("/api/codes?include_archived=" + showArchived), api("/api/bindings"), api("/api/models"),

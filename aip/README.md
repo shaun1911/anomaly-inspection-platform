@@ -66,7 +66,19 @@
 | `test_api_blind.py` | 盲判不泄底、签字门槛、指标口径 |
 | `test_retention.py` | 判例与待复核证据不被误删 |
 
-## 已知的"假"部分
+'## 页面冒烟（可选）
+
+```powershell
+# 起 Edge 调试端口
+& "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --headless=new --remote-debugging-port=9223 --user-data-dir=$env:TEMP\edge-cdp
+# 另一个窗口
+node scripts/ui_smoke.mjs
+```
+
+逐个打开 10 个 hash 路由，检查渲染文本、`加载失败` 与 JS 异常；任一路由异常退出码非 0。
+这是补 JS 层缺口的：pytest 只做静态检查，语法/声明对但运行时报错只有浏览器能发现。
+
+## 已知的"假"部分'
 
 - `FakePredictor`：按图片 sha256 生成确定性分数，仅打通链路；
 - `routes_train._fake_metrics`：确定性假指标，接 anomalib 时替换这一段；
