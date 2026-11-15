@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from fastapi import APIRouter, Depends, File, Form, Header, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, Query, Response, UploadFile
 from pydantic import BaseModel
 
 from .. import whitelist
@@ -91,6 +91,8 @@ def submit(
     image: UploadFile = File(...),
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     station_token: str | None = Header(None, alias="X-Station-Token"),
+    sync: bool = Query(False, description="同步返回完整结果（HTTP 200），供产线客户端一次往返"),
+    response: Response = None,  # type: ignore[assignment]
     conn: sqlite3.Connection = Depends(get_conn),
 ) -> dict:
     if is_locked():
@@ -118,7 +120,13 @@ def submit(
         "SELECT id, status FROM inference_job WHERE idempotency_key = ?", (key,)
     ).fetchone()
     if existing is not None:
-        return {"job_id": existing["id"], "status": existing["status"], "duplicate": True}
+        payload = _job_payload(conn, existing["id"]) or {
+            "job_id": existing["id"], "status": existing["status"], "result": None
+        }
+        payload["duplicate"] = True
+        if sync:
+            response.status_code = 200
+        return payload
 
     sha = hashlib.sha256(payload).hexdigest()
     db_file = Path(conn.execute("PRAGMA database_list").fetchone()[2])
@@ -197,14 +205,17 @@ def submit(
         th_lo=th_lo,
         th_hi=th_hi,
     )
-    return {"job_id": job_id, "status": "done", "model_version_id": version_id, "roi_rev": roi_rev}
+    payload = _job_payload(conn, job_id) or {"job_id": job_id, "status": "done", "result": None}
+    payload.update({"model_version_id": version_id, "roi_rev": roi_rev})
+    if sync:
+        response.status_code = 200
+    return payload
 
 
-@router.get("/infer/{job_id}")
-def get_job(job_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+def _job_payload(conn: sqlite3.Connection, job_id: int) -> dict:
     job = conn.execute("SELECT * FROM inference_job WHERE id = ?", (job_id,)).fetchone()
     if job is None:
-        raise ApiError("job_not_found", f"任务 {job_id} 不存在", "刷新列表", 404)
+        return None
     result = conn.execute(
         "SELECT id, score, label, boxes_json FROM inference_result WHERE job_id = ?",
         (job_id,),
@@ -225,6 +236,14 @@ def get_job(job_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
         if result
         else None,
     }
+
+
+@router.get("/infer/{job_id}")
+def get_job(job_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    payload = _job_payload(conn, job_id)
+    if payload is None:
+        raise ApiError("job_not_found", f"任务 {job_id} 不存在", "刷新列表", 404)
+    return payload
 
 
 class FeedbackIn(BaseModel):

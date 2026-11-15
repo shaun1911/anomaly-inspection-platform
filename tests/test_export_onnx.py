@@ -84,6 +84,7 @@ def test_onnx_inference_end_to_end(client):
     assert result is not None
     assert 0.0 <= result["score"] <= 1.0
     assert result["label"] in ("ok", "gray", "ng")
+    assert client.get("/api/metrics").status_code == 200  # 缓存非空时工作台指标不能崩
     cache = client.get("/api/model-cache").json()
     assert cache["count"] >= 1
     assert cache["items"][0]["fake"] is False

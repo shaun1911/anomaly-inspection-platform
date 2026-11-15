@@ -22,10 +22,9 @@
 ① 换型   GET  /station/config?code=<编码>
            ↓ 成功：拿到 model_version_id / roi_rect / roi_rev
 ② 拍照   本地按 roi_rect 裁剪（像素坐标，与 roo_rect 宽高一致）
-③ 推图   POST /infer   (multipart: code, station, part_no, batch_no, image)
-           ↓ 202 {job_id}
-④ 取结果  GET  /infer/{job_id}   （1s 轮询，最多 30s）
-           ↓ {result:{label,score}}  label ∈ ok / gray / ng
+③ 推图   POST /infer?sync=1  (multipart: code, station, part_no, batch_no, image)
+           ↓ 200 {status:"done", result:{label,score}}
+           （节拍紧用 sync 一次往返；也可用 POST /infer 拿 202 + GET /infer/{job_id} 轮询）
 ⑤ 处置   ok   → 放行
           ng   → 拦下，等人工
           gray → 提示"需人工确认"，等人工
@@ -95,7 +94,25 @@
 
 请求头：`Idempotency-Key: <每次上传唯一>`、`X-Station-Token`（如启用）。
 
-成功：`202 {"job_id": 123, "status": "done", "model_version_id": 2, "roi_rev": 1}`
+成功（异步，默认）：`202 {"job_id": 123, "status": "done", "model_version_id": 2, "roi_rev": 1}`
+
+成功（同步，`?sync=1`）：HTTP **200**，一次返回完整结果：
+
+```json
+{
+  "job_id": 123,
+  "status": "done",
+  "code": "AB-1234-01",
+  "part_no": "P-20261114-0001",
+  "batch_no": "2026-11-B01",
+  "model_version_id": 2,
+  "roi_rev": 1,
+  "result": {"id": 456, "score": 0.643, "label": "ng", "boxes": null}
+}
+```
+
+客户端按 `label` 分流：`ok`/`ng` 自动放行或拦下；`gray` 或 `score` 接近阈值时人工确认。
+同步模式与异步共用同一套校验、幂等与模型缓存；重复幂等键返回同一 `job_id` 且 `duplicate: true`。
 
 常见错误：
 

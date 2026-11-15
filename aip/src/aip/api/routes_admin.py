@@ -165,7 +165,7 @@ def system_metrics(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     ).fetchall()
 
     entries = cache.entries()
-    real = sum(1 for e in entries if not e["fake"])
+    real = sum(1 for e in entries if e["onnx_path"])
     predictor = "ONNX Runtime" if real else "FakePredictor"
     note = (
         f"模型按需加载：常驻 {len(entries)} 个（ONNX {real} 个）。"

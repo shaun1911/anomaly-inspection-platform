@@ -58,6 +58,8 @@ SPECS: tuple[Spec, ...] = (
          "裁片宽高与 ROI 宽高偏差超过该值则拒绝；0=关闭", 0, 200),
     Spec("station.token", "接入", "站位接入令牌", "str", "",
          "非空时 /infer 与 /station/* 必须带 X-Station-Token"),
+    Spec("ui.panel_enabled", "接入", "开放工位面板", "bool", True,
+         "生产环境可关闭 /panel（测试页），关闭后访问返回 404"),
     Spec("serving.cache_ttl_min", "服务", "模型空闲回收（分钟）", "int", 15,
          "站位无请求超过该时长即释放引用；无引用后卸载模型", 1, 1440),
     Spec("serving.cache_max", "服务", "同时常驻模型上限", "int", 4,
