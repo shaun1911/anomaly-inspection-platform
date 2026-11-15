@@ -120,6 +120,37 @@ def unload_model(key: str, force: bool = False, conn: sqlite3.Connection = Depen
     return {"key": key, "unloaded": True, "forced": force}
 
 
+@router.get("/search")
+def global_search(q: str, limit: int = 5, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    term = f"%{(q or '').strip()}%"
+    if not (q or "").strip():
+        return {"codes": [], "parts": [], "models": []}
+
+    codes = conn.execute(
+        "SELECT p.code, f.name AS family FROM product_code p"
+        " LEFT JOIN family f ON f.id = p.family_id"
+        " WHERE p.code LIKE ? AND p.archived_at IS NULL ORDER BY p.code LIMIT ?",
+        (term, limit),
+    ).fetchall()
+    parts = conn.execute(
+        "SELECT part_no, code, max(batch_no) AS batch_no FROM inference_job"
+        " WHERE part_no LIKE ? AND part_no IS NOT NULL"
+        " GROUP BY part_no, code ORDER BY max(id) DESC LIMIT ?",
+        (term, limit),
+    ).fetchall()
+    models = conn.execute(
+        "SELECT id, code, name FROM model"
+        " WHERE archived_at IS NULL AND (code LIKE ? OR name LIKE ?)"
+        " ORDER BY id LIMIT ?",
+        (term, term, limit),
+    ).fetchall()
+    return {
+        "codes": [dict(r) for r in codes],
+        "parts": [dict(r) for r in parts],
+        "models": [dict(r) for r in models],
+    }
+
+
 @router.get("/metrics")
 def system_metrics(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     db_file = Path(conn.execute("PRAGMA database_list").fetchone()[2])

@@ -40,7 +40,14 @@
 
   header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--g1);border-bottom:1px solid var(--g3);position:sticky;top:0;z-index:4}
   header h1{font-size:15px;margin:0;font-weight:600}
-  .search{flex:1;max-width:420px}
+  .search{flex:1;max-width:420px;position:relative}
+  .search-drop{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:20;background:var(--g1);
+    border:1px solid var(--g3);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);
+    padding:6px;max-height:360px;overflow:auto}
+  .search-group{padding:6px 8px 2px;font-size:11px;color:var(--t3)}
+  .search-item{display:flex;gap:8px;align-items:center;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px}
+  .search-item:hover,.search-item.on{background:var(--g2)}
+  .search-item .muted{margin-left:auto}
   .search input{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:8px 12px;font-size:13px}
   .pill{padding:4px 10px;border-radius:999px;background:var(--g2);color:var(--t2);font-size:12px}
 
@@ -231,9 +238,10 @@
   <div>
     <header>
       <h1 id="title">工作台</h1>
-      <div class="search">
-        <label class="sr-only" for="jump">跳转到编码</label>
-        <input id="jump" placeholder="输入编码回车直达，例如 AB-1234-01">
+      <div class="search" id="searchWrap">
+        <label class="sr-only" for="jump">搜索编码、件号或模型</label>
+        <input id="jump" placeholder="搜索编码 / 件号 / 模型" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="searchDrop">
+        <div id="searchDrop" class="search-drop" hidden></div>
       </div>
       <span class="pill" id="health" role="status">健康检查中…</span>
     </header>
@@ -1691,6 +1699,12 @@ let caseState = {code: "", verdict: "", source: "", partNo: "", batchNo: "", con
 let selectedCases = new Set();
 
 async function renderCases() {
+  const deep = new URLSearchParams(location.hash.split("?")[1] || "");
+  if (deep.get("part")) {
+    caseState.partNo = deep.get("part");
+    caseState.page = 0;
+    history.replaceState(null, "", "#/cases");
+  }
   const params = new URLSearchParams({limit: String(caseState.pageSize), offset: String(caseState.page * caseState.pageSize)});
   if (caseState.code) params.set("code", caseState.code);
   if (caseState.verdict) params.set("verdict", caseState.verdict);
@@ -2438,12 +2452,90 @@ async function health() {
   } catch { $("health").textContent = "服务不可用"; }
 }
 
-$("jump").addEventListener("keydown", (ev) => {
-  if (ev.key === "Enter") {
-    const v = ev.target.value.trim();
-    if (!v) return;
-    location.hash = "#/code/" + encodeURIComponent(v);
+let searchItems = [];
+let searchActive = -1;
+
+function closeSearch() {
+  const drop = $("searchDrop");
+  drop.hidden = true;
+  drop.innerHTML = "";
+  $("jump").setAttribute("aria-expanded", "false");
+  searchItems = [];
+  searchActive = -1;
+}
+
+function renderSearch(results) {
+  const drop = $("searchDrop");
+  const groups = [
+    ["codes", "编码", (r) => ({label: r.code, sub: r.family || "", href: "#/code/" + encodeURIComponent(r.code)})],
+    ["parts", "件号", (r) => ({label: r.part_no, sub: r.code + (r.batch_no ? " · " + r.batch_no : ""), href: "#/cases?part=" + encodeURIComponent(r.part_no)})],
+    ["models", "模型", (r) => ({label: r.code, sub: r.name || "", href: "#/training", model: r.code})],
+  ];
+  const html = [];
+  searchItems = [];
+  for (const [key, title, map] of groups) {
+    const rows = results[key] || [];
+    if (!rows.length) continue;
+    html.push(`<div class="search-group">${title}</div>`);
+    for (const row of rows) {
+      const item = map(row);
+      searchItems.push(item);
+      const i = searchItems.length - 1;
+      html.push(`<div class="search-item" data-i="${i}">
+        <span>${esc(item.label)}</span><span class="muted">${esc(item.sub)}</span>
+      </div>`);
+    }
   }
+  drop.innerHTML = html.length ? html.join("") : '<div class="search-group">没有匹配</div>';
+  drop.hidden = false;
+  $("jump").setAttribute("aria-expanded", "true");
+  drop.querySelectorAll(".search-item").forEach(el => {
+    el.onclick = () => openSearchItem(Number(el.dataset.i));
+  });
+}
+
+function openSearchItem(i) {
+  const item = searchItems[i];
+  if (!item) return;
+  if (item.model) trainingState.q = item.model;
+  closeSearch();
+  $("jump").value = "";
+  location.hash = item.href;
+}
+
+function moveSearch(delta) {
+  if (!searchItems.length) return;
+  searchActive = (searchActive + delta + searchItems.length) % searchItems.length;
+  document.querySelectorAll("#searchDrop .search-item").forEach(el => {
+    el.classList.toggle("on", Number(el.dataset.i) === searchActive);
+  });
+}
+
+let searchTimer = null;
+$("jump").addEventListener("input", () => {
+  const q = $("jump").value.trim();
+  clearTimeout(searchTimer);
+  if (!q) { closeSearch(); return; }
+  searchTimer = setTimeout(async () => {
+    try {
+      renderSearch(await api("/api/search?q=" + encodeURIComponent(q)));
+    } catch { closeSearch(); }
+  }, 180);
+});
+
+$("jump").addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") { closeSearch(); return; }
+  if (ev.key === "ArrowDown") { ev.preventDefault(); moveSearch(1); return; }
+  if (ev.key === "ArrowUp") { ev.preventDefault(); moveSearch(-1); return; }
+  if (ev.key === "Enter") {
+    ev.preventDefault();
+    if (searchItems.length === 0) return;
+    openSearchItem(searchActive >= 0 ? searchActive : 0);
+  }
+});
+
+document.addEventListener("click", (ev) => {
+  if (!$("searchWrap").contains(ev.target)) closeSearch();
 });
 
 window.addEventListener("hashchange", route);
