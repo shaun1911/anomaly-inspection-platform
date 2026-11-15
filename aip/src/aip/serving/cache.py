@@ -131,6 +131,12 @@ class ModelCache:
             self._unload(key)
             return True
 
+    def reset(self) -> None:
+        """清空缓存（测试隔离，或换 ONNX 后强制重载）。"""
+        with self._lock:
+            for key in list(self._entries):
+                self._unload(key)
+
     def entries(self, now: float | None = None) -> list[dict]:
         now = time.time() if now is None else now
         with self._lock:

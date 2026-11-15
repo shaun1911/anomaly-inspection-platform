@@ -15,8 +15,10 @@ from pydantic import BaseModel
 
 from ..audit import record
 from ..inference.onnx import PredictorUnavailable, build_predictor, load_session
+from ..training.export import ExportUnavailable, default_export_path, export_stub
 from ..inference.service import GATE_MESSAGES, check_gate, label_for
 from ..settings import gate_config, get_value
+from ..serving.cache import cache
 from ..store import tx
 from .deps import get_conn
 from .errors import ApiError
@@ -112,6 +114,59 @@ def list_train(
         item.pop("metrics_json", None)
         out.append(item)
     return out
+
+
+class ExportIn(BaseModel):
+    backend: str = "stub"
+
+
+@router.post("/models/{model_id}/versions/{version_no}/export")
+def export_onnx(
+    model_id: int, version_no: int, body: ExportIn,
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> dict:
+    """把版本导出为 ONNX 并自动挂载。
+
+    backend=stub：生成真实的亮度均值图（演示/链路验证）；
+    真实模型请用 anomalib 在训练机导出后走「挂 ONNX」接口。
+    """
+    version = conn.execute(
+        "SELECT onnx_path FROM model_version WHERE model_id = ? AND version_no = ?",
+        (model_id, version_no),
+    ).fetchone()
+    if version is None:
+        raise ApiError("version_not_found", f"版本 v{version_no} 不存在", "刷新", 404)
+    if version["onnx_path"]:
+        return {"skipped": True, "onnx_path": version["onnx_path"]}
+
+    model = conn.execute("SELECT code FROM model WHERE id = ?", (model_id,)).fetchone()
+    db_file = Path(conn.execute("PRAGMA database_list").fetchone()[2])
+    target = default_export_path(db_file.parent, model["code"], version_no)
+
+    if body.backend != "stub":
+        raise ApiError(
+            "backend_unsupported", "服务端只支持 stub 导出",
+            "真实模型请在训练机导出后用「挂 ONNX」", 400,
+        )
+
+    try:
+        export_stub(target)
+    except ExportUnavailable as exc:
+        raise ApiError("export_unavailable", str(exc), "pip install onnx 或改在训练机导出", 503) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise ApiError("export_failed", f"导出失败: {exc}", "检查磁盘与依赖", 500) from exc
+
+    with tx(conn):
+        conn.execute(
+            "UPDATE model_version SET onnx_path = ? WHERE model_id = ? AND version_no = ?",
+            (str(target), model_id, version_no),
+        )
+        record(conn, actor="web", action="model.export", entity="model_version",
+               entity_id=f"{model_id}:{version_no}",
+               payload={"onnx_path": str(target), "backend": body.backend})
+    cache.unload(f"{model_id}:{version_no}", force=True)
+    return {"model_id": model_id, "version_no": version_no, "onnx_path": str(target),
+            "backend": body.backend, "skipped": False}
 
 
 @router.post("/models/{model_id}/versions/{version_no}/smoke")

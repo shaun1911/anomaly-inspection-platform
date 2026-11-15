@@ -133,6 +133,14 @@ def system_metrics(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
         " WHERE mv.status = 'assist' ORDER BY m.code"
     ).fetchall()
 
+    entries = cache.entries()
+    real = sum(1 for e in entries if not e["fake"])
+    predictor = "ONNX Runtime" if real else "FakePredictor"
+    note = (
+        f"模型按需加载：常驻 {len(entries)} 个（ONNX {real} 个）。"
+        "未挂 ONNX 的版本退回假预测器。"
+    )
+
     return {
         "service": {
             "status": "ok",
@@ -147,9 +155,9 @@ def system_metrics(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
         "disk": metrics_mod.disk(data_dir),
         "gpu": metrics_mod.gpu(),
         "models": {
-            "predictor": "FakePredictor",
-            "loaded": 0,
-            "note": "当前为确定性假预测器，不常驻真实模型；接 anomalib 后此处显示常驻模型与显存占用",
+            "predictor": predictor,
+            "loaded": len(entries),
+            "note": note,
             "items": [
                 {
                     "model_code": r["model_code"],

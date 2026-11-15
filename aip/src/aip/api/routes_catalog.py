@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..audit import record
+from ..serving.cache import cache
 from ..store import tx
 from .errors import ApiError
 from .deps import get_conn
@@ -293,6 +294,7 @@ def set_onnx(
             raise LookupError(f"版本不存在: {model_id}:{version_no}")
         record(conn, actor="web", action="model.onnx", entity="model_version",
                entity_id=f"{model_id}:{version_no}", payload={"onnx_path": str(path)})
+    cache.unload(f"{model_id}:{version_no}", force=True)
     return {"model_id": model_id, "version_no": version_no, "onnx_path": str(path)}
 
 

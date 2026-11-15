@@ -85,7 +85,14 @@ powershell -ExecutionPolicy Bypass -File scripts\start.ps1
 
 CUDA 与 cuDNN 不随项目分发，需按 NVIDIA 官方文档自行安装匹配版本（GPU 显存建议 ≥8 GB）。
 
-**把模型挂到版本**：训练与发布 → 版本行 → 「挂 ONNX」→ 填导出文件绝对路径；
+'**导出与挂载**：
+
+- 演示/链路验证：训练与发布 → 版本行 → **「导出 ONNX」**（服务端生成一个真实的亮度均值图，落 `data/models/<model>-v<ver>.onnx` 并自动挂载）；
+- 真实模型：在训练机用 anomalib 导出后，版本行 → **「挂 ONNX」** → 填绝对路径。
+
+> 服务端导出演示模型需要可选依赖：`pip install -r requirements-export.txt`（含 `onnx`）。
+
+**把模型挂到版本**：训练与发布 → 版本行 → 「挂 ONNX」→ 填导出文件绝对路径；'
 工位推图时若该版本有 ONNX 路径则走 ONNX Runtime，否则退回演示用假预测器。
 
 相关设置（设置 → 接入）：

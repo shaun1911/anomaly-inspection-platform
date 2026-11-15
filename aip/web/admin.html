@@ -351,7 +351,7 @@ const ACTIONS = {
   "dataset.create": "新建数据集", "dataset.add": "加入判例", "dataset.remove": "移出判例",
   "dataset.freeze": "冻结数据集", "batch.backfill": "回填批次",
   "blind.create": "建抽检批次", "blind.close": "关闭抽检批次",
-  "model.smoke": "冒烟试判", "model.load": "加载模型", "model.unload": "卸载模型", "setting.bulk_update": "批量修改设置", "train.cancel": "取消训练",
+  "model.smoke": "冒烟试判", "model.load": "加载模型", "model.unload": "卸载模型", "model.export": "导出 ONNX", "model.onnx": "挂载 ONNX", "setting.bulk_update": "批量修改设置", "train.cancel": "取消训练",
 };
 const actionLabel = (a) => ACTIONS[a] || a;
 
@@ -2212,6 +2212,7 @@ async function renderTraining() {
       ? '<span class="tag ok">ONNX 已挂</span>'
       : '<span class="tag gray">未挂 ONNX</span>';
     const onnxBtn = `<button class="ghost" data-onnx="${m.id}:${v.version_no}">${v.onnx_path ? "换 ONNX" : "挂 ONNX"}</button>`;
+    const exportBtn = v.onnx_path ? "" : `<button class="ghost" data-export="${m.id}:${v.version_no}">导出 ONNX</button>`;
     const action = v.status === "candidate"
       ? `<button class="act" data-publish="${m.id}:${v.version_no}" data-label="${esc(m.code)} v${v.version_no}">发布为生效</button>`
       : v.status === "assist" ? '<span class="muted">当前生效</span>'
@@ -2225,7 +2226,7 @@ async function renderTraining() {
       <td>${ovk}</td>
       <td class="muted">${fmtTime(v.created_at)}</td>
       <td><span class="tag ${v.status}">${esc(stLabel(v.status))}</span></td>
-      <td>${action} ${onnxBtn}</td>
+      <td>${action} ${onnxBtn} ${exportBtn}</td>
     </tr>`;
   }).join("");
 
@@ -2339,6 +2340,18 @@ async function renderTraining() {
           body: JSON.stringify({onnx_path: path.trim()})
         });
         toast("ONNX 已绑定");
+        renderTraining();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+
+  document.querySelectorAll("[data-export]").forEach(btn => {
+    btn.onclick = async () => {
+      const [mid, vno] = btn.dataset.export.split(":");
+      if (!confirm("用服务端导出演示 ONNX（亮度均值模型）？\n真实模型请在训练机导出后「挂 ONNX」。")) return;
+      try {
+        const r = await post(`/api/models/${mid}/versions/${vno}/export`, {backend: "stub"});
+        toast(r.skipped ? "该版本已有 ONNX" : "已导出并挂载");
         renderTraining();
       } catch (e) { toast(e.message, true); }
     };
