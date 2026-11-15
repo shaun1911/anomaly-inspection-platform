@@ -28,9 +28,9 @@ def client(tmp_path, monkeypatch):
     return c
 
 
-def _png() -> bytes:
+def _png(value: int = 120) -> bytes:
     rng = np.random.default_rng(7)
-    arr = np.clip(np.full((96, 96, 3), 120, dtype=np.int16) + rng.integers(-40, 40, (96, 96, 3)), 0, 255).astype(np.uint8)
+    arr = np.clip(np.full((96, 96, 3), value, dtype=np.int16) + rng.integers(-40, 40, (96, 96, 3)), 0, 255).astype(np.uint8)
     buf = io.BytesIO()
     Image.fromarray(arr, "RGB").save(buf, format="PNG")
     return buf.getvalue()
@@ -96,3 +96,35 @@ def test_panel_can_be_disabled(client):
     assert resp.status_code == 404
     # 后台页面不受影响
     assert client.get("/admin").status_code == 200
+
+
+def test_decision_mapping_is_pure():
+    from aip.api.routes_infer import _decision
+
+    conn = store.connect(":memory:")
+    store.migrate(conn)
+    try:
+        assert _decision(conn, "ok") == {"action": "pass", "human_required": False}
+        assert _decision(conn, "ng") == {"action": "block", "human_required": False}
+        gray = _decision(conn, "gray")
+        assert gray["action"] == "review" and gray["human_required"] is True
+
+        set_many(conn, {"review.gray_route": "stop"})
+        stopped = _decision(conn, "gray")
+        assert stopped["action"] == "block"
+        assert stopped["reason"] == "gray_stop"
+        assert stopped["human_required"] is True
+    finally:
+        conn.close()
+
+
+def test_sync_payload_includes_decision(client):
+    _ready(client)
+    body = client.post(
+        "/infer?sync=1",
+        data={"code": "AB-1", "station": "S1"},
+        files={"image": ("d.png", _png(), "image/png")},
+        headers={"Idempotency-Key": "decision-1"},
+    ).json()
+    assert body["decision"]["action"] in ("pass", "block", "review")
+    assert "human_required" in body["decision"]

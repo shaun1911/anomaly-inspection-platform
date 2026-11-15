@@ -212,6 +212,17 @@ def submit(
     return payload
 
 
+def _decision(conn: sqlite3.Connection, label: str | None) -> dict:
+    """把判定翻译成客户端动作：pass / block / review。"""
+    if label == "ok":
+        return {"action": "pass", "human_required": False}
+    if label == "ng":
+        return {"action": "block", "human_required": False}
+    if get_value(conn, "review.gray_route") == "stop":
+        return {"action": "block", "human_required": True, "reason": "gray_stop"}
+    return {"action": "review", "human_required": True, "reason": "gray_review"}
+
+
 def _job_payload(conn: sqlite3.Connection, job_id: int) -> dict:
     job = conn.execute("SELECT * FROM inference_job WHERE id = ?", (job_id,)).fetchone()
     if job is None:
@@ -235,6 +246,7 @@ def _job_payload(conn: sqlite3.Connection, job_id: int) -> dict:
         }
         if result
         else None,
+        "decision": _decision(conn, result["label"]) if result else None,
     }
 
 

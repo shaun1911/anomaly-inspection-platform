@@ -107,11 +107,21 @@
   "batch_no": "2026-11-B01",
   "model_version_id": 2,
   "roi_rev": 1,
-  "result": {"id": 456, "score": 0.643, "label": "ng", "boxes": null}
+  "result": {"id": 456, "score": 0.643, "label": "ng", "boxes": null},
+  "decision": {"action": "block", "human_required": false}
 }
 ```
 
-客户端按 `label` 分流：`ok`/`ng` 自动放行或拦下；`gray` 或 `score` 接近阈值时人工确认。
+**客户端只认 `decision.action`，不要自己判断 label**：
+
+| action | 含义 | 客户端动作 |
+|---|---|---|
+| `pass` | 自动放行（label=ok） | 继续生产 |
+| `block` | 自动拦下（label=ng） | 停件/剔除，不打扰人 |
+| `review` | 灰区，需人工确认 | 弹确认框或提示走复核队列 |
+
+`decision.human_required=true` 时界面必须等人处理；`reason` 目前为 `gray_review` / `gray_stop`。
+灰区走"队列"还是"直接拦停"由甲方在「设置 → 复核 → 灰区处理方式」决定，客户端不用改代码。
 同步模式与异步共用同一套校验、幂等与模型缓存；重复幂等键返回同一 `job_id` 且 `duplicate: true`。
 
 常见错误：

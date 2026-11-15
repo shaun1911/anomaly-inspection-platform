@@ -80,6 +80,8 @@ SPECS: tuple[Spec, ...] = (
         True,
         "关掉后复核页默认折叠，需手动展开",
     ),
+    Spec("review.gray_route", "复核", "灰区处理方式", "str", "queue",
+         "queue=进待复核并提示人工；stop=直接拦停，等人工放行"),
     Spec(
         "reasons.list",
         "理由预设",

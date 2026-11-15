@@ -1421,7 +1421,12 @@ async function renderSettings() {
                              <option value="true" ${String(val) === "true" ? "selected" : ""}>开启</option>
                              <option value="false" ${String(val) !== "true" ? "selected" : ""}>关闭</option>
                            </select>`
-                        : `<input data-k="${esc(r.key)}" data-kind="${r.kind}" value="${esc(val)}" aria-label="${esc(r.label)}">`}
+                        : r.key === "review.gray_route"
+        ? `<select data-k="${esc(r.key)}" data-kind="str" aria-label="${esc(r.label)}">
+             <option value="queue" ${val === "queue" ? "selected" : ""}>进待复核，提示人工</option>
+             <option value="stop" ${val === "stop" ? "selected" : ""}>直接拦停，等人工放行</option>
+           </select>`
+        : `<input data-k="${esc(r.key)}" data-kind="${r.kind}" value="${esc(val)}" aria-label="${esc(r.label)}">`}
                       ${r.key === "station.token" ? `
                         <button class="ghost" data-gen-token title="生成随机令牌">生成</button>
                         <button class="ghost" data-copy-token title="复制到剪贴板">复制</button>
