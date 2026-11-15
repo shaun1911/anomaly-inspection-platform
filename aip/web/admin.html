@@ -159,8 +159,8 @@
   .review-hint{font-size:12px;margin-top:8px}
   .review-detail{background:var(--g1);border:1px solid var(--g3);border-radius:8px;padding:10px 12px;
     display:flex;flex-direction:column;min-height:0;overflow:auto}
-  .review-actions{display:flex;gap:8px;margin-top:2px}
-  .review-actions button{flex:1;min-height:38px}
+  .review-actions{display:flex;gap:10px;margin-top:4px}
+  .review-actions button{flex:1;min-height:40px}
   .queue{display:flex;flex-direction:column;gap:4px;flex:1;min-height:0;overflow:auto}
   .item{display:flex;align-items:center;gap:8px;padding:9px;border-radius:8px;background:var(--g2);cursor:pointer;font-size:13px}
   .item.on{outline:2px solid var(--brand)}
@@ -239,24 +239,25 @@
   .wiz-body{margin-top:12px}
   .chip-static{background:var(--g2);border:1px solid var(--g3);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--t2)}
   .item .score{flex:0 0 76px;white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums;color:var(--t2)}
-  .shot{background:var(--g2);border-radius:8px;height:clamp(140px,20vh,210px);flex:0 0 auto;
+  .shot{background:var(--g2);border-radius:8px;height:clamp(120px,16vh,190px);flex:0 0 auto;
     display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:10px}
   .shot img{max-width:100%;max-height:420px;image-rendering:pixelated}
-  .kv{display:grid;grid-template-columns:76px 1fr;gap:2px 10px;font-size:12px;line-height:1.35}
+  .kv{display:grid;grid-template-columns:76px 1fr;gap:4px 12px;font-size:12px;line-height:1.5}
   .kv.kv2{grid-template-columns:52px 1fr 64px 1fr}
   .kv div:nth-child(odd){color:var(--t3)}
   #rRefs{max-height:none;overflow:visible}
-  .ref-strip{display:flex;gap:6px;align-items:center;overflow:hidden}
-  .ref-strip figure{margin:0;width:62px}
-  .ref-strip img{width:62px;height:62px;object-fit:cover;border-radius:6px;border:1px solid var(--g3);background:var(--g2);cursor:zoom-in}
+  .ref-strip{display:flex;gap:8px;align-items:center;overflow:hidden}
+  .ref-strip figure{margin:0;width:56px}
+  .ref-strip img{width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--g3);background:var(--g2);cursor:zoom-in}
     border:1px solid var(--g3);background:var(--g2);cursor:zoom-in}
   .ref-strip figcaption{display:none}
-  .ref-more{width:64px;height:64px;border-radius:6px;border:1px dashed var(--g3);
+  .ref-more{width:56px;height:56px;border-radius:6px;border:1px dashed var(--g3);
     background:var(--g2);color:var(--t2);font-size:12px;cursor:pointer}
-  .ref-strip .tag{flex:0 0 auto}
+  .ref-strip .tag{flex:0 0 auto;margin-left:6px}
+  .ref-strip .tag:first-child{margin-left:0}
   .ref-strip .tag.ok{background:color-mix(in oklab,var(--ok) 16%,transparent);color:var(--ok)}
   .ref-strip .tag.ng{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad)}
-  .reasons{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0}
+  .reasons{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
   .reasons button{padding:6px 10px;font-size:12px;min-height:32px}
   .review-detail .row button{min-height:38px}
   .reasons button.sel{background:var(--brand);color:#fff}
@@ -1123,8 +1124,8 @@ async function renderQuality() {
           <div class="review-detail">
             <div class="shot"><img id="shot" alt="裁片"></div>
             <div class="kv" id="rmeta"></div>
-            <div id="rshots" class="muted" style="margin-top:4px"></div>
-            <div style="margin-top:8px">
+            <div id="rshots" class="muted" style="margin-top:6px"></div>
+            <div style="margin-top:10px">
               <button class="ghost" id="rRefBtn">参考样例（可能影响判断）</button>
               <div id="rRefs" hidden style="margin-top:8px"></div>
             </div>
