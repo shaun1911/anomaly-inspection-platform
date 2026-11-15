@@ -5,6 +5,10 @@
 <meta name="color-scheme" content="light dark">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AIP 服务端</title>
+<script>
+  // 主题：auto / light / dark，先应用再绘制，避免闪白
+  try { document.documentElement.dataset.theme = localStorage.getItem("aip-theme") || "auto"; } catch (e) {}
+</script>
 <style>
   :root{
     color-scheme: light dark;
@@ -24,6 +28,9 @@
     scrollbar-color: light-dark(#B9BFC8,#4A515C) transparent;
   }
   *{box-sizing:border-box}
+  html[data-theme="light"]{color-scheme:light}
+  html[data-theme="dark"]{color-scheme:dark}
+  html[data-theme="auto"]{color-scheme:light dark}
   html,body{background:var(--g0)}
   body{margin:0;color:var(--t1);font:15px/1.5 "Microsoft YaHei",system-ui,sans-serif}
   :focus-visible{outline:3px solid var(--ring);outline-offset:2px;border-radius:6px}
@@ -39,7 +46,7 @@
   .side-foot{margin-top:18px;padding:10px;border-top:1px solid var(--g3);font-size:11px;color:var(--t3)}
 
   header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--g1);border-bottom:1px solid var(--g3);position:sticky;top:0;z-index:4}
-  header h1{font-size:15px;margin:0;font-weight:600}
+  header h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap}
   .search{flex:1;max-width:420px;position:relative}
   .search-drop{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:20;background:var(--g1);
     border:1px solid var(--g3);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);
@@ -49,6 +56,7 @@
   .search-item:hover,.search-item.on{background:var(--g2)}
   .search-item .muted{margin-left:auto}
   .search input{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:8px 12px;font-size:13px}
+  .theme-sel{background:var(--g2);color:var(--t1);border:1px solid var(--g3);border-radius:6px;padding:4px 8px;font-size:13px;min-height:30px;width:auto;flex:0 0 auto}
   .pill{padding:4px 10px;border-radius:999px;background:var(--g2);color:var(--t2);font-size:12px}
 
   #progress{position:fixed;left:0;right:0;top:0;height:3px;z-index:50;background:var(--brand);
@@ -265,6 +273,12 @@
         <input id="jump" placeholder="搜索编码 / 件号 / 模型" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="searchDrop">
         <div id="searchDrop" class="search-drop" role="listbox" aria-label="搜索结果" hidden></div>
       </div>
+      <label class="sr-only" for="themeSel">主题</label>
+      <select id="themeSel" class="theme-sel">
+        <option value="auto">跟随系统</option>
+        <option value="light">日间</option>
+        <option value="dark">夜间</option>
+      </select>
       <span class="pill" id="health" role="status">健康检查中…</span>
     </header>
     <main id="view" aria-live="polite"></main>
@@ -334,6 +348,12 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem("aip-theme", theme); } catch (e) {}
+}
+
 window.addEventListener("error", (e) => {
   const v = document.getElementById("view");
   if (v) v.innerHTML = `<section><div class="empty">页面脚本异常：${String(e.message || e.error)}<br>请刷新重试</div></section>`;
@@ -2519,7 +2539,11 @@ async function route() {
 
 async function health() {
   try {
-    const h = await api("/health");
+    applyTheme(localStorage.getItem("aip-theme") || "auto");
+  $("themeSel").value = localStorage.getItem("aip-theme") || "auto";
+  $("themeSel").onchange = (e) => applyTheme(e.target.value);
+
+  const h = await api("/health");
     $("health").textContent = `服务 ${h.status} · 队列 ${h.queue_depth}`;
   } catch { $("health").textContent = "服务不可用"; }
 }

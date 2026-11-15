@@ -83,6 +83,24 @@ async function main() {
     console.log(`${bad ? "FAIL" : "ok  "} ${name}`);
   }
 
+  // 暗色模式检查
+  await send("Page.navigate", { url: `${APP}/admin#/workbench` });
+  await sleep(1200);
+  await send("Runtime.evaluate", { expression: `localStorage.setItem("aip-theme","dark")` });
+  await send("Page.reload");
+  await sleep(1600);
+  const darkBg =
+    (
+      await send("Runtime.evaluate", {
+        expression: "getComputedStyle(document.body).backgroundColor",
+        returnByValue: true,
+      })
+    ).result?.result?.value || "";
+  const darkOk = darkBg === "rgb(15, 17, 21)";
+  failures.push(...(darkOk ? [] : [{ page: "theme-dark", snippet: darkBg }]));
+  console.log(`${darkOk ? "ok  " : "FAIL"} theme-dark (body ${darkBg})`);
+  await send("Runtime.evaluate", { expression: `localStorage.removeItem("aip-theme")` });
+
   // 工位面板单独检查
   exceptions.length = 0;
   await send("Page.navigate", { url: `${APP}/panel` });

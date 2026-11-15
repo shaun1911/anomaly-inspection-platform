@@ -17,8 +17,8 @@ HTML = Path(__file__).resolve().parents[1] / "aip" / "web" / "admin.html"
 def _script() -> str:
     text = HTML.read_text(encoding="utf-8")
     blocks = re.findall(r"<script>(.*?)</script>", text, re.S)
-    assert len(blocks) == 1, f"内联脚本应为 1 段，实际 {len(blocks)}"
-    return blocks[0]
+    assert blocks, "缺少内联脚本"
+    return max(blocks, key=len)  # 主题引导脚本 + 主脚本
 
 
 def test_route_functions_are_defined():
