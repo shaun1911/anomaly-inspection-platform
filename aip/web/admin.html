@@ -178,6 +178,9 @@
   .settings-tab.on{background:var(--g2);border-color:var(--brand);font-weight:600}
   .settings-body{min-width:0}
   .settings-body th{white-space:nowrap}
+  .row-group{display:none;margin-right:6px;font-size:11px}
+  body.set-searching .row-group{display:inline-block}
+  .row-reset{margin-left:6px;padding:2px 8px;min-height:26px;font-size:12px}
   .storage-tree summary{cursor:pointer;font-size:13px;color:var(--t2);margin-top:4px}
   .storage-tree pre{background:var(--g1);border:1px solid var(--g3);border-radius:8px;
     padding:10px 12px;font-size:12px;line-height:1.6;color:var(--t2);overflow:auto}
@@ -1366,6 +1369,7 @@ async function renderQuality() {
 }
 
 let settingsState = { group: "" };
+let settingsDirty = null;
 
 const SETTING_ORDER = ["抽样", "判定", "复核", "训练", "守门", "服务", "接入", "存储", "理由预设"];
 
@@ -1439,16 +1443,20 @@ async function renderSettings() {
         </nav>
         <div class="settings-body">
           <div class="filterbar">
-            <input id="set_q" placeholder="在当前组内搜索" style="max-width:260px">
+            <input id="set_q" placeholder="搜索全部设置项（跨组）" aria-label="搜索全部设置项" style="max-width:280px">
           </div>
           <table><caption class="sr-only">${esc(group)} 配置</caption>
             <thead><tr><th scope="col">项</th><th scope="col">当前值</th><th scope="col">默认</th><th scope="col">最后修改</th></tr></thead>
             <tbody id="setRows">
-              ${inGroup.map(r => {
+              ${rows.map(r => {
                 const val = Array.isArray(r.value) ? r.value.join(",") : r.value;
                 const def = Array.isArray(r.default) ? r.default.join(",") : r.default;
-                return `<tr data-row="${esc((r.label + " " + r.key).toLowerCase())}">
-                  <td>${esc(r.label)}<div class="muted">${esc(r.key)}${r.description ? " · " + esc(r.description) : ""}</div></td>
+                const isDefault = String(val) === String(def);
+                const bound = (r.minimum != null || r.maximum != null)
+                  ? `（范围 ${r.minimum ?? "-"} ~ ${r.maximum ?? "-"}）` : "";
+                return `<tr data-row="${esc((r.label + " " + r.key).toLowerCase())}" data-group="${esc(r.group)}">
+                  <td><span class="pill row-group">${esc(r.group)}</span>${esc(r.label)}
+                    <div class="muted">${esc(r.key)}${r.description ? " · " + esc(r.description) : ""}${bound}</div></td>
                   <td>
                     <div class="input-with-action">
                       ${r.kind === "bool"
@@ -1468,7 +1476,9 @@ async function renderSettings() {
                         <button class="ghost" data-clear-token title="清空即关闭校验">清空</button>` : ""}
                     </div>
                   </td>
-                  <td class="muted">${esc(def)}</td>
+                  <td class="muted">${esc(def)}
+                    <button class="ghost row-reset" data-def="${esc(r.key)}" ${isDefault ? "hidden" : ""}>恢复默认</button>
+                  </td>
                   <td class="muted">${r.updated_by ? esc(r.updated_by) + "<br>" + fmtTime(r.updated_at) : "—"}</td>
                 </tr>`;
               }).join("")}
@@ -1491,12 +1501,21 @@ async function renderSettings() {
       <button class="act" id="setSave">保存修改</button>
     </div>`;
 
+  settingsDirty = dirty;
   const bar = $("setBar");
   const count = $("setCount");
   const sync = () => {
     bar.hidden = dirty.size === 0;
     count.textContent = `${dirty.size} 项未保存`;
   };
+
+  function applyFilter() {
+    const q = ($("set_q").value || "").trim().toLowerCase();
+    document.body.classList.toggle("set-searching", q !== "");
+    document.querySelectorAll("#setRows tr").forEach(tr => {
+      tr.hidden = q ? !tr.dataset.row.includes(q) : tr.dataset.group !== settingsState.group;
+    });
+  }
 
   document.querySelectorAll("[data-k]").forEach(inp => {
     ["input", "change"].forEach(evt => inp.addEventListener(evt, () => {
@@ -1505,26 +1524,41 @@ async function renderSettings() {
       if (row.kind === "int" || row.kind === "float") value = Number(value);
       else if (row.kind === "list") value = value.split(",").map(s => s.trim()).filter(Boolean);
       else if (row.kind === "bool") value = value === "true" || value === "1";
-      dirty.set(inp.dataset.k, value);
+      const orig = Array.isArray(row.value) ? row.value.join(",") : row.value;
+      if (String(value) === String(orig)) dirty.delete(inp.dataset.k);
+      else dirty.set(inp.dataset.k, value);
+      const resetBtn = document.querySelector(`[data-def="${inp.dataset.k}"]`);
+      const defVal = Array.isArray(row.default) ? row.default.join(",") : row.default;
+      if (resetBtn) resetBtn.hidden = String(inp.value) === String(defVal);
       sync();
     }));
   });
+
+  document.querySelectorAll(".row-reset").forEach(btn => {
+    btn.onclick = () => {
+      const row = rows.find(r => r.key === btn.dataset.def);
+      const inp = document.querySelector(`[data-k="${btn.dataset.def}"]`);
+      if (!row || !inp) return;
+      const defVal = Array.isArray(row.default) ? row.default.join(",") : row.default;
+      inp.value = String(defVal);
+      inp.dispatchEvent(new Event("input", {bubbles: true}));
+      toast(`已恢复默认：${row.label}`);
+    };
+  });
+
+  applyFilter();
 
   document.querySelectorAll(".settings-tab").forEach(tab => {
     tab.onclick = () => {
       if (dirty.size && !confirm("有未保存的修改，切换分组会丢弃，继续？")) return;
       settingsState.group = tab.dataset.group;
+      settingsState.search = "";
       history.replaceState(null, "", "#/settings");
       renderSettings();
     };
   });
 
-  $("set_q").addEventListener("input", (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    document.querySelectorAll("#setRows tr").forEach(tr => {
-      tr.hidden = q !== "" && !tr.dataset.row.includes(q);
-    });
-  });
+  $("set_q").addEventListener("input", applyFilter);
 
   const tokenInput = () => document.querySelector('input[data-k="station.token"]');
 
@@ -2506,8 +2540,23 @@ function enhanceTables() {
 const viewObserver = new MutationObserver(() => enhanceTables());
 viewObserver.observe(document.getElementById("view"), {childList: true});
 
+window.addEventListener("beforeunload", (ev) => {
+  if (settingsDirty && settingsDirty.size) {
+    ev.preventDefault();
+    ev.returnValue = "";
+  }
+});
+
 async function route() {
   const raw = (location.hash.replace(/^#\/?/, "") || "workbench").split("?")[0];
+  const [prevPage] = (document.body.dataset.page || "").split("/");
+  if (prevPage === "settings" && raw !== "settings" && settingsDirty && settingsDirty.size) {
+    if (!confirm(`有 ${settingsDirty.size} 项设置未保存，离开会丢弃。继续？`)) {
+      history.replaceState(null, "", "#/settings");
+      return;
+    }
+    settingsDirty = null;
+  }
   const [name, arg] = raw.split("/");
   document.querySelectorAll("[data-nav]").forEach(a => {
     const on = a.dataset.nav === (name === "code" ? "catalog" : name);
