@@ -214,17 +214,13 @@ v1 不做登录系统：站位用固定 token，管理页用内网访问控制�
 | P3 | 抽检批次 + 训练任务 + 向导 | 需新增盲判与训练接口 |
 
 **待建后端**：`/api/settings`、`/api/audit`、`/api/blind/*`、`/api/train/*`、`/api/codes/{code}/timeline`。
-## 风格基线（工业极简，2026-11-15）
+## 风格基线（工业极简 A+C，2026-11-15）
 
-- 基准：ui-ux-pro-max 的 Minimalism / enterprise dashboard 方向；不采用玻璃拟态、深色氛围。
-- 正文 15px / 1.5；圆角：区块 8px、按钮与输入 6px；卡片左侧 3px 状态条（灰/琥珀/红）代替大面积底色。
-- 标题用 3px 品牌色左边条 + 0.06em 字距，强化"仪表分区"而非装饰。
-- 数字一律 	abular-nums；对比度基线 AA（主按钮 5.18、正文 7.56、次要 5.24）。
-- 作用域：全局 token（字号/圆角）已生效；工作台样板另有 ody[data-page="workbench"] 专项样式。
-
-## 日夜主题（2026-11-15）
-
-- 右上角「跟随系统 / 日间 / 夜间」三态选择，存 `localStorage.aip-theme`，刷新与跨页保持；
-- 实现只切 `color-scheme`（`html[data-theme]`），所有颜色走 `light-dark()` token，不维护两套色板；
-- 首屏前置脚本先应用主题再绘制，避免闪白；
-- 工位面板固定深色（常亮终端），不参与切换。
+- 基准：`ui-ux-pro-max` 的 Minimalism / enterprise dashboard 方向；不采用玻璃拟态、深色氛围。
+- 正文 15px / 1.5；圆角：区块 8px、按钮与输入 6px、卡片 6px。
+- 区块标题用 **1px 细分隔线**（不用色条）：`h2{border-bottom:1px solid var(--g3)}` + 0.06em 字距。
+- KPI 用**账本式一行**：`.kpi-row` 六等分、竖线分隔、外层白底细框、数字 28px/650；窄屏折两行。
+- 状态只用**数字颜色 + 文字标签**表达，不再用结构色条。
+- 数字一律 `tabular-nums`；对比度基线 AA（主按钮 5.18、正文 7.56、次要 5.24）。
+- 日夜主题：右上角三态（跟随系统/日间/夜间），只切 `color-scheme`，配色仍走 `light-dark()`。
+- 作用域：全局生效；工作台是首个样板页。

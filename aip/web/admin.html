@@ -65,14 +65,14 @@
   @keyframes prog{0%{transform:scaleX(.05);opacity:.7}50%{transform:scaleX(.6);opacity:1}100%{transform:scaleX(.95);opacity:.8}}
   main{padding:18px 22px;display:grid;gap:16px;align-content:start;max-width:1600px;margin:0 auto;width:100%}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px}
-  .card{background:var(--g1);text-decoration:none;color:inherit;display:block;border:1px solid var(--g3);border-radius:8px;padding:12px}
+  .card{background:var(--g1);text-decoration:none;color:inherit;display:block;border:1px solid var(--g3);border-radius:6px;padding:12px}
   .card b{display:block;font-size:22px;margin-top:4px;font-variant-numeric:tabular-nums}
   .card span{color:var(--t3);font-size:12px}
   .card.warn b{color:var(--warn)}
   .card.bad b{color:var(--bad)}
 
   section{background:var(--g1);border:1px solid var(--g3);border-radius:8px;padding:16px}
-  h2{font-size:13px;margin:0 0 12px;color:var(--t2);font-weight:600;display:flex;align-items:center;gap:8px}
+  h2{font-size:13px;margin:0 0 14px;color:var(--t1);font-weight:600;display:flex;align-items:center;gap:8px;letter-spacing:.06em;border-bottom:1px solid var(--g3);padding-bottom:8px}
   h2 .pill{font-weight:400}
 
   table{width:100%;border-collapse:collapse;font-size:13px}
@@ -181,21 +181,15 @@
   .cache-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;
     margin-top:14px;padding:12px;border:1px solid var(--g3);border-radius:10px;background:var(--g2)}
   @media (max-width:900px){.settings-layout{grid-template-columns:1fr}.settings-nav{flex-direction:row;flex-wrap:wrap}}
-  /* 工业极简样板：工作台 */
-  body[data-page="workbench"] h2{
-    font-size:13px;letter-spacing:.06em;color:var(--t1);
-    border-left:3px solid var(--brand);padding-left:10px;margin-bottom:14px}
-  body[data-page="workbench"] .cards .card{
-    border-left:3px solid var(--g3);border-radius:6px;padding:12px 12px 10px}
-  body[data-page="workbench"] .cards .card.warn{border-left-color:var(--warn)}
-  body[data-page="workbench"] .cards .card.bad{border-left-color:var(--bad)}
-  body[data-page="workbench"] .cards .card span{font-size:12px;letter-spacing:.03em}
-  body[data-page="workbench"] .cards .card b{font-size:26px;line-height:1.15;margin-top:2px}
-  body[data-page="workbench"] .todo-card{border-left:3px solid var(--g3);border-radius:6px}
-  body[data-page="workbench"] .todo-card.warn{border-left-color:var(--warn)}
-  body[data-page="workbench"] .todo-card.bad{border-left-color:var(--bad)}
-  body[data-page="workbench"] table{font-size:13px}
-  body[data-page="workbench"] th{letter-spacing:.03em}
+  /* KPI 账本行（全站） */
+  .kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:0;
+    background:var(--g1);border:1px solid var(--g3);border-radius:6px;padding:12px 18px}
+  .kpi-row .card{border:0;border-left:1px solid var(--g3);border-radius:0;background:transparent;
+    padding:2px 18px}
+  .kpi-row .card:first-child{border-left:0;padding-left:2px}
+  .kpi-row .card span{font-size:12px;letter-spacing:.03em}
+  .kpi-row .card b{font-size:28px;line-height:1.15;margin-top:2px;font-weight:650}
+
   .todo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
   .todo-card{display:flex;flex-direction:column;gap:6px;padding:14px;border-radius:8px;
     border:1px solid var(--g3);background:var(--g2);text-decoration:none;color:inherit}
@@ -240,7 +234,10 @@
   #toasts output{padding:12px 16px;border-radius:10px;color:#fff;font-size:13px;background:var(--ok)}
   #toasts output[data-kind="bad"]{background:var(--bad)}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-  @media (max-width:900px){.shell{grid-template-columns:1fr}aside{position:static;height:auto}}
+  @media (max-width:900px){.shell{grid-template-columns:1fr}aside{position:static;height:auto}
+    .kpi-row{grid-template-columns:repeat(3,1fr);row-gap:12px}
+    .kpi-row .card:nth-child(4){border-left:0;padding-left:2px}
+  }
 </style>
 </head>
 <body>
@@ -484,7 +481,7 @@ async function renderWorkbench() {
   const active = todos.filter(t => t.count > 0);
 
   $("view").innerHTML = `
-    <div class="cards">
+    <div class="cards kpi-row">
       <a class="card" href="#/quality"><span>今日判定</span><b>${stats.total}</b></a>
       <a class="card" href="#/quality?label=ng"><span>NG</span><b>${stats.ng}</b></a>
       <a class="card warn" href="#/quality?label=gray"><span>灰区</span><b>${stats.gray}</b></a>
