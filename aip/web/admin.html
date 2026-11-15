@@ -253,7 +253,9 @@
   .ref-strip figcaption{display:none}
   .ref-more{width:64px;height:64px;border-radius:6px;border:1px dashed var(--g3);
     background:var(--g2);color:var(--t2);font-size:12px;cursor:pointer}
-  .ref-strip .lbl{font-size:11px;color:var(--t3);margin-right:2px}
+  .ref-strip .tag{flex:0 0 auto}
+  .ref-strip .tag.ok{background:color-mix(in oklab,var(--ok) 16%,transparent);color:var(--ok)}
+  .ref-strip .tag.ng{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad)}
   .reasons{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0}
   .reasons button{padding:6px 10px;font-size:12px;min-height:32px}
   .review-detail .row button{min-height:38px}
@@ -1259,13 +1261,17 @@ async function renderQuality() {
           ...refs.ok.map(c => ({...c, kind: "ok"})),
           ...refs.ng.map(c => ({...c, kind: "ng"})),
         ];
-        const thumb = (c) => `<figure title="${esc(c.kind.toUpperCase())} · ${esc(c.reason || "无理由")}">
-          <img src="${c.image_url}" alt="${esc(c.kind)} 样例" loading="lazy" data-ref="1"></figure>`;
-        const shown = all.slice(0, 4);
+        const thumb = (c, kind) => `<figure title="${kind.toUpperCase()} · ${esc(c.reason || "无理由")}">
+          <img src="${c.image_url}" alt="${kind} 样例" loading="lazy" data-ref="1"></figure>`;
+        const okShow = refs.ok.slice(0, 2);
+        const ngShow = refs.ng.slice(0, 2);
+        const extra = (refs.ok.length - okShow.length) + (refs.ng.length - ngShow.length);
         box.innerHTML = `<div class="ref-strip">
-          <span class="lbl">样例</span>
-          ${shown.map(thumb).join("") || '<span class="muted">暂无</span>'}
-          ${all.length > 4 ? `<button class="ref-more" id="refMore">+${all.length - 4}</button>` : ""}
+          <span class="tag ok">OK ${refs.ok.length}</span>
+          ${okShow.map(c => thumb(c, "ok")).join("") || '<span class="muted">暂无</span>'}
+          <span class="tag ng">NG ${refs.ng.length}</span>
+          ${ngShow.map(c => thumb(c, "ng")).join("") || '<span class="muted">暂无</span>'}
+          ${extra > 0 ? `<button class="ref-more" id="refMore">+${extra}</button>` : ""}
         </div>
         ${refs.note ? `<div class="muted" style="margin-top:2px">${esc(refs.note)}</div>` : ""}`;
         box.hidden = false;
