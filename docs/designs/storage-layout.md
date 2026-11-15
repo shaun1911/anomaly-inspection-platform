@@ -46,7 +46,18 @@
 5. 用新目录重启：`python scripts/dev_server.py --data-dir "<新目录>"`；
 6. 确认后手工删除旧目录（程序不自动删）。
 
-'## 备份与还原
+''## 审计归档
+
+审计日志按 `audit.retention_days`（默认 180 天，最少 30 天）归档：
+
+1. 系统 → 「归档 N 天前」先查数量与最早时间，确认后执行；
+2. 旧记录导出为 `<data-dir>/audit-archive/audit-<时间>.csv`（带 BOM，Excel 直接打开）；
+3. 导出成功后从 `audit_log` 删除；归档动作本身写一条 `audit.archive` 审计；
+4. 也可用 CLI：`python scripts/archive_audit.py [--days 90] [--apply]`。
+
+归档是删库前先落盘，所以 CSV 就是事后追溯的唯一副本——要长期保存请把 `audit-archive/` 一并备份。
+
+## 备份与还原'
 
 **备份**（设置 → 存储 → 立即备份，或 `POST /api/maintenance/backup`）：
 

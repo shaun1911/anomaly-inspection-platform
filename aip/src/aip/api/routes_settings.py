@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from pathlib import Path
 
 from .. import retention
+from .. import audit_archive
 from .. import backup as backup_mod
 from .. import storage as storage_mod
 from ..storage import is_locked
@@ -131,3 +132,32 @@ def storage_restore(body: RestoreIn, conn: sqlite3.Connection = Depends(get_conn
 @router.get("/maintenance/storage")
 def storage_info(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     return storage_mod.info(conn)
+
+
+class ArchiveIn(BaseModel):
+    days: int | None = None
+    apply: bool = False
+    actor: str = "web"
+
+
+@router.get("/maintenance/audit")
+def audit_archive_plan(days: int | None = None, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    days = days or int(settings_mod.get_value(conn, "audit.retention_days"))
+    try:
+        return audit_archive.plan(conn, days)
+    except audit_archive.ArchiveError as exc:
+        raise ApiError("archive_invalid", str(exc), "保留天数至少 30 天", 400) from exc
+
+
+@router.post("/maintenance/audit/archive")
+def audit_archive_apply(body: ArchiveIn, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    db_file = Path(conn.execute("PRAGMA database_list").fetchone()[2])
+    days = body.days or int(settings_mod.get_value(conn, "audit.retention_days"))
+    try:
+        if not body.apply:
+            return {"dry_run": True, **audit_archive.plan(conn, days)}
+        return {"dry_run": False, **audit_archive.archive(
+            conn, db_file.parent, days=days, actor=body.actor
+        )}
+    except audit_archive.ArchiveError as exc:
+        raise ApiError("archive_invalid", str(exc), "保留天数至少 30 天", 400) from exc

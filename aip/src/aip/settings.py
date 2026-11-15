@@ -42,6 +42,8 @@ SPECS: tuple[Spec, ...] = (
          "判例与待复核证据不受此限制", 1, 3650),
     Spec("retention.smoke_days", "存储", "冒烟图保留天数", "int", 7,
          "试判图只用于核对，可短保留", 1, 365),
+    Spec("audit.retention_days", "存储", "审计保留天数", "int", 180,
+         "超过该天数的审计记录可归档为 CSV 后删除；最少 30 天", 30, 3650),
     Spec("infer.require_part_no", "接入", "必须带件号", "bool", False,
          "开启后未带 part_no 的请求会被拒绝（追溯要求）"),
     Spec("infer.require_batch_no", "接入", "必须带批次", "bool", False,

@@ -1682,7 +1682,8 @@ async function renderSystem() {
     </section>
 
     <section>
-      <h2>最近操作 <span class="pill">${auditTotal} 条</span></h2>
+      <h2>最近操作 <span class="pill">${auditTotal} 条</span>
+        <span style="margin-left:auto"><button class="ghost" id="btnArchiveAudit">归档 180 天前</button></span></h2>
       <div class="filterbar">
         <select id="sys_action" style="max-width:220px">
           <option value="">全部动作</option>
