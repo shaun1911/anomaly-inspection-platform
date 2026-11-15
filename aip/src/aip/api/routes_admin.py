@@ -204,6 +204,33 @@ def system_metrics(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     }
 
 
+@router.get("/audit")
+def audit_page(
+    action: str | None = None,
+    actor: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> dict:
+    clauses: list[str] = []
+    params: list[object] = []
+    if action:
+        clauses.append("action = ?")
+        params.append(action)
+    if actor:
+        clauses.append("actor LIKE ?")
+        params.append(f"%{actor.strip()}%")
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+
+    total = conn.execute(f"SELECT count(*) c FROM audit_log{where}", params).fetchone()["c"]
+    rows = conn.execute(
+        f"SELECT id, actor, action, entity, entity_id, payload, created_at"
+        f" FROM audit_log{where} ORDER BY id DESC LIMIT ? OFFSET ?",
+        params + [max(1, min(limit, 200)), max(0, offset)],
+    ).fetchall()
+    return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+
+
 @router.get("/models")
 def list_models(conn: sqlite3.Connection = Depends(get_conn)) -> list[dict]:
     models = conn.execute(

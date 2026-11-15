@@ -352,7 +352,9 @@ const ACTIONS = {
   "review.release": "释放", "review.restore": "恢复暂缓",
   "case.create": "录入判例", "case.patch": "修改判例", "case.delete": "删除判例",
   "case.archive": "归档判例", "case.restore": "恢复判例", "case.conflict": "判例冲突",
-  "setting.update": "修改设置", "train.start": "启动训练", "train.cancel": "取消训练",
+  "setting.update": "修改设置", "setting.bulk_update": "批量修改设置",
+  "storage.backup": "备份数据", "storage.move": "迁移存储", "storage.restore": "还原数据",
+  "storage.retention": "清理过期证据", "train.start": "启动训练", "train.cancel": "取消训练",
   "model.rollback": "回滚版本", "model.archive": "归档模型", "model.patch": "模型改名",
   "code.patch": "修改编码", "code.active": "启用/停用编码",
   "code.archive": "归档编码", "code.restore": "恢复编码", "family.create": "新建族",
@@ -368,7 +370,7 @@ let wiz = { code: "", modelId: null };
 let trainingState = { q: "", family: "", jobModel: "" };
 let datasetState = { q: "", family: "", model: "", status: "" };
 let blindState = { q: "", status: "" };
-let systemState = { auditAction: "", auditActor: "", auditLimit: 100 };
+let systemState = { auditAction: "", auditActor: "", auditPage: 0, auditPageSize: 20 };
 
 const fmtBytes = (n) => {
   if (n == null) return "—";
@@ -1627,15 +1629,19 @@ async function renderSettings() {
 }
 
 async function renderSystem() {
-  const [stations, auditRaw, health] = await Promise.all([
-    api("/api/stations"), api("/api/audit/recent?limit=" + systemState.auditLimit), api("/health")
+  const params = new URLSearchParams({
+    limit: String(systemState.auditPageSize),
+    offset: String(systemState.auditPage * systemState.auditPageSize),
+  });
+  if (systemState.auditAction) params.set("action", systemState.auditAction);
+  if (systemState.auditActor) params.set("actor", systemState.auditActor);
+
+  const [stations, auditData, health] = await Promise.all([
+    api("/api/stations"), api("/api/audit?" + params), api("/health")
   ]);
-  const audit = auditRaw.filter(a =>
-    (systemState.auditAction ? a.action === systemState.auditAction : true) &&
-    (systemState.auditActor
-      ? String(a.actor).toLowerCase().includes(systemState.auditActor.toLowerCase())
-      : true)
-  );
+  const audit = auditData.items;
+  const auditTotal = auditData.total;
+  const auditPages = Math.max(1, Math.ceil(auditTotal / systemState.auditPageSize));
 
   $("view").innerHTML = `
     <section>
@@ -1674,7 +1680,7 @@ async function renderSystem() {
     </section>
 
     <section>
-      <h2>最近操作 <span class="pill">${audit.length} / ${auditRaw.length}</span></h2>
+      <h2>最近操作 <span class="pill">${auditTotal} 条</span></h2>
       <div class="filterbar">
         <select id="sys_action" style="max-width:220px">
           <option value="">全部动作</option>
@@ -1683,7 +1689,7 @@ async function renderSystem() {
         <input id="sys_actor" value="${esc(systemState.auditActor)}" placeholder="操作人，回车筛选" style="max-width:200px">
         <button class="ghost" id="sys_reset">重置</button>
       </div>
-      ${audit.length === 0 ? `<div class="empty">${auditRaw.length ? "当前筛选下没有记录。" : "还没有审计记录。"}</div>` : `
+      ${audit.length === 0 ? `<div class="empty">${systemState.auditAction || systemState.auditActor ? "当前筛选下没有记录。" : "还没有审计记录。"}</div>` : `
       <table><caption class="sr-only">审计</caption>
         <thead><tr><th scope="col">时间</th><th scope="col">动作</th><th scope="col">操作人</th><th scope="col">对象</th></tr></thead>
         <tbody>${audit.map(a => `<tr>
@@ -1691,7 +1697,12 @@ async function renderSystem() {
           <td>${esc(actionLabel(a.action))}</td>
           <td>${esc(a.actor)}</td>
           <td class="muted">${esc(a.entity)}${a.entity_id ? " #" + esc(a.entity_id) : ""}</td>
-        </tr>`).join("")}</tbody></table>`}
+        </tr>`).join("")}</tbody></table>
+      <div class="row" style="margin-top:12px;align-items:center">
+        <button class="ghost" id="auditPrev" ${systemState.auditPage === 0 ? "disabled" : ""}>上一页</button>
+        <span class="muted" style="flex:1;text-align:center">第 ${systemState.auditPage + 1} / ${auditPages} 页 · 共 ${auditTotal} 条</span>
+        <button class="ghost" id="auditNext" ${systemState.auditPage + 1 >= auditPages ? "disabled" : ""}>下一页</button>
+      </div>`}
     </section>`;
 }
 
