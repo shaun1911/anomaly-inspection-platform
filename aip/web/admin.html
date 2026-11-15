@@ -141,6 +141,15 @@
   }
   .form-tight input,.form-tight select{min-width:0;max-width:340px}
   .form-tight > div:last-child button{width:180px}
+  .todo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  .todo-card{display:flex;flex-direction:column;gap:6px;padding:16px;border-radius:12px;
+    border:1px solid var(--g3);background:var(--g2);text-decoration:none;color:inherit}
+  .todo-card:hover{border-color:var(--brand)}
+  .todo-title{font-size:13px;color:var(--t2)}
+  .todo-count{font-size:28px;line-height:1.1}
+  .todo-card.warn .todo-count{color:var(--warn)}
+  .todo-card.bad .todo-count{color:var(--bad)}
+  .todo-hint{font-size:12px;color:var(--t3)}
   .filterbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
   .filterbar input,.filterbar select{flex:0 0 auto}
   .model-block{border:1px solid var(--g3);border-radius:10px;padding:12px;margin-bottom:12px;background:var(--g1)}
@@ -352,19 +361,33 @@ document.addEventListener("input", (ev) => {
 /* ---------- 视图 ---------- */
 
 async function renderWorkbench() {
-  const [stats, overview, audit] = await Promise.all([
-    api("/api/stats/today"), api("/api/overview"), api("/api/audit/recent?limit=8")
+  const [stats, overview, audit, models, datasets, queue] = await Promise.all([
+    api("/api/stats/today"), api("/api/overview"), api("/api/audit/recent?limit=8"),
+    api("/api/models"), api("/api/datasets"), api("/review/queue?limit=1")
   ]);
-  const candidates = (await api("/api/models")).flatMap(m =>
-    m.versions.filter(v => v.status === "candidate").map(v => ({model: m.code, vno: v.version_no})));
-  const badStations = overview.stations.filter(s => s.health !== "ok");
 
-  const todos = [];
-  let hint = "";
-  if (overview.pending_review > 0) todos.push({href:"#/quality", text:"待复核的判定", n: overview.pending_review});
-  if (candidates.length) todos.push({href:"#/training", text:"待发布的候选版本", n: candidates.length});
-  if (badStations.length) todos.push({href:"#/system", text:"异常站位", n: badStations.length});
-  if (overview.cases === 0) hint = "判例库还是空的，录一条之后复核就有参考样例了";
+  const candidates = models.flatMap(m =>
+    m.versions.filter(v => v.status === "candidate").map(v => ({code: m.code, vno: v.version_no})));
+  const drafts = datasets.filter(d => d.status === "draft");
+  const badStations = overview.stations.filter(s => s.health !== "ok");
+  const skipped = queue.summary.skipped_count || 0;
+
+  const todos = [
+    {href: "#/quality", title: "待复核判定", count: overview.pending_review,
+     hint: "NG/灰区，需人工确认", tone: "bad"},
+    {href: "#/quality", title: "暂缓件", count: skipped,
+     hint: "判不了先放一边，可恢复", tone: "warn"},
+    {href: "#/training", title: "待发布候选版本", count: candidates.length,
+     hint: candidates.length ? candidates.map(c => `${c.code} v${c.vno}`).join("、") : "没有候选版本",
+     tone: "warn"},
+    {href: "#/datasets", title: "未冻结数据集", count: drafts.length,
+     hint: drafts.length ? drafts.map(d => d.name).join("、") : "全部已冻结",
+     tone: "warn"},
+    {href: "#/system", title: "异常站位", count: badStations.length,
+     hint: badStations.length ? badStations.map(s => s.name).join("、") : "全部正常",
+     tone: "bad"},
+  ];
+  const active = todos.filter(t => t.count > 0);
 
   $("view").innerHTML = `
     <div class="cards">
@@ -377,49 +400,26 @@ async function renderWorkbench() {
     </div>
 
     <section>
-      <h2>要你处理的 <span class="pill">${todos.length} 项</span></h2>
-      <div class="todo">
-        ${todos.length ? todos.map(t => `<a href="${t.href}"><span>${esc(t.text)}</span><span class="n">${t.n}</span></a>`).join("")
-          : `<div class="empty">今天没有待处理事项。${hint ? "<br>" + esc(hint) : ""}</div>`}
-      </div>
+      <h2>需要处理的 <span class="pill">${active.length} 类 / ${todos.reduce((n,t)=>n+t.count,0)} 项</span></h2>
+      ${active.length === 0 ? `<div class="empty">今天没有待办。<b>下一步</b>：去「新建向导」建一条新产品线，或去「判例库」补充样本。</div>` : `
+      <div class="todo-grid">
+        ${active.map(t => `
+          <a class="todo-card ${t.tone}" href="${t.href}">
+            <span class="todo-title">${esc(t.title)}</span>
+            <b class="todo-count">${t.count}</b>
+            <span class="todo-hint">${esc(t.hint)}</span>
+          </a>`).join("")}
+      </div>`}
     </section>
 
     <section>
-      <h2>存储维护</h2>
-      <p class="muted" style="margin:0 0 12px">
-        判例引用的图与待复核证据永不自动删；其余按保留期清理（设置 → 存储）。
-      </p>
-      <div class="row">
-        <button class="ghost" id="btnPreview">预览可清理</button>
-        <button class="ghost" id="btnClean">执行清理</button>
-      </div>
-      <div id="storageOut" class="muted" style="margin-top:10px"></div>
-    </section>
-
-    <section>
-      <h2>最近操作 <span class="pill">${audit.length} / ${auditRaw.length}</span></h2>
-      <div class="filterbar">
-        <select id="sys_action" style="max-width:220px">
-          <option value="">全部动作</option>
-          ${Object.keys(ACTIONS).map(k => `<option value="${k}" ${systemState.auditAction === k ? "selected" : ""}>${esc(actionLabel(k))}</option>`).join("")}
-        </select>
-        <input id="sys_actor" value="${esc(systemState.auditActor)}" placeholder="操作人，回车筛选" style="max-width:200px">
-        <button class="ghost" id="sys_reset">重置</button>
-      </div>
+      <h2>最近操作</h2>
       ${audit.length ? `<div class="timeline">${audit.map(a => `
         <div class="tl"><time>${fmtTime(a.created_at)}</time><span class="kind">${esc(actionLabel(a.action))}</span>
         <span>${esc(a.actor)} · ${esc(a.entity)}${a.entity_id ? " #" + esc(a.entity_id) : ""}</span></div>`).join("")}</div>`
         : `<div class="empty">还没有记录。改阈值、换绑定、发布版本都会出现在这里。</div>`}
     </section>`;
 }
-
-let showArchived = false;
-
-let wiz = { code: "", modelId: null };
-let trainingState = { q: "", family: "", jobModel: "" };
-let datasetState = { q: "", family: "", model: "", status: "" };
-let blindState = { q: "", status: "" };
-let systemState = { auditAction: "", auditActor: "", auditLimit: 100 };
 
 async function renderWizard() {
   const [codes, models, bindings, datasets] = await Promise.all([
