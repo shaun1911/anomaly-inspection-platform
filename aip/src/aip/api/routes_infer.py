@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from .. import whitelist
 from ..inference.service import GATE_MESSAGES, FakePredictor, check_gate, process_job
 from ..settings import gate_config, get_value
+from ..serving.cache import acquire_and_audit, cache
 from ..store import tx
 from .deps import get_conn
 from .errors import ApiError
@@ -126,6 +127,17 @@ def submit(
         raise ApiError(reason, message, action, 422)
 
     version_id, roi_rev, th_lo, th_hi = _resolve(conn, code)
+    ver = conn.execute(
+        "SELECT model_id, version_no, onnx_path FROM model_version WHERE id = ?",
+        (version_id,),
+    ).fetchone()
+    cache.configure(
+        get_value(conn, "serving.cache_ttl_min"), get_value(conn, "serving.cache_max")
+    )
+    try:
+        acquire_and_audit(conn, ver["model_id"], ver["version_no"], ver["onnx_path"], station)
+    except Exception as exc:  # CacheFull 或加载失败
+        raise ApiError("model_load_failed", str(exc), "稍后重试或联系技师", 503) from exc
     tolerance = get_value(conn, "infer.crop_size_tolerance")
     if tolerance:
         roi = conn.execute(

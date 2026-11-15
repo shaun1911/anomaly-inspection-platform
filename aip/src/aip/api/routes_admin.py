@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from .. import cases as cases_mod
 from .. import metrics as metrics_mod
+from ..serving.cache import cache, unload_and_audit
 from ..audit import record
 from ..store import tx
 from .deps import get_conn
@@ -82,6 +83,41 @@ def audit_recent(
         (max(1, min(limit, 100)),),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+@router.get("/model-cache")
+def model_cache(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    items = []
+    for e in cache.entries():
+        row = conn.execute(
+            "SELECT m.code FROM model m WHERE m.id = ?", (e["model_id"],)
+        ).fetchone()
+        items.append({
+            **e,
+            "model_code": row["code"] if row else f"#{e['model_id']}",
+            "fake": e["onnx_path"] is None,
+        })
+    return {
+        "items": items,
+        "count": len(items),
+        "max": cache.max_models,
+        "ttl_minutes": round(cache.ttl_s / 60),
+        "loads": cache.loads,
+        "unloads": cache.unloads,
+    }
+
+
+@router.post("/model-cache/{key}/unload")
+def unload_model(key: str, force: bool = False, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    ok = unload_and_audit(conn, key, force=force)
+    if not ok:
+        raise ApiError(
+            "unload_refused",
+            "该模型仍被站位引用；如需强制卸载请带 force=true",
+            "等站位空闲，或强制卸载",
+            409,
+        )
+    return {"key": key, "unloaded": True, "forced": force}
 
 
 @router.get("/metrics")

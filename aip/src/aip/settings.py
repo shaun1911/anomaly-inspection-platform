@@ -50,6 +50,10 @@ SPECS: tuple[Spec, ...] = (
          "裁片宽高与 ROI 宽高偏差超过该值则拒绝；0=关闭", 0, 200),
     Spec("station.token", "接入", "站位接入令牌", "str", "",
          "非空时 /infer 与 /station/* 必须带 X-Station-Token"),
+    Spec("serving.cache_ttl_min", "服务", "模型空闲回收（分钟）", "int", 15,
+         "站位无请求超过该时长即释放引用；无引用后卸载模型", 1, 1440),
+    Spec("serving.cache_max", "服务", "同时常驻模型上限", "int", 4,
+         "超过时优先卸载无引用且最久未用的模型", 1, 16),
     Spec("gate.min_side", "守门", "裁片最小边长（px）", "int", 32, "低于则拒绝", 8, 2048),
     Spec("gate.min_brightness", "守门", "亮度下限", "float", 10.0, "0–255", 0.0, 255.0),
     Spec("gate.max_brightness", "守门", "亮度上限", "float", 245.0, "0–255", 0.0, 255.0),
@@ -75,7 +79,7 @@ SPECS: tuple[Spec, ...] = (
 )
 
 BY_KEY = {s.key: s for s in SPECS}
-GROUPS = ("抽样", "判定", "复核", "训练", "守门", "接入", "存储", "理由预设")
+GROUPS = ("抽样", "判定", "复核", "训练", "守门", "服务", "接入", "存储", "理由预设")
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 

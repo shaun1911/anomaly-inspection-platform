@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from .. import whitelist
 from ..settings import get_value
+from ..serving.cache import cache
 from ..store import tx
 from .deps import get_conn
 from .errors import ApiError
@@ -152,6 +153,7 @@ def heartbeat(
     expected = get_value(conn, "station.token")
     if expected and station_token != expected:
         raise ApiError("bad_station_token", "站位令牌缺失或错误", "检查客户端令牌配置", 401)
+    cache.touch(body.station)
     with tx(conn):
         existing = conn.execute(
             "SELECT id FROM station WHERE name = ?", (body.station,)

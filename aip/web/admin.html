@@ -332,7 +332,7 @@ const ACTIONS = {
   "dataset.create": "新建数据集", "dataset.add": "加入判例", "dataset.remove": "移出判例",
   "dataset.freeze": "冻结数据集", "batch.backfill": "回填批次",
   "blind.create": "建抽检批次", "blind.close": "关闭抽检批次",
-  "model.smoke": "冒烟试判", "setting.bulk_update": "批量修改设置", "train.cancel": "取消训练",
+  "model.smoke": "冒烟试判", "model.load": "加载模型", "model.unload": "卸载模型", "setting.bulk_update": "批量修改设置", "train.cancel": "取消训练",
 };
 const actionLabel = (a) => ACTIONS[a] || a;
 
@@ -374,9 +374,10 @@ document.addEventListener("input", (ev) => {
 /* ---------- 视图 ---------- */
 
 async function renderWorkbench() {
-  const [stats, overview, audit, models, datasets, queue, metrics] = await Promise.all([
+  const [stats, overview, audit, models, datasets, queue, metrics, modelCache] = await Promise.all([
     api("/api/stats/today"), api("/api/overview"), api("/api/audit/recent?limit=8"),
-    api("/api/models"), api("/api/datasets"), api("/review/queue?limit=1"), api("/api/metrics")
+    api("/api/models"), api("/api/datasets"), api("/review/queue?limit=1"), api("/api/metrics"),
+    api("/api/model-cache").catch(() => ({items: [], max: 0, ttl_minutes: 0}))
   ]);
   const gpu = metrics.gpu && metrics.gpu[0];
 
@@ -428,17 +429,19 @@ async function renderWorkbench() {
           <span id="m_gpu_detail" class="muted">${gpu ? esc(gpu.name) + " · " + fmtBytes(gpu.mem_used) + " / " + fmtBytes(gpu.mem_total) : ""}</span></div>
       </div>
 
-      <h2 style="margin-top:16px">模型加载情况</h2>
-      <p class="muted" style="margin:0 0 10px">${esc(metrics.models.note)}（预测器：${esc(metrics.models.predictor)}，常驻 ${metrics.models.loaded} 个）</p>
-      ${metrics.models.items.length === 0 ? `<div class="empty">还没有生效模型。</div>` : `
-      <table><caption class="sr-only">生效模型</caption>
-        <thead><tr><th scope="col">模型</th><th scope="col">生效版本</th><th scope="col">ONNX</th>
-          <th scope="col">数据集</th><th scope="col">服务编码数</th></tr></thead>
-        <tbody>${metrics.models.items.map(m => `<tr>
-          <td>${esc(m.model_code)}</td><td>v${m.version_no}</td>
-          <td>${m.onnx_ready ? '<span class="tag ok">已导出</span>' : '<span class="tag gray">未导出</span>'}</td>
-          <td class="muted">${m.dataset_id ? "#" + m.dataset_id : "-"}</td>
-          <td>${m.bound_codes}</td>
+      <h2 style="margin-top:16px">模型加载情况
+        <span class="pill">${modelCache.items.length} / ${modelCache.max} 常驻 · 空闲 ${modelCache.ttl_minutes} 分钟回收</span></h2>
+      <p class="muted" style="margin:0 0 10px">${esc(metrics.models.note)}（预测器：${esc(metrics.models.predictor)}）</p>
+      ${modelCache.items.length === 0 ? `<div class="empty">当前没有常驻模型。扫码换型/推图时按需加载，空闲后自动释放。</div>` : `
+      <table><caption class="sr-only">已加载模型</caption>
+        <thead><tr><th scope="col">模型</th><th scope="col">版本</th><th scope="col">引用站位</th>
+          <th scope="col">空闲</th><th scope="col">来源</th><th scope="col">操作</th></tr></thead>
+        <tbody>${modelCache.items.map(e => `<tr>
+          <td>${esc(e.model_code)}</td><td>v${e.version_no}</td>
+          <td>${e.stations.length ? esc(e.stations.join("、")) : '<span class="muted">无引用</span>'}</td>
+          <td class="muted">${e.idle_s} 秒</td>
+          <td>${e.fake ? '<span class="tag gray">假预测器</span>' : '<span class="tag ok">ONNX</span>'}</td>
+          <td><button class="ghost" data-unload="${esc(e.key)}" data-label="${esc(e.model_code)} v${e.version_no}">卸载</button></td>
         </tr>`).join("")}</tbody></table>`}
     </section>
 
@@ -462,6 +465,17 @@ async function renderWorkbench() {
         <span>${esc(a.actor)} · ${esc(a.entity)}${a.entity_id ? " #" + esc(a.entity_id) : ""}</span></div>`).join("")}</div>`
         : `<div class="empty">还没有记录。改阈值、换绑定、发布版本都会出现在这里。</div>`}
     </section>`;
+
+  document.querySelectorAll("[data-unload]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm(`卸载 ${btn.dataset.label}？\n\n若有站位正在使用会被拒绝；强制卸载会中断该站位的下一次请求（会自动重载）。`)) return;
+      try {
+        await post(`/api/model-cache/${encodeURIComponent(btn.dataset.unload)}/unload?force=true`, {});
+        toast(`${btn.dataset.label} 已卸载`);
+        renderWorkbench();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
 
   if (window.__wbTimer) clearInterval(window.__wbTimer);
   window.__wbTimer = setInterval(async () => {
