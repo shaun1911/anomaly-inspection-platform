@@ -44,7 +44,7 @@
   .search input{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:8px 12px;font-size:13px}
   .pill{padding:4px 10px;border-radius:999px;background:var(--g2);color:var(--t2);font-size:12px}
 
-  main{padding:18px 22px;display:grid;gap:16px;align-content:start}
+  main{padding:18px 22px;display:grid;gap:16px;align-content:start;max-width:1600px;margin:0 auto;width:100%}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px}
   .card{background:var(--g1);text-decoration:none;color:inherit;display:block;border:1px solid var(--g3);border-radius:12px;padding:14px}
   .card b{display:block;font-size:22px;margin-top:4px;font-variant-numeric:tabular-nums}
@@ -70,22 +70,25 @@
   .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end;margin-bottom:14px}
   .form button{width:100%}
 
-  /* 固定列宽表单：以 1920 为基准
-     - 始终 3 个输入列 + 1 个固定 180px 按钮列，两个表单按钮右边缘对齐
-     - 输入框宽 200–420px（窄屏自动缩小，宽屏封顶）
+  /* 固定列宽表单：以 1920 为基准，整体靠左、不撑满
+     - 3 个输入列，每列 260–340px（不再用 1fr 拉伸）
+     - 按钮固定 180px，两个表单右边缘对齐
+     - 列间距 16px，整块最大宽度 1248px
   */
   .form-grid{
     display:grid;
-    grid-template-columns:repeat(3, minmax(200px, 1fr)) 180px;
-    gap:12px;
+    grid-template-columns:repeat(3, minmax(260px, 340px)) 180px;
+    gap:16px;
     align-items:end;
+    justify-content:start;
+    max-width:1248px;
     margin-bottom:14px;
   }
-  .form-grid input,.form-grid select{min-width:0;max-width:420px}
+  .form-grid input,.form-grid select{min-width:0;max-width:340px}
   .form-grid > div[aria-hidden]{visibility:hidden}
   .form-grid > div:last-child button{width:180px}
-  @media (max-width:1100px){
-    .form-grid{grid-template-columns:1fr 1fr}
+  @media (max-width:1200px){
+    .form-grid{grid-template-columns:repeat(2, minmax(240px, 340px)) 180px}
     .form-grid > div[aria-hidden]{display:none}
     .form-grid > div:last-child{grid-column:1 / -1}
   }
