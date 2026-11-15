@@ -46,7 +46,28 @@
 5. 用新目录重启：`python scripts/dev_server.py --data-dir "<新目录>"`；
 6. 确认后手工删除旧目录（程序不自动删）。
 
-## 备份
+'## 备份与还原
 
-- 需要备份的是**整个数据目录**：只拷 `aip.db` 会丢裁片，只拷 `crops/` 会丢判例关系；
-- 热备份使用 sqlite backup 或先停服务，避免 WAL 半写。
+**备份**（设置 → 存储 → 立即备份，或 `POST /api/maintenance/backup`）：
+
+- 加写锁后执行，避免复制期间出现新文件；
+- `aip.db` 用 sqlite backup 出一致性快照；
+- 打包为 zip，结构：
+
+```
+aip-backup-<date>.zip
+├─ manifest.json   format_version / created_at / files / bytes / schema_version
+├─ aip.db
+├─ crops/...
+├─ cases/...
+└─ smoke/...
+```
+
+**还原**（设置 → 存储 → 还原）：
+
+1. 预检：校验 manifest、`aip.db` 的 `integrity_check`、压缩包路径穿越；
+2. 只解到**空目录**，不覆盖当前数据；
+3. 还原后复核文件数与数据库完整性，写审计 `storage.restore`；
+4. 用新目录重启：`python scripts/dev_server.py --data-dir "<还原目录>"`。
+
+**为什么必须整目录备份**：只拷 `aip.db` 会丢裁片，只拷 `crops/` 会丢判例关系。'

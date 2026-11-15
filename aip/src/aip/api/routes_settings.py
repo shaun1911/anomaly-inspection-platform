@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from pathlib import Path
 
 from .. import retention
+from .. import backup as backup_mod
 from .. import storage as storage_mod
 from ..storage import is_locked
 from .. import settings as settings_mod
@@ -96,3 +97,37 @@ def storage_move(body: MoveIn, conn: sqlite3.Connection = Depends(get_conn)) -> 
         return {"dry_run": False, **storage_mod.apply_move(conn, body.target)}
     except storage_mod.StorageError as exc:
         raise ApiError("storage_move_failed", str(exc), "换一个空目录或检查磁盘空间", 400) from exc
+
+
+class BackupIn(BaseModel):
+    target: str
+    actor: str = "web"
+
+
+class RestoreIn(BaseModel):
+    archive: str
+    target: str
+    dry_run: bool = True
+
+
+@router.post("/maintenance/backup")
+def storage_backup(body: BackupIn, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    try:
+        return backup_mod.create(conn, body.target, actor=body.actor)
+    except backup_mod.BackupError as exc:
+        raise ApiError("backup_failed", str(exc), "换一个路径或检查磁盘", 400) from exc
+
+
+@router.post("/maintenance/restore")
+def storage_restore(body: RestoreIn, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    try:
+        if body.dry_run:
+            return {"dry_run": True, **backup_mod.inspect(body.archive)}
+        return {"dry_run": False, **backup_mod.restore(body.archive, body.target, conn=conn, actor=body.actor)}
+    except backup_mod.BackupError as exc:
+        raise ApiError("restore_failed", str(exc), "检查备份文件与目标目录", 400) from exc
+
+
+@router.get("/maintenance/storage")
+def storage_info(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    return storage_mod.info(conn)

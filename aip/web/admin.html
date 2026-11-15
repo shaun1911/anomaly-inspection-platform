@@ -1341,6 +1341,20 @@ async function renderSettings() {
         <button class="ghost" id="btnMoveApply">执行迁移</button>
       </div>
       <div id="moveOut" class="muted"></div>
+      <hr style="border:0;border-top:1px solid var(--g3);margin:4px 0">
+      <div class="filterbar" style="margin:0">
+        <b style="min-width:52px">备份</b>
+        <input id="backupTarget" placeholder="备份文件路径，例如 D:\aip-backup-20261115.zip" style="max-width:360px">
+        <button class="ghost" id="btnBackup">立即备份</button>
+      </div>
+      <div class="filterbar" style="margin:0">
+        <b style="min-width:52px">还原</b>
+        <input id="restoreArchive" placeholder="备份文件路径 .zip" style="max-width:260px">
+        <input id="restoreTarget" placeholder="还原到空目录" style="max-width:260px">
+        <button class="ghost" id="btnRestorePlan">预检</button>
+        <button class="ghost" id="btnRestore">还原</button>
+      </div>
+      <div id="backupOut" class="muted"></div>
       <details class="storage-tree">
         <summary>目录结构说明</summary>
         <pre>&lt;data-dir&gt;/
@@ -1526,6 +1540,42 @@ async function renderSettings() {
       if (!target) { toast("先填目标目录", true); return; }
       try {
         showMove(await post("/api/maintenance/storage/move", {target, dry_run: true}));
+      } catch (e) { toast(e.message, true); }
+    };
+
+    $("btnBackup").onclick = async () => {
+      const target = $("backupTarget").value.trim();
+      if (!target) { toast("先填备份文件路径", true); return; }
+      try {
+        const r = await post("/api/maintenance/backup", {target});
+        $("backupOut").textContent = `已备份到 ${r.archive}（${r.files} 个文件 / ${fmtBytes(r.bytes)}，zip ${fmtBytes(r.size)}）sha256 ${r.sha256.slice(0, 16)}…`;
+        toast("备份完成");
+      } catch (e) { toast(e.message, true); }
+    };
+
+    $("btnRestorePlan").onclick = async () => {
+      const archive = $("restoreArchive").value.trim();
+      if (!archive) { toast("先填备份文件路径", true); return; }
+      try {
+        const r = await post("/api/maintenance/restore", {archive, target: "", dry_run: true});
+        const m = r.manifest || {};
+        $("backupOut").textContent = r.ok
+          ? `备份可还原：${m.files} 个文件 / ${fmtBytes(m.bytes)}，schema v${m.schema_version}，创建于 ${m.created_at}`
+          : "备份有问题：" + (r.problems || []).join("；");
+      } catch (e) { toast(e.message, true); }
+    };
+
+    $("btnRestore").onclick = async () => {
+      const archive = $("restoreArchive").value.trim();
+      const target = $("restoreTarget").value.trim();
+      if (!archive || !target) { toast("备份文件与目标目录都要填", true); return; }
+      if (!confirm(`把备份还原到：\n${target}\n\n目标必须为空；还原后用该目录重启服务。继续？`)) return;
+      try {
+        const r = await post("/api/maintenance/restore", {archive, target, dry_run: false});
+        $("backupOut").textContent = r.restored
+          ? `已还原到 ${r.target}（${r.files} 个文件 / ${fmtBytes(r.bytes)}）。用新目录重启：${r.restart_hint}`
+          : "还原校验未通过：" + (r.problems || []).join("；");
+        toast(r.restored ? "还原完成" : "还原未通过", !r.restored);
       } catch (e) { toast(e.message, true); }
     };
 
