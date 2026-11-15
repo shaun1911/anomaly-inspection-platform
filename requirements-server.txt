@@ -1,7 +1,11 @@
-# 服务端运行依赖（不含训练：torch / anomalib / onnxruntime / opencv）
+# 服务端运行依赖
+# 不含训练：torch / anomalib / opencv
+# 推理：CPU 版 onnxruntime 随包安装；GPU 版与 CUDA/cuDNN 由部署方自行安装
+
 fastapi>=0.110
 uvicorn[standard]>=0.27
 pydantic>=2
 pillow>=10
 numpy>=1.26
 python-multipart>=0.0.9
+onnxruntime>=1.17

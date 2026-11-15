@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -265,6 +266,34 @@ def delete_model(model_id: int, conn: sqlite3.Connection = Depends(get_conn)) ->
         conn.execute("DELETE FROM model WHERE id = ?", (model_id,))
         record(conn, actor="web", action="model.delete", entity="model", entity_id=model_id)
     return {"id": model_id, "deleted": True}
+
+
+class OnnxIn(BaseModel):
+    onnx_path: str
+
+
+@router.put("/models/{model_id}/versions/{version_no}/onnx")
+def set_onnx(
+    model_id: int, version_no: int, body: OnnxIn, conn: sqlite3.Connection = Depends(get_conn)
+) -> dict:
+    path = Path(body.onnx_path).expanduser()
+    if not path.is_absolute():
+        raise ApiError("bad_onnx_path", "ONNX 路径必须是绝对路径", "填模型文件的绝对路径", 400)
+    if not path.is_file():
+        raise ApiError("onnx_missing", f"文件不存在: {path}", "先导出模型再填路径", 400)
+    if path.suffix.lower() != ".onnx":
+        raise ApiError("bad_onnx_path", "文件必须 .onnx 结尾", "选择导出的模型文件", 400)
+
+    with tx(conn):
+        cur = conn.execute(
+            "UPDATE model_version SET onnx_path = ? WHERE model_id = ? AND version_no = ?",
+            (str(path), model_id, version_no),
+        )
+        if cur.rowcount == 0:
+            raise LookupError(f"版本不存在: {model_id}:{version_no}")
+        record(conn, actor="web", action="model.onnx", entity="model_version",
+               entity_id=f"{model_id}:{version_no}", payload={"onnx_path": str(path)})
+    return {"model_id": model_id, "version_no": version_no, "onnx_path": str(path)}
 
 
 @router.put("/models/{model_id}")

@@ -17,6 +17,7 @@ from .. import whitelist
 from ..inference.service import GATE_MESSAGES, FakePredictor, check_gate, process_job
 from ..settings import gate_config, get_value
 from ..storage import is_locked
+from ..inference.onnx import PredictorUnavailable, build_predictor
 from ..serving.cache import acquire_and_audit, cache
 from ..store import tx
 from .deps import get_conn
@@ -138,9 +139,22 @@ def submit(
         get_value(conn, "serving.cache_ttl_min"), get_value(conn, "serving.cache_max")
     )
     try:
-        acquire_and_audit(conn, ver["model_id"], ver["version_no"], ver["onnx_path"], station)
+        session, _ = acquire_and_audit(
+            conn, ver["model_id"], ver["version_no"], ver["onnx_path"], station
+        )
+    except PredictorUnavailable as exc:
+        raise ApiError(
+            "predictor_unavailable", str(exc),
+            "安装 onnxruntime 或先把版本设为假预测器", 503,
+        ) from exc
     except Exception as exc:  # CacheFull 或加载失败
         raise ApiError("model_load_failed", str(exc), "稍后重试或联系技师", 503) from exc
+
+    predictor = build_predictor(
+        session,
+        input_range=get_value(conn, "infer.onnx_input_range"),
+        aggregate=get_value(conn, "infer.onnx_aggregate"),
+    )
     tolerance = get_value(conn, "infer.crop_size_tolerance")
     if tolerance:
         roi = conn.execute(
@@ -179,7 +193,7 @@ def submit(
         job_id=job_id,
         model_version_id=version_id,
         crop_path=crop_path,
-        predictor=FakePredictor(),
+        predictor=predictor,
         th_lo=th_lo,
         th_hi=th_hi,
     )

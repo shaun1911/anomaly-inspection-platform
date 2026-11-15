@@ -14,8 +14,9 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from pydantic import BaseModel
 
 from ..audit import record
-from ..inference.service import GATE_MESSAGES, FakePredictor, check_gate, label_for
-from ..settings import gate_config
+from ..inference.onnx import PredictorUnavailable, build_predictor, load_session
+from ..inference.service import GATE_MESSAGES, check_gate, label_for
+from ..settings import gate_config, get_value
 from ..store import tx
 from .deps import get_conn
 from .errors import ApiError
@@ -156,7 +157,22 @@ def smoke(
         message, action = GATE_MESSAGES.get(gate, ("裁片不合格", "重新取图"))
         return {"passed": False, "gate": gate, "message": message, "action": action}
 
-    pred = FakePredictor().predict(path)
+    onnx_path = conn.execute(
+        "SELECT onnx_path FROM model_version WHERE model_id = ? AND version_no = ?",
+        (model_id, version_no),
+    ).fetchone()["onnx_path"]
+    session = None
+    if onnx_path:
+        try:
+            session = load_session(onnx_path, providers="cpu")
+        except PredictorUnavailable as exc:
+            raise ApiError("predictor_unavailable", str(exc), "安装 onnxruntime", 503) from exc
+    predictor = build_predictor(
+        session,
+        input_range=get_value(conn, "infer.onnx_input_range"),
+        aggregate=get_value(conn, "infer.onnx_aggregate"),
+    )
+    pred = predictor.predict(path)
     label = label_for(pred.score, th_lo, th_hi)
     with tx(conn):
         record(conn, actor="web", action="model.smoke", entity="model_version",

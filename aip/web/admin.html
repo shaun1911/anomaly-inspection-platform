@@ -2208,6 +2208,10 @@ async function renderTraining() {
     const ds = v.dataset_id ? `#${v.dataset_id}` : "-";
     const rec = v.metrics && v.metrics.recall != null ? (v.metrics.recall * 100).toFixed(1) + "%" : "-";
     const ovk = v.metrics && v.metrics.overkill != null ? (v.metrics.overkill * 100).toFixed(1) + "%" : "-";
+    const onnxTag = v.onnx_path
+      ? '<span class="tag ok">ONNX 已挂</span>'
+      : '<span class="tag gray">未挂 ONNX</span>';
+    const onnxBtn = `<button class="ghost" data-onnx="${m.id}:${v.version_no}">${v.onnx_path ? "换 ONNX" : "挂 ONNX"}</button>`;
     const action = v.status === "candidate"
       ? `<button class="act" data-publish="${m.id}:${v.version_no}" data-label="${esc(m.code)} v${v.version_no}">发布为生效</button>`
       : v.status === "assist" ? '<span class="muted">当前生效</span>'
@@ -2216,11 +2220,12 @@ async function renderTraining() {
     return `<tr>
       <td>v${v.version_no}</td>
       <td class="muted">${ds}</td>
+      <td>${onnxTag}</td>
       <td>${rec}</td>
       <td>${ovk}</td>
       <td class="muted">${fmtTime(v.created_at)}</td>
       <td><span class="tag ${v.status}">${esc(stLabel(v.status))}</span></td>
-      <td>${action}</td>
+      <td>${action} ${onnxBtn}</td>
     </tr>`;
   }).join("");
 
@@ -2283,7 +2288,7 @@ async function renderTraining() {
           </div>
           ${m.versions.length === 0 ? '<div class="muted">还没有版本</div>' : `
           <table><caption class="sr-only">${esc(m.code)} 的版本</caption>
-            <thead><tr><th scope="col">版本</th><th scope="col">数据集</th><th scope="col">召回</th>
+            <thead><tr><th scope="col">版本</th><th scope="col">数据集</th><th scope="col">ONNX</th><th scope="col">召回</th>
               <th scope="col">过杀</th><th scope="col">创建时间</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
             <tbody>${versionRows(m)}</tbody></table>`}
         </div>`;
@@ -2322,6 +2327,22 @@ async function renderTraining() {
       renderTraining();
     } catch (e) { toast(e.message, true); }
   };
+
+  document.querySelectorAll("[data-onnx]").forEach(btn => {
+    btn.onclick = async () => {
+      const [mid, vno] = btn.dataset.onnx.split(":");
+      const path = prompt("输入该版本 ONNX 文件的绝对路径（例如 D:\\models\\m1-v3.onnx）：");
+      if (!path) return;
+      try {
+        await api(`/api/models/${mid}/versions/${vno}/onnx`, {
+          method: "PUT", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({onnx_path: path.trim()})
+        });
+        toast("ONNX 已绑定");
+        renderTraining();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
 
   document.querySelectorAll("[data-publish]").forEach(btn => {
     btn.onclick = async () => {

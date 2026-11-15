@@ -36,13 +36,21 @@ class CacheFull(Exception):
     pass
 
 
+def _default_loader(onnx_path: str | None):
+    if not onnx_path:
+        return None
+    from ..inference.onnx import load_session
+
+    return load_session(onnx_path)
+
+
 class ModelCache:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._entries: dict[str, Entry] = {}
         self.ttl_s: float = 900
         self.max_models: int = 4
-        self.loader = None  # 注入：callable(onnx_path) -> session
+        self.loader = _default_loader
         self.loads = 0
         self.unloads = 0
 

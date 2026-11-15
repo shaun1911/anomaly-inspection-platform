@@ -74,7 +74,31 @@ powershell -ExecutionPolicy Bypass -File scripts\start.ps1
 
 只允许本机访问：`-Bind 127.0.0.1`。
 
-## 5. 让局域网其它电脑访问
+'## 4.1 推理运行时（可选，但接真模型需要）
+
+- **CPU 推理**：`requirements-server.txt` 已包含 `onnxruntime`，安装时自动装好，无需额外操作。
+- **GPU 推理**（大体积，按需自行安装）：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install onnxruntime-gpu
+```
+
+CUDA 与 cuDNN 不随项目分发，需按 NVIDIA 官方文档自行安装匹配版本（GPU 显存建议 ≥8 GB）。
+
+**把模型挂到版本**：训练与发布 → 版本行 → 「挂 ONNX」→ 填导出文件绝对路径；
+工位推图时若该版本有 ONNX 路径则走 ONNX Runtime，否则退回演示用假预测器。
+
+相关设置（设置 → 接入）：
+
+| 项 | 说明 |
+|---|---|
+| `infer.onnx_input_range` | `pm1`（[-1,1]）或 `unit`（[0,1]），需与导出时预处理一致 |
+| `infer.onnx_aggregate` | `max` 取异常峰值 / `mean` 取均值 |
+
+> 不同 anomalib 导出的输出版本差异较大，首次接入须用真实模型冒烟验证分数尺度，
+> 不要直接拿演示阈值上线。
+
+## 5. 让局域网其它电脑访问'
 
 需要放行防火墙（**管理员** PowerShell，一次即可）：
 
