@@ -143,10 +143,20 @@
   .tl{display:grid;grid-template-columns:150px 90px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid var(--g3);font-size:13px}
   .tl time{color:var(--t3);font-variant-numeric:tabular-nums;font-size:12px}
   .kind{font-size:12px;color:var(--t3)}
-  .review{display:grid;grid-template-columns:380px 1fr;gap:16px;align-items:start}
-  .review-list{background:var(--g1);border:1px solid var(--g3);border-radius:12px;padding:16px}
-  .review-detail{background:var(--g1);border:1px solid var(--g3);border-radius:12px;padding:16px}
-  .queue{display:flex;flex-direction:column;gap:6px;max-height:420px;overflow:auto}
+  .review-page{padding:14px 16px}
+  .review-bar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+  .review-bar select,.review-bar input{min-height:36px;max-width:190px;flex:0 0 auto;font-size:13px}
+  .review{display:grid;grid-template-columns:360px 1fr;gap:14px;align-items:stretch;
+    height:calc(100vh - 280px);min-height:400px}
+  .review-list{background:var(--g1);border:1px solid var(--g3);border-radius:8px;padding:12px 14px;
+    display:flex;flex-direction:column;min-height:0}
+  .review-list-head{font-size:13px;color:var(--t2);margin-bottom:8px;display:flex;gap:8px;align-items:center}
+  .review-hint{font-size:12px;margin-top:8px}
+  .review-detail{background:var(--g1);border:1px solid var(--g3);border-radius:8px;padding:10px 12px;
+    display:flex;flex-direction:column;min-height:0;overflow:auto}
+  .review-actions{display:flex;gap:8px;margin-top:2px}
+  .review-actions button{flex:1;min-height:38px}
+  .queue{display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;overflow:auto}
   .item{display:flex;align-items:center;gap:8px;padding:9px;border-radius:8px;background:var(--g2);cursor:pointer;font-size:13px}
   .item.on{outline:2px solid var(--brand)}
   .refs{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -223,12 +233,17 @@
   .wiz-step.cur .wiz-no{background:var(--brand);color:#fff}
   .wiz-body{margin-top:12px}
   .chip-static{background:var(--g2);border:1px solid var(--g3);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--t2)}
-  .item .score{width:48px;font-variant-numeric:tabular-nums;color:var(--t2)}
-  .shot{background:var(--g2);border-radius:10px;min-height:320px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:12px}
+  .item .score{flex:0 0 76px;white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums;color:var(--t2)}
+  .shot{background:var(--g2);border-radius:8px;height:clamp(130px,18vh,180px);flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:10px}
   .shot img{max-width:100%;max-height:420px;image-rendering:pixelated}
-  .kv{display:grid;grid-template-columns:80px 1fr;gap:6px 10px;font-size:13px}
+  .kv{display:grid;grid-template-columns:76px 1fr;gap:2px 10px;font-size:12px;line-height:1.35}
   .kv div:nth-child(odd){color:var(--t3)}
-  .reasons{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+  #rRefs{max-height:50px;overflow:auto}
+  #rRefs img{max-height:44px;width:auto;border-radius:4px}
+  .reasons{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+  .reasons button{padding:6px 10px;font-size:12px;min-height:32px}
+  .review-detail .row button{min-height:38px}
   .reasons button.sel{background:var(--brand);color:#fff}
   .row{display:flex;gap:8px}
   .row button{flex:1}
@@ -1039,90 +1054,78 @@ async function renderQuality() {
   const REASONS = ["划痕", "脏污", "压伤", "误报", "其他"];
   const actor = "admin";
 
-  const filters = `
-    <div class="form" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
-      <div><label for="fq_code">编码</label>
-        <select id="fq_code"><option value="">全部</option>
-          ${codes.map(c => `<option value="${esc(c.code)}" ${reviewState.code === c.code ? "selected" : ""}>${esc(c.code)}</option>`).join("")}
-        </select></div>
-      <div><label for="fq_family">族</label>
-        <select id="fq_family"><option value="">全部</option>
-          ${families.map(f => `<option value="${esc(f.name)}" ${reviewState.family === f.name ? "selected" : ""}>${esc(f.name)}</option>`).join("")}
-        </select></div>
-      <div><label for="fq_batch">批次</label>
-        <input id="fq_batch" value="${esc(reviewState.batch)}" placeholder="精确批次号"></div>
-      <div><label for="fq_label">结论</label>
-        <select id="fq_label">
-          <option value="">全部</option>
-          <option value="ng" ${reviewState.label === "ng" ? "selected" : ""}>仅 NG</option>
-          <option value="gray" ${reviewState.label === "gray" ? "selected" : ""}>仅灰区</option>
-        </select></div>
-      <div><label for="fq_sort">排序</label>
-        <select id="fq_sort">
-          <option value="oldest" ${reviewState.sort === "oldest" ? "selected" : ""}>最旧优先</option>
-          <option value="newest" ${reviewState.sort === "newest" ? "selected" : ""}>最新优先</option>
-          <option value="score_desc" ${reviewState.sort === "score_desc" ? "selected" : ""}>分数高→低</option>
-          <option value="score_asc" ${reviewState.sort === "score_asc" ? "selected" : ""}>分数低→高</option>
-        </select></div>
-      <div><label for="fq_group">视图</label>
-        <select id="fq_group">
-          <option value="part" ${reviewState.groupBy === "part" ? "selected" : ""}>按件聚合</option>
-          <option value="code" ${reviewState.groupBy === "code" ? "selected" : ""}>按编码</option>
-          <option value="family" ${reviewState.groupBy === "family" ? "selected" : ""}>按族</option>
-          <option value="batch" ${reviewState.groupBy === "batch" ? "selected" : ""}>按批次</option>
-          <option value="result" ${reviewState.groupBy === "result" ? "selected" : ""}>按单条结果</option>
-        </select></div>
+  const toolbar = `
+    <div class="review-bar">
+      <select id="fq_code" aria-label="编码"><option value="">编码：全部</option>
+        ${codes.map(c => `<option value="${esc(c.code)}" ${reviewState.code === c.code ? "selected" : ""}>${esc(c.code)}</option>`).join("")}
+      </select>
+      <select id="fq_family" aria-label="族"><option value="">族：全部</option>
+        ${families.map(f => `<option value="${esc(f.name)}" ${reviewState.family === f.name ? "selected" : ""}>${esc(f.name)}</option>`).join("")}
+      </select>
+      <input id="fq_batch" value="${esc(reviewState.batch)}" placeholder="批次（精确）" aria-label="批次">
+      <select id="fq_label" aria-label="结论">
+        <option value="">结论：全部</option>
+        <option value="ng" ${reviewState.label === "ng" ? "selected" : ""}>仅 NG</option>
+        <option value="gray" ${reviewState.label === "gray" ? "selected" : ""}>仅灰区</option>
+      </select>
+      <select id="fq_sort" aria-label="排序">
+        <option value="oldest" ${reviewState.sort === "oldest" ? "selected" : ""}>最旧优先</option>
+        <option value="newest" ${reviewState.sort === "newest" ? "selected" : ""}>最新优先</option>
+        <option value="score_desc" ${reviewState.sort === "score_desc" ? "selected" : ""}>分数高→低</option>
+        <option value="score_asc" ${reviewState.sort === "score_asc" ? "selected" : ""}>分数低→高</option>
+      </select>
+      <select id="fq_group" aria-label="视图">
+        <option value="part" ${reviewState.groupBy === "part" ? "selected" : ""}>按件聚合</option>
+        <option value="code" ${reviewState.groupBy === "code" ? "selected" : ""}>按编码</option>
+        <option value="family" ${reviewState.groupBy === "family" ? "selected" : ""}>按族</option>
+        <option value="batch" ${reviewState.groupBy === "batch" ? "selected" : ""}>按批次</option>
+        <option value="result" ${reviewState.groupBy === "result" ? "selected" : ""}>按单条结果</option>
+      </select>
+      <button class="ghost" id="fq_reset">重置</button>
     </div>`;
 
-  if (items.length === 0) {
-    $("view").innerHTML = `
-      <section><h2>复核队列</h2>${filters}
-        <div class="empty">没有待处理的件。<b>什么时候会有</b>：判定为 NG 或灰区、且还没人确认时。</div></section>`;
-  } else {
-    $("view").innerHTML = `
-      <section>
-        <h2>复核队列 <span class="pill">${q.summary.total} 条待复核</span>
-          <span class="pill">最旧 ${ageText(q.summary.oldest_at)}</span>
-          ${q.summary.skipped_count > 0
-            ? `<span style="margin-left:auto"><button class="ghost" id="btnSkipped">暂缓件 ${q.summary.skipped_count}</button></span>`
-            : ""}</h2>
-        ${filters}
-        <div id="skippedWrap" hidden style="margin-bottom:12px">
-          <table><caption class="sr-only">暂缓件</caption>
-            <thead><tr><th scope="col">#</th><th scope="col">编码</th><th scope="col">件号</th><th scope="col">分数</th><th scope="col">原因</th><th scope="col">暂缓人</th><th scope="col">时间</th><th scope="col">操作</th></tr></thead>
-            <tbody id="skippedRows"></tbody></table>
-        </div>
-        <div class="chips" style="margin-bottom:12px">
-          ${q.summary.by_code.map(c => `<span class="chip-static">${esc(c.code)} · ${c.count}</span>`).join("")}
-        </div>
-      </section>
-      <section class="review">
-        <div class="review-list">
-          <h2>待复核 <span class="pill">${items.length}</span></h2>
-          <div id="rlist" class="queue"></div>
-          <div class="muted" style="margin-top:10px">${isGroup ? "点击分组下钻到件" : "J/K 切换 · Enter 接受 · X 改判 · 1–5 选理由"}</div>
-        </div>
-        <div class="review-detail">
-          <div class="shot"><img id="shot" alt="裁片"></div>
-          <div class="kv" id="rmeta"></div>
-          <div id="rshots" class="muted" style="margin-top:10px"></div>
-          <div style="margin-top:10px">
-            <button class="ghost" id="rRefBtn">参考样例（可能影响判断）</button>
-            <div id="rRefs" hidden style="margin-top:10px"></div>
+  $("view").innerHTML = `
+    <section class="review-page">
+      <h2>复核队列 <span class="pill">${q.summary.total} 条待复核</span>
+        <span class="pill">最旧 ${ageText(q.summary.oldest_at)}</span>
+        ${q.summary.skipped_count > 0
+          ? `<span style="margin-left:auto"><button class="ghost" id="btnSkipped">暂缓件 ${q.summary.skipped_count}</button></span>`
+          : ""}</h2>
+      ${toolbar}
+      <div id="skippedWrap" hidden style="margin-bottom:12px">
+        <table><caption class="sr-only">暂缓件</caption>
+          <thead><tr><th scope="col">#</th><th scope="col">编码</th><th scope="col">件号</th><th scope="col">分数</th><th scope="col">原因</th><th scope="col">暂缓人</th><th scope="col">时间</th><th scope="col">操作</th></tr></thead>
+          <tbody id="skippedRows"></tbody></table>
+      </div>
+      ${items.length === 0 ? `
+        <div class="empty">没有待处理的件。<b>什么时候会有</b>：判定为 NG 或灰区、且还没人确认时。</div>` : `
+        <div class="review">
+          <div class="review-list">
+            <div class="review-list-head">待复核 <span class="pill">${items.length}</span></div>
+            <div id="rlist" class="queue"></div>
+            <div class="muted review-hint">${isGroup ? "点击分组下钻到件" : "J/K 切换 · Enter 接受 · X 改判 · 1–5 选理由"}</div>
           </div>
-          <div class="reasons" id="rreasons">
-            ${REASONS.map((r, i) => `<button class="ghost" data-r="${r}">${i + 1}. ${r}</button>`).join("")}
+          <div class="review-detail">
+            <div class="shot"><img id="shot" alt="裁片"></div>
+            <div class="kv" id="rmeta"></div>
+            <div id="rshots" class="muted" style="margin-top:4px"></div>
+            <div style="margin-top:8px">
+              <button class="ghost" id="rRefBtn">参考样例（可能影响判断）</button>
+              <div id="rRefs" hidden style="margin-top:8px"></div>
+            </div>
+            <div class="reasons" id="rreasons">
+              ${REASONS.map((r, i) => `<button class="ghost" data-r="${r}">${i + 1}. ${r}</button>`).join("")}
+            </div>
+            <div class="row review-actions">
+              <button class="ghost" id="rClaim">领取</button>
+              <button class="ghost" id="rSkip" disabled>暂缓</button>
+              <button class="act" id="rAccept">接受结论</button>
+              <button class="ghost" id="rFlip">改判</button>
+            </div>
           </div>
-          <div class="row" style="margin-bottom:8px">
-            <button class="ghost" id="rClaim">领取这一件</button>
-            <button class="ghost" id="rSkip" disabled>暂缓（先选理由）</button>
-          </div>
-          <div class="row">
-            <button class="act" id="rAccept">接受系统结论</button>
-            <button class="ghost" id="rFlip">改判</button>
-          </div>
-        </div>
-      </section>`;
+        </div>`}
+    </section>`;
+
 
     const groupIds = (it) => it.kind === "part" ? it.result_ids : [it.id];
 
@@ -1318,19 +1321,7 @@ async function renderQuality() {
       };
     }
 
-    $("fq_code").onchange = (e) => { reviewState.code = e.target.value; renderQuality(); };
-    $("fq_family").onchange = (e) => { reviewState.family = e.target.value; renderQuality(); };
-    $("fq_batch").addEventListener("keydown", (e) => {
-      if (e.key !== "Enter") return;
-      reviewState.batch = e.target.value.trim();
-      renderQuality();
-    });
-    $("fq_label").onchange = (e) => { reviewState.label = e.target.value; renderQuality(); };
-    $("fq_sort").onchange = (e) => { reviewState.sort = e.target.value; renderQuality(); };
-    $("fq_group").onchange = (e) => { reviewState.groupBy = e.target.value; renderQuality(); };
-  }
-
-  if (items.length === 0) {
+  if ($("btnSkipped")) {
     if ($("btnSkipped")) {
       $("btnSkipped").onclick = async () => {
         const wrap = $("skippedWrap");
@@ -1365,6 +1356,11 @@ async function renderQuality() {
     $("fq_label").onchange = (e) => { reviewState.label = e.target.value; renderQuality(); };
     $("fq_sort").onchange = (e) => { reviewState.sort = e.target.value; renderQuality(); };
     $("fq_group").onchange = (e) => { reviewState.groupBy = e.target.value; renderQuality(); };
+    $("fq_reset").onclick = () => {
+      reviewState.code = ""; reviewState.family = ""; reviewState.batch = "";
+      reviewState.label = ""; reviewState.sort = "oldest"; reviewState.groupBy = "part";
+      renderQuality();
+    };
   }
 }
 

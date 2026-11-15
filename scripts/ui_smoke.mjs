@@ -83,6 +83,24 @@ async function main() {
     console.log(`${bad ? "FAIL" : "ok  "} ${name}`);
   }
 
+  // 复核页首屏可用性（1440 宽时断言动作区不超出视口、页面不滚动）
+  await send("Page.navigate", { url: `${APP}/admin#/quality` });
+  await sleep(1800);
+  const fit = await (async () => {
+    const r = await send("Runtime.evaluate", {
+      expression: `JSON.stringify({
+        vw: innerWidth, vh: innerHeight,
+        page: document.scrollingElement.scrollHeight,
+        actions: document.querySelector('.review-actions')?.getBoundingClientRect().bottom ?? -1
+      })`,
+      returnByValue: true,
+    });
+    return JSON.parse(r.result?.result?.value || "{}");
+  })();
+  const fitOk = !fit.vw || fit.vw < 1400 || (fit.page <= fit.vh + 1 && fit.actions <= fit.vh + 1);
+  failures.push(...(fitOk ? [] : [{ page: "review-fit", snippet: JSON.stringify(fit) }]));
+  console.log(`${fitOk ? "ok  " : "FAIL"} review-fit (${fit.page}/${fit.vh}, actions ${fit.actions})`);
+
   // 暗色模式检查
   await send("Page.navigate", { url: `${APP}/admin#/workbench` });
   await sleep(1200);
