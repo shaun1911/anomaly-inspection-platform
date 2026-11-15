@@ -5,6 +5,21 @@
 <meta name="color-scheme" content="light dark">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AIP 服务端</title>
+<dialog id="keysDlg" style="width:min(520px,92vw)">
+  <h2 style="margin-bottom:10px">复核页键盘快捷键</h2>
+  <table><caption class="sr-only">快捷键</caption>
+    <thead><tr><th scope="col">按键</th><th scope="col">作用</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>J</kbd> / <kbd>K</kbd></td><td>下一件 / 上一件</td></tr>
+      <tr><td><kbd>O</kbd> / <kbd>N</kbd></td><td>判为 OK / 判为 NG（相反结论需先选理由）</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>接受系统结论（灰区会提示先明确判定）</td></tr>
+      <tr><td><kbd>1</kbd>–<kbd>5</kbd></td><td>选择理由：划痕/脏污/压伤/误报/其他</td></tr>
+      <tr><td><kbd>?</kbd></td><td>打开本说明</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>关闭弹窗</td></tr>
+    </tbody></table>
+  <div class="row" style="margin-top:14px"><button class="ghost" onclick="this.closest('dialog').close()">关闭</button></div>
+</dialog>
+
 <dialog id="refDlg" style="width:min(920px,94vw)">
   <h2 style="margin-bottom:12px">参考样例 <span class="muted">（历史判例，可能影响判断）</span></h2>
   <div id="refDlgBody"></div>
@@ -268,6 +283,7 @@
   .row button{flex:1}
   dialog{background:var(--g1);color:var(--t1);border:1px solid var(--g3);border-radius:12px;padding:20px;width:min(520px,92vw)}
   dialog::backdrop{background:rgba(0,0,0,.5)}
+  dialog::after{content:"Esc 关闭";display:block;text-align:right;margin-top:10px;font-size:11px;color:var(--t3)}
   dialog label{display:block;font-size:12px;color:var(--t3);margin:10px 0 4px}
   dialog input,dialog select{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:9px 10px;font-size:13px}
   #toasts{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px;z-index:99}
@@ -814,7 +830,7 @@ async function renderCatalog() {
         <thead><tr><th scope="col">编码</th><th scope="col">族 / 零件</th><th scope="col">状态</th><th scope="col">当前模型</th><th scope="col">阶段</th><th scope="col">操作</th></tr></thead>
         <tbody>${codes.map(c => {
           const b = byCode[c.code];
-          return `<tr data-code="${esc(c.code)}">
+          return `<tr data-code="${esc(c.code)}" tabindex="0" title="点击或回车查看编码详情">
             <td>${esc(c.code)}</td>
             <td>${esc(c.family || "-")} / ${esc(c.part || "-")}</td>
             <td>${c.active ? "启用" : '<span class="tag disabled">停用</span>'}</td>
@@ -878,6 +894,9 @@ async function renderCatalog() {
     </section>`;
 
   document.querySelectorAll("tr[data-code]").forEach(tr => {
+    tr.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); tr.click(); }
+    });
     tr.onclick = () => { location.hash = "#/code/" + encodeURIComponent(tr.dataset.code); };
   });
   $("btnArchived").onclick = () => { showArchived = !showArchived; renderCatalog(); };
@@ -1081,7 +1100,7 @@ async function renderQuality() {
       <select id="fq_family" aria-label="族"><option value="">族：全部</option>
         ${families.map(f => `<option value="${esc(f.name)}" ${reviewState.family === f.name ? "selected" : ""}>${esc(f.name)}</option>`).join("")}
       </select>
-      <input id="fq_batch" value="${esc(reviewState.batch)}" placeholder="批次（精确）" aria-label="批次">
+      <input id="fq_batch" value="${esc(reviewState.batch)}" placeholder="批次（精确，回车筛选）" aria-label="批次">
       <select id="fq_label" aria-label="结论">
         <option value="">结论：全部</option>
         <option value="ng" ${reviewState.label === "ng" ? "selected" : ""}>仅 NG</option>
@@ -1107,9 +1126,12 @@ async function renderQuality() {
     <section class="review-page">
       <h2>复核队列 <span class="pill">${q.summary.total} 条待复核</span>
         <span class="pill">最旧 ${ageText(q.summary.oldest_at)}</span>
-        ${q.summary.skipped_count > 0
-          ? `<span style="margin-left:auto"><button class="ghost" id="btnSkipped">暂缓件 ${q.summary.skipped_count}</button></span>`
-          : ""}</h2>
+        <span style="margin-left:auto;display:flex;gap:8px">
+          <button class="ghost" id="btnKeys" title="键盘快捷键">快捷键 ?</button>
+          ${q.summary.skipped_count > 0
+            ? `<button class="ghost" id="btnSkipped">暂缓件 ${q.summary.skipped_count}</button>`
+            : ""}
+        </span></h2>
       ${toolbar}
       <div id="skippedWrap" hidden style="margin-bottom:12px">
         <table><caption class="sr-only">暂缓件</caption>
@@ -1122,7 +1144,7 @@ async function renderQuality() {
           <div class="review-list">
             <div class="review-list-head">待复核 <span class="pill">${items.length}</span></div>
             <div id="rlist" class="queue"></div>
-            <div class="muted review-hint">${isGroup ? "点击分组下钻到件" : "J/K 切换 · Enter 接受 · O 判 OK · N 判 NG · 1–5 理由"}</div>
+            <div class="muted review-hint">${isGroup ? "点击分组下钻到件" : "键盘：J/K 切换 · O/N 判 OK/NG · Enter 接受 · 1–5 理由"}</div>
           </div>
           <div class="review-detail">
             <div class="shot"><img id="shot" alt="裁片"></div>
@@ -1332,6 +1354,7 @@ async function renderQuality() {
       toast("已暂缓");
       removeCurrent();
     };
+    $("btnKeys").onclick = () => $("keysDlg").showModal();
     $("rOk").onclick = () => judge("ok");
     $("rNg").onclick = () => judge("ng");
 
@@ -1349,6 +1372,7 @@ async function renderQuality() {
       else if (ev.key === "o" || ev.key === "O") { $("rOk").click(); }
       else if (ev.key === "n" || ev.key === "N") { $("rNg").click(); }
       else if (/^[1-5]$/.test(ev.key)) { reason = REASONS[Number(ev.key) - 1]; paint(); }
+      else if (ev.key === "?" || (ev.key === "/" && ev.shiftKey)) { $("btnKeys").click(); }
     };
 
     if ($("btnSkipped")) {
@@ -1918,9 +1942,9 @@ async function renderCases() {
             <option value="import" ${caseState.source === "import" ? "selected" : ""}>导入</option>
           </select></div>
         <div><label for="cq_part">件号</label>
-          <input id="cq_part" value="${esc(caseState.partNo || "")}" placeholder="精确件号"></div>
+          <input id="cq_part" value="${esc(caseState.partNo || "")}" placeholder="精确件号，回车筛选"></div>
         <div><label for="cq_batch">批次</label>
-          <input id="cq_batch" value="${esc(caseState.batchNo || "")}" placeholder="精确批次号"></div>
+          <input id="cq_batch" value="${esc(caseState.batchNo || "")}" placeholder="精确批次号，回车筛选"></div>
         <div><label for="cq_arch">归档</label>
           <select id="cq_arch">
             <option value="" ${!caseState.showArchived ? "selected" : ""}>不含已归档</option>
@@ -2057,7 +2081,7 @@ async function renderDatasets() {
         数据集是训练集快照：一个族、一个模型、一组判例。冻结后成员不可改，校验和保证训练可复现。
       </p>
       <div class="filterbar">
-        <input id="ds_q" value="${esc(datasetState.q)}" placeholder="搜索名称" style="max-width:200px">
+        <input id="ds_q" value="${esc(datasetState.q)}" placeholder="搜索名称，回车筛选" style="max-width:200px">
         <select id="ds_family" style="max-width:160px">
           <option value="">全部族</option>
           ${families.map(f => `<option value="${esc(f)}" ${datasetState.family === f ? "selected" : ""}>${esc(f)}</option>`).join("")}
@@ -2190,7 +2214,7 @@ async function renderBlind() {
         盲判：抽样时不显示系统结论，判完才揭盲。关批需质量 / 产线 / 技术三方签字。
       </p>
       <div class="filterbar">
-        <input id="bl_q" value="${esc(blindState.q)}" placeholder="搜索周次，如 2026-W46" style="max-width:220px">
+        <input id="bl_q" value="${esc(blindState.q)}" placeholder="搜索周次，回车筛选" style="max-width:220px">
         <select id="bl_status" style="max-width:160px">
           <option value="">全部状态</option>
           <option value="open" ${blindState.status === "open" ? "selected" : ""}>进行中</option>
@@ -2289,7 +2313,8 @@ async function renderBlindBatch(id) {
             <button class="act" id="jOk">OK</button>
             <button class="ghost" id="jGray">灰区</button>
             <button class="ghost" id="jNg">NG</button>
-          </div>` : `
+          </div>
+          <div class="muted review-tip">快捷键：O 判 OK · G 灰区 · N 判 NG</div>` : `
           <div class="empty">全部判完，可以关批（需三方签字）。</div>
           <div class="form" style="grid-template-columns:1fr 1fr 1fr;margin-top:12px">
             <div><label for="signQ">质量签字</label><input id="signQ" placeholder="姓名"></div>
@@ -2440,7 +2465,7 @@ async function renderTraining() {
     <section>
       <h2>模型与版本 <span class="pill">${shownModels.length} / ${models.length} 个模型</span>
         <span style="margin-left:auto;display:flex;gap:8px">
-          <input id="tr_q" value="${esc(trainingState.q)}" placeholder="搜索模型编码/名称" style="max-width:220px">
+          <input id="tr_q" value="${esc(trainingState.q)}" placeholder="搜索模型编码/名称，回车筛选" style="max-width:220px">
           <select id="tr_family" style="max-width:180px">
             <option value="">全部族</option>
             ${families.map(f => `<option value="${esc(f)}" ${trainingState.family === f ? "selected" : ""}>${esc(f)}</option>`).join("")}
@@ -2689,6 +2714,7 @@ function renderSearch(results) {
       </div>`);
     }
   }
+  if (html.length) html.push('<div class="search-group" role="presentation" style="border-top:1px solid var(--g3);margin-top:4px">↑↓ 选择 · Enter 打开 · Esc 关闭</div>');
   drop.innerHTML = html.length ? html.join("") : '<div class="search-group" role="presentation">没有匹配</div>';
   drop.hidden = false;
   $("jump").setAttribute("aria-expanded", "true");
