@@ -109,7 +109,9 @@ python scripts/dev_server.py --port 8100 --data-dir "D:\\aip-data"
 
 4. 确认数据正常后再手工删除旧目录（程序不会自动删）。
 
-## 数据目录（不入库）'
+## 数据目录（不入库）
+
+目录结构、写入方与保留策略见 [docs/designs/storage-layout.md](../docs/designs/storage-layout.md)。'
 
 ```
 data/aip.db          主库（WAL）

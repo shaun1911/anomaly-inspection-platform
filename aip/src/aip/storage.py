@@ -9,12 +9,32 @@ from __future__ import annotations
 
 import shutil
 import sqlite3
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 
 from .audit import record
 from .store import tx
 
 COPY_DIRS = ("crops", "cases", "smoke")
+_LOCK = threading.RLock()
+_locked = False
+
+
+def is_locked() -> bool:
+    """迁移期间为 True：写入类接口应返回 503，避免数据落两处。"""
+    return _locked
+
+
+@contextmanager
+def maintenance():
+    global _locked
+    with _LOCK:
+        _locked = True
+        try:
+            yield
+        finally:
+            _locked = False
 
 
 class StorageError(Exception):
@@ -95,6 +115,11 @@ def apply_move(conn: sqlite3.Connection, target: str, actor: str = "web") -> dic
 
     src = Path(plan["source"])
     dst = Path(plan["target"])
+    with maintenance():
+        return _copy_all(conn, src, dst, plan, actor)
+
+
+def _copy_all(conn: sqlite3.Connection, src: Path, dst: Path, plan: dict, actor: str) -> dict:
     dst.mkdir(parents=True, exist_ok=True)
 
     # 1) DB 一致性快照（sqlite backup，不阻塞读）

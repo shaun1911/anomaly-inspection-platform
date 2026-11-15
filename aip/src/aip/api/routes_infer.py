@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from .. import whitelist
 from ..inference.service import GATE_MESSAGES, FakePredictor, check_gate, process_job
 from ..settings import gate_config, get_value
+from ..storage import is_locked
 from ..serving.cache import acquire_and_audit, cache
 from ..store import tx
 from .deps import get_conn
@@ -91,6 +92,8 @@ def submit(
     station_token: str | None = Header(None, alias="X-Station-Token"),
     conn: sqlite3.Connection = Depends(get_conn),
 ) -> dict:
+    if is_locked():
+        raise ApiError("maintenance", "存储迁移中，暂停推图", "等迁移完成后重试", 503)
     expected_token = get_value(conn, "station.token")
     if expected_token and station_token != expected_token:
         raise ApiError("bad_station_token", "站位令牌缺失或错误", "检查客户端令牌配置", 401)

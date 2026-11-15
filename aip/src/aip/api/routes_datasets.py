@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, Response
 from pydantic import BaseModel
 
 from .. import dataset_audit
+from ..storage import is_locked
 from .. import datasets as ds_mod
 from ..store import tx
 from ..audit import record
@@ -130,6 +131,8 @@ def upload_case_image(file: UploadFile = File(...), conn: sqlite3.Connection = D
     import hashlib
     from pathlib import Path
 
+    if is_locked():
+        raise ApiError("maintenance", "存储迁移中，暂停上传", "等迁移完成后重试", 503)
     payload = file.file.read()
     if not payload:
         raise ApiError("empty_file", "文件为空", "重选文件", 400)

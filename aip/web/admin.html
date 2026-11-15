@@ -153,6 +153,9 @@
   .settings-tab.on{background:var(--g2);border-color:var(--brand);font-weight:600}
   .settings-body{min-width:0}
   .settings-body th{white-space:nowrap}
+  .storage-tree summary{cursor:pointer;font-size:13px;color:var(--t2);margin-top:4px}
+  .storage-tree pre{background:var(--g1);border:1px solid var(--g3);border-radius:8px;
+    padding:10px 12px;font-size:12px;line-height:1.6;color:var(--t2);overflow:auto}
   .cache-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;
     margin-top:14px;padding:12px;border:1px solid var(--g3);border-radius:10px;background:var(--g2)}
   @media (max-width:900px){.settings-layout{grid-template-columns:1fr}.settings-nav{flex-direction:row;flex-wrap:wrap}}
@@ -1338,6 +1341,16 @@ async function renderSettings() {
         <button class="ghost" id="btnMoveApply">执行迁移</button>
       </div>
       <div id="moveOut" class="muted"></div>
+      <details class="storage-tree">
+        <summary>目录结构说明</summary>
+        <pre>&lt;data-dir&gt;/
+├─ aip.db            SQLite 主库（WAL）
+├─ aip.db-wal/-shm   运行时日志与索引
+├─ crops/            判定裁片（按 sha256）
+├─ cases/            判例上传原图
+└─ smoke/            冒烟试判图（默认 7 天清理）</pre>
+        <div class="muted">判例引用与待复核的裁片永不自动删；迁移期间推图/上传/清理会被暂停（503）。</div>
+      </details>
     </div>` : "";
 
   const cachePanel = group === "服务" ? `

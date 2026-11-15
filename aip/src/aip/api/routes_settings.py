@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .. import retention
 from .. import storage as storage_mod
+from ..storage import is_locked
 from .. import settings as settings_mod
 from .deps import get_conn
 from .errors import ApiError
@@ -70,6 +71,8 @@ def maintenance_retention(body: RetentionIn, conn: sqlite3.Connection = Depends(
     if body.dry_run:
         result = retention.plan(conn, db_file.parent, crop_days=crop_days, smoke_days=smoke_days)
         return {"dry_run": True, **{k: result[k] for k in ("count", "bytes", "crop_days", "smoke_days")}}
+    if is_locked():
+        raise ApiError("maintenance", "存储迁移中，暂停清理", "等迁移完成后重试", 503)
     return {"dry_run": False, **retention.apply(
         conn, db_file.parent, crop_days=crop_days, smoke_days=smoke_days, actor=body.actor
     )}
