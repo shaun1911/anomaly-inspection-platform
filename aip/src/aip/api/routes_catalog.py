@@ -207,6 +207,66 @@ def restore_code(code: str, conn: sqlite3.Connection = Depends(get_conn)) -> dic
     return {"code": code, "archived": False}
 
 
+@router.delete("/codes/{code}")
+def delete_code(code: str, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    """物理删除编码：仅当没有任何判定/绑定/判例引用时允许。
+
+    有引用就必须停用或归档——删了会让历史判定变成孤儿。
+    """
+    row = conn.execute("SELECT id FROM product_code WHERE code = ?", (code,)).fetchone()
+    if row is None:
+        raise ApiError("code_not_found", f"编码 {code} 不存在", "刷新列表", 404)
+    cid = int(row["id"])
+
+    jobs = conn.execute("SELECT count(*) c FROM inference_job WHERE code = ?", (code,)).fetchone()["c"]
+    bindings = conn.execute(
+        "SELECT count(*) c FROM binding WHERE product_code_id = ?", (cid,)
+    ).fetchone()["c"]
+    cases = conn.execute(
+        "SELECT count(*) c FROM case_item WHERE product_code_id = ?", (cid,)
+    ).fetchone()["c"]
+    if jobs or bindings or cases:
+        raise ApiError(
+            "code_in_use",
+            f"编码仍被引用：判定 {jobs} 条、绑定 {bindings} 条、判例 {cases} 条",
+            "改用停用或归档，保留历史",
+            409,
+        )
+    with tx(conn):
+        conn.execute("DELETE FROM product_code WHERE id = ?", (cid,))
+        record(conn, actor="web", action="code.delete", entity="product_code", entity_id=code)
+    return {"code": code, "deleted": True}
+
+
+@router.delete("/models/{model_id}")
+def delete_model(model_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    """物理删除模型：仅当没有版本/绑定/训练任务时允许。"""
+    row = conn.execute("SELECT id FROM model WHERE id = ?", (model_id,)).fetchone()
+    if row is None:
+        raise ApiError("model_not_found", f"模型 {model_id} 不存在", "刷新列表", 404)
+
+    versions = conn.execute(
+        "SELECT count(*) c FROM model_version WHERE model_id = ?", (model_id,)
+    ).fetchone()["c"]
+    bindings = conn.execute(
+        "SELECT count(*) c FROM binding WHERE model_id = ?", (model_id,)
+    ).fetchone()["c"]
+    jobs = conn.execute(
+        "SELECT count(*) c FROM train_job WHERE model_id = ?", (model_id,)
+    ).fetchone()["c"]
+    if versions or bindings or jobs:
+        raise ApiError(
+            "model_in_use",
+            f"模型仍被引用：版本 {versions} 个、绑定 {bindings} 条、训练任务 {jobs} 个",
+            "改用归档，保留历史",
+            409,
+        )
+    with tx(conn):
+        conn.execute("DELETE FROM model WHERE id = ?", (model_id,))
+        record(conn, actor="web", action="model.delete", entity="model", entity_id=model_id)
+    return {"id": model_id, "deleted": True}
+
+
 @router.put("/models/{model_id}")
 def patch_model(
     model_id: int, body: ModelPatch, conn: sqlite3.Connection = Depends(get_conn)

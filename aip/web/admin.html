@@ -63,6 +63,8 @@
   tbody tr[data-code]{cursor:pointer}
 
   label{display:block;font-size:11px;color:var(--t3);margin-bottom:4px}
+  input.missing,select.missing{border-color:var(--bad);box-shadow:0 0 0 3px color-mix(in oklab,var(--bad) 20%,transparent)}
+  .req{color:var(--bad)}
   input,select{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:8px 10px;font-size:13px}
   input:user-invalid{border-color:var(--bad)}
   .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end;margin-bottom:14px}
@@ -201,8 +203,8 @@
 <dialog id="caseDlg">
   <form method="dialog" id="caseForm">
     <h2 style="margin-bottom:12px">录入判例</h2>
-    <label for="f_code">编码</label><input id="f_code" required placeholder="AB-1234-01">
-    <label for="f_file">上传裁片</label><input id="f_file" type="file" accept="image/png,image/jpeg">
+    <label for="f_code">编码<span class="req"> *</span></label><input id="f_code" required placeholder="AB-1234-01">
+    <label for="f_file">上传裁片（或填路径，二者必填其一）<span class="req"> *</span></label><input id="f_file" type="file" accept="image/png,image/jpeg">
     <label for="f_path">或手填已有路径</label><input id="f_path" placeholder="data/crops/xxx.png">
     <label for="f_part">件号（同件只录一条）</label><input id="f_part" placeholder="P-20261114-001">
     <label for="f_verdict">结论</label>
@@ -263,6 +265,28 @@ const ACTIONS = {
   "model.smoke": "冒烟试判", "setting.bulk_update": "批量修改设置", "train.cancel": "取消训练",
 };
 const actionLabel = (a) => ACTIONS[a] || a;
+
+function need(el, label) {
+  if (el && String(el.value ?? "").trim()) return true;
+  if (el) { el.classList.add("missing"); el.focus(); }
+  toast(`${label}为必填项`, true);
+  return false;
+}
+
+async function hardDelete(url, label) {
+  if (!confirm(`删除「${label}」？\n\n此操作不可恢复；有历史引用时服务端会拒绝。`)) return false;
+  const typed = prompt(`请再次输入「${label}」以确认删除：`);
+  if (typed !== label) { toast("输入不一致，已取消", true); return false; }
+  try {
+    await api(url, {method: "DELETE"});
+    toast(`已删除 ${label}`);
+    return true;
+  } catch (e) { toast(e.message, true); return false; }
+}
+
+document.addEventListener("input", (ev) => {
+  if (ev.target && ev.target.classList) ev.target.classList.remove("missing");
+});
 
 /* ---------- 视图 ---------- */
 
@@ -360,8 +384,8 @@ async function renderWizard() {
       <h2>新建向导 <span class="pill">一条链路：编码 → 模型 → 样品 → 训练 → 发布</span></h2>
       <p class="muted" style="margin:0 0 12px">只显示当前该做的一步；完成后自动进入下一步，随时可从左侧导航离开。</p>
       ${step(0, `<div class="form">
-          <div><label for="wz_code">编码</label><input id="wz_code" placeholder="AB-1234-01"></div>
-          <div><label for="wz_family">族</label><input id="wz_family" list="wzFamilies" placeholder="支架类"></div>
+          <div><label for="wz_code">编码<span class="req"> *</span></label><input id="wz_code" placeholder="AB-1234-01"></div>
+          <div><label for="wz_family">族<span class="req"> *</span></label><input id="wz_family" list="wzFamilies" placeholder="支架类"></div>
           <div><label for="wz_part">零件</label><input id="wz_part" placeholder="全型"></div>
           <div><button class="act" id="wzCreateCode">建编码</button></div>
         </div>
@@ -370,7 +394,7 @@ async function renderWizard() {
         </div></div>` : ""}`)}
 
       ${step(1, `<div class="form">
-          <div><label for="wz_model">模型编码</label><input id="wz_model" placeholder="M1"></div>
+          <div><label for="wz_model">模型编码<span class="req"> *</span></label><input id="wz_model" placeholder="M1"></div>
           <div><label for="wz_model_name">名称</label><input id="wz_model_name" placeholder="支架-全型"></div>
           <div><button class="act" id="wzCreateModel">建模型并绑定到 ${esc(wiz.code)}</button></div>
         </div>
@@ -404,6 +428,7 @@ async function renderWizard() {
   }
   if ($("wzCreateCode")) {
     $("wzCreateCode").onclick = async () => {
+      if (!need($("wz_code"), "编码")) return;
       try {
         await post("/api/codes", {code: $("wz_code").value.trim(), family: $("wz_family").value.trim() || null, part: $("wz_part").value.trim() || null});
         wiz.code = $("wz_code").value.trim();
@@ -414,6 +439,7 @@ async function renderWizard() {
   }
   if ($("wzCreateModel")) {
     $("wzCreateModel").onclick = async () => {
+      if (!need($("wz_model"), "模型编码")) return;
       try {
         const m = await post("/api/models", {code: $("wz_model").value.trim(), name: $("wz_model_name").value.trim() || null});
         await post("/api/bindings", {code: wiz.code, model_id: m.id});
@@ -524,7 +550,8 @@ async function renderCatalog() {
             <td>${b ? tag(b.stage) : "-"}</td>
             <td>${c.archived_at
               ? `<button class="ghost" data-restore="${esc(c.code)}">取消归档</button>`
-              : `<button class="ghost" data-archive="${esc(c.code)}" ${b ? "disabled title=\"先解绑再归档\"" : ""}>归档</button>`}</td>
+              : `<button class="ghost" data-archive="${esc(c.code)}" ${b ? "disabled title=\"先解绑再归档\"" : ""}>归档</button>`}
+              <button class="ghost" data-delcode="${esc(c.code)}">删除</button></td>
           </tr>`;
         }).join("")}</tbody></table>`}
     </section>
@@ -532,8 +559,8 @@ async function renderCatalog() {
     <section>
       <h2>新建编码</h2>
       <div class="form">
-        <div><label for="nc_code">编码（不可改）</label><input id="nc_code" required placeholder="AB-1234-01"></div>
-        <div><label for="nc_family">族（选已有或输入新族名）</label>
+        <div><label for="nc_code">编码（不可改）<span class="req"> *</span></label><input id="nc_code" required placeholder="AB-1234-01"></div>
+        <div><label for="nc_family">族（选已有或输入新族名）<span class="req"> *</span></label>
           <input id="nc_family" list="familyList" placeholder="支架类">
           <datalist id="familyList">${families.map(f => `<option value="${esc(f.name)}">`).join("")}</datalist>
         </div>
@@ -542,7 +569,7 @@ async function renderCatalog() {
       </div>
       <h2 style="margin-top:16px">新建模型</h2>
       <div class="form">
-        <div><label for="nm_code">模型编码</label><input id="nm_code" required placeholder="M1"></div>
+        <div><label for="nm_code">模型编码<span class="req"> *</span></label><input id="nm_code" required placeholder="M1"></div>
         <div><label for="nm_name">名称</label><input id="nm_name" placeholder="支架-全型"></div>
         <div><button class="act" id="btnNewModel">建模型</button></div>
       </div>
@@ -568,10 +595,11 @@ async function renderCatalog() {
       <h2>模型与版本</h2>
       ${models.length === 0 ? `<div class="empty">还没有模型。建完模型后，在编码详情里建版本、配 ROI 与阈值。</div>` : `
       <table><caption class="sr-only">模型列表</caption>
-        <thead><tr><th scope="col">ID</th><th scope="col">编码</th><th scope="col">名称</th><th scope="col">版本</th></tr></thead>
+        <thead><tr><th scope="col">ID</th><th scope="col">编码</th><th scope="col">名称</th><th scope="col">版本</th><th scope="col">操作</th></tr></thead>
         <tbody>${models.map(m => `<tr>
           <td>${m.id}</td><td>${esc(m.code)}</td><td>${esc(m.name || "-")}</td>
           <td>${m.versions.length ? m.versions.map(v => `<span class="tag ${v.status}">v${v.version_no} ${v.status}</span>`).join(" ") : '<span class="muted">无版本</span>'}</td>
+          <td><button class="ghost" data-delmodel="${m.id}" data-model-code="${esc(m.code)}">删除</button></td>
         </tr>`).join("")}</tbody></table>
 `}
     </section>`;
@@ -588,6 +616,14 @@ async function renderCatalog() {
       catch (e) { toast(e.message, true); }
     };
   });
+  document.querySelectorAll("[data-delcode]").forEach(btn => {
+    btn.onclick = async (ev) => {
+      ev.stopPropagation();
+      const code = btn.dataset.delcode;
+      if (await hardDelete(`/api/codes/${encodeURIComponent(code)}`, code)) renderCatalog();
+    };
+  });
+
   document.querySelectorAll("[data-restore]").forEach(btn => {
     btn.onclick = async (ev) => {
       ev.stopPropagation();
@@ -596,6 +632,7 @@ async function renderCatalog() {
     };
   });
   $("btnNewCode").onclick = async () => {
+    if (!need($("nc_code"), "编码") || !need($("nc_family"), "族")) return;
     try {
       await post("/api/codes", {
         code: $("nc_code").value.trim(),
@@ -605,7 +642,15 @@ async function renderCatalog() {
       toast("编码已创建"); renderCatalog();
     } catch (e) { toast(e.message, true); }
   };
+  document.querySelectorAll("[data-delmodel]").forEach(btn => {
+    btn.onclick = async () => {
+      const code = btn.dataset.modelCode;
+      if (await hardDelete(`/api/models/${btn.dataset.delmodel}`, code)) renderCatalog();
+    };
+  });
+
   $("btnNewModel").onclick = async () => {
+    if (!need($("nm_code"), "模型编码")) return;
     try {
       await post("/api/models", {code: $("nm_code").value.trim(), name: $("nm_name").value || null});
       toast("模型已创建"); renderCatalog();
@@ -1418,13 +1463,14 @@ async function renderDatasets() {
       <div class="form">
         <div><label for="ds_model">模型</label>
           <select id="ds_model">${models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("")}</select></div>
-        <div><label for="ds_name">名称</label><input id="ds_name" placeholder="M1-2026-W46"></div>
+        <div><label for="ds_name">名称<span class="req"> *</span></label><input id="ds_name" placeholder="M1-2026-W46"></div>
         <div><button class="act" id="btnCreateDataset">建数据集</button></div>
       </div>
     </section>`;
 
   $("btnNewDataset").onclick = () => $("ds_name").focus();
   $("btnCreateDataset").onclick = async () => {
+    if (!need($("ds_name"), "数据集名称")) return;
     try {
       const r = await post("/api/datasets", {model_id: Number($("ds_model").value), name: $("ds_name").value.trim()});
       toast("数据集已创建，去判例库勾选加入");
@@ -1487,7 +1533,7 @@ async function renderBlind() {
     <section>
       <h2>新建抽检批次</h2>
       <div class="form">
-        <div><label for="bl_week">周次</label><input id="bl_week" placeholder="2026-W46"></div>
+        <div><label for="bl_week">周次<span class="req"> *</span></label><input id="bl_week" placeholder="2026-W46"></div>
         <div><label for="bl_size">抽样数</label><input id="bl_size" value="300" inputmode="numeric"></div>
         <div><label for="bl_code">编码（可选）</label>
           <select id="bl_code"><option value="">全部</option>
@@ -1498,6 +1544,7 @@ async function renderBlind() {
     </section>`;
 
   $("btnBlind").onclick = async () => {
+    if (!need($("bl_week"), "周次")) return;
     try {
       const r = await post("/api/blind/batches", {
         week: $("bl_week").value.trim(),
@@ -1798,6 +1845,7 @@ $("caseForm").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   if (ev.submitter && ev.submitter.value === "cancel") return;
   try {
+    if (!need($("f_code"), "编码")) return;
     let cropPath = $("f_path").value.trim();
     const file = $("f_file").files[0];
     if (file) {
@@ -1806,7 +1854,7 @@ $("caseForm").addEventListener("submit", async (ev) => {
       const up = await api("/api/cases/upload", {method: "POST", body: form});
       cropPath = up.crop_path;
     }
-    if (!cropPath) { toast("请上传裁片或填写路径", true); return; }
+    if (!cropPath) { $("f_file").classList.add("missing"); $("f_path").classList.add("missing"); toast("请上传裁片或填写路径", true); return; }
     await post("/api/cases", {
       code: $("f_code").value.trim(),
       crop_path: cropPath,
