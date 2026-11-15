@@ -397,7 +397,15 @@ async function renderWorkbench() {
     </section>
 
     <section>
-      <h2>最近操作</h2>
+      <h2>最近操作 <span class="pill">${audit.length} / ${auditRaw.length}</span></h2>
+      <div class="filterbar">
+        <select id="sys_action" style="max-width:220px">
+          <option value="">全部动作</option>
+          ${Object.keys(ACTIONS).map(k => `<option value="${k}" ${systemState.auditAction === k ? "selected" : ""}>${esc(actionLabel(k))}</option>`).join("")}
+        </select>
+        <input id="sys_actor" value="${esc(systemState.auditActor)}" placeholder="操作人，回车筛选" style="max-width:200px">
+        <button class="ghost" id="sys_reset">重置</button>
+      </div>
       ${audit.length ? `<div class="timeline">${audit.map(a => `
         <div class="tl"><time>${fmtTime(a.created_at)}</time><span class="kind">${esc(actionLabel(a.action))}</span>
         <span>${esc(a.actor)} · ${esc(a.entity)}${a.entity_id ? " #" + esc(a.entity_id) : ""}</span></div>`).join("")}</div>`
@@ -410,6 +418,8 @@ let showArchived = false;
 let wiz = { code: "", modelId: null };
 let trainingState = { q: "", family: "", jobModel: "" };
 let datasetState = { q: "", family: "", model: "", status: "" };
+let blindState = { q: "", status: "" };
+let systemState = { auditAction: "", auditActor: "", auditLimit: 100 };
 
 async function renderWizard() {
   const [codes, models, bindings, datasets] = await Promise.all([
@@ -1265,9 +1275,15 @@ async function renderSettings() {
 }
 
 async function renderSystem() {
-  const [stations, audit, health] = await Promise.all([
-    api("/api/stations"), api("/api/audit/recent?limit=20"), api("/health")
+  const [stations, auditRaw, health] = await Promise.all([
+    api("/api/stations"), api("/api/audit/recent?limit=" + systemState.auditLimit), api("/health")
   ]);
+  const audit = auditRaw.filter(a =>
+    (systemState.auditAction ? a.action === systemState.auditAction : true) &&
+    (systemState.auditActor
+      ? String(a.actor).toLowerCase().includes(systemState.auditActor.toLowerCase())
+      : true)
+  );
 
   $("view").innerHTML = `
     <section>
@@ -1306,8 +1322,16 @@ async function renderSystem() {
     </section>
 
     <section>
-      <h2>最近操作</h2>
-      ${audit.length === 0 ? `<div class="empty">还没有审计记录。</div>` : `
+      <h2>最近操作 <span class="pill">${audit.length} / ${auditRaw.length}</span></h2>
+      <div class="filterbar">
+        <select id="sys_action" style="max-width:220px">
+          <option value="">全部动作</option>
+          ${Object.keys(ACTIONS).map(k => `<option value="${k}" ${systemState.auditAction === k ? "selected" : ""}>${esc(actionLabel(k))}</option>`).join("")}
+        </select>
+        <input id="sys_actor" value="${esc(systemState.auditActor)}" placeholder="操作人，回车筛选" style="max-width:200px">
+        <button class="ghost" id="sys_reset">重置</button>
+      </div>
+      ${audit.length === 0 ? `<div class="empty">${auditRaw.length ? "当前筛选下没有记录。" : "还没有审计记录。"}</div>` : `
       <table><caption class="sr-only">审计</caption>
         <thead><tr><th scope="col">时间</th><th scope="col">动作</th><th scope="col">操作人</th><th scope="col">对象</th></tr></thead>
         <tbody>${audit.map(a => `<tr>
@@ -1637,17 +1661,30 @@ async function renderDatasets() {
 
 async function renderBlind() {
   const [batches, codes] = await Promise.all([api("/api/blind/batches"), api("/api/codes")]);
+  const q = blindState.q.trim().toLowerCase();
+  const shown = batches.filter(b =>
+    (blindState.status ? b.status === blindState.status : true) &&
+    (q ? String(b.week).toLowerCase().includes(q) : true)
+  );
   $("view").innerHTML = `
     <section>
-      <h2>抽检批次 <span class="pill">${batches.length}</span></h2>
+      <h2>抽检批次 <span class="pill">${shown.length} / ${batches.length}</span></h2>
       <p class="muted" style="margin:0 0 12px">
         盲判：抽样时不显示系统结论，判完才揭盲。关批需质量 / 产线 / 技术三方签字。
       </p>
-      ${batches.length === 0 ? `<div class="empty">还没有抽检批次。<b>怎么做</b>：在下方建一个，逐件盲判后关批。</div>` : `
+      <div class="filterbar">
+        <input id="bl_q" value="${esc(blindState.q)}" placeholder="搜索周次，如 2026-W46" style="max-width:220px">
+        <select id="bl_status" style="max-width:160px">
+          <option value="">全部状态</option>
+          <option value="open" ${blindState.status === "open" ? "selected" : ""}>进行中</option>
+          <option value="closed" ${blindState.status === "closed" ? "selected" : ""}>已关批</option>
+        </select>
+      </div>
+      ${shown.length === 0 ? `<div class="empty">${batches.length ? "当前筛选下没有抽检批次。" : "还没有抽检批次。"}<b>怎么做</b>：在下方建一个，逐件盲判后关批。</div>` : `
       <table><caption class="sr-only">抽检批次</caption>
         <thead><tr><th scope="col">周次</th><th scope="col">进度</th><th scope="col">状态</th>
           <th scope="col">召回</th><th scope="col">过杀率</th><th scope="col">签字</th><th scope="col">操作</th></tr></thead>
-        <tbody>${batches.map(b => `<tr>
+        <tbody>${shown.map(b => `<tr>
           <td>${esc(b.week)}</td>
           <td>${b.judged} / ${b.total}</td>
           <td>${b.status === "closed" ? '<span class="tag ok">已关批</span>' : '<span class="tag candidate">进行中</span>'}</td>
@@ -1660,7 +1697,7 @@ async function renderBlind() {
 
     <section>
       <h2>新建抽检批次</h2>
-      <div class="form">
+      <div class="form form-grid">
         <div><label for="bl_week">周次<span class="req"> *</span></label><input id="bl_week" placeholder="2026-W46"></div>
         <div><label for="bl_size">抽样数</label><input id="bl_size" value="300" inputmode="numeric"></div>
         <div><label for="bl_code">编码（可选）</label>
@@ -1670,6 +1707,13 @@ async function renderBlind() {
         <div><button class="act" id="btnBlind">建批次</button></div>
       </div>
     </section>`;
+
+  $("bl_q").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    blindState.q = e.target.value;
+    renderBlind();
+  });
+  $("bl_status").onchange = (e) => { blindState.status = e.target.value; renderBlind(); };
 
   $("btnBlind").onclick = async () => {
     if (!need($("bl_week"), "周次")) return;
