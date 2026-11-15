@@ -70,6 +70,30 @@
   .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end;margin-bottom:14px}
   .form button{width:100%}
 
+  /* 固定列宽表单：以 1920 为基准
+     - 始终 3 个输入列 + 1 个固定 180px 按钮列，两个表单按钮右边缘对齐
+     - 输入框宽 200–420px（窄屏自动缩小，宽屏封顶）
+  */
+  .form-grid{
+    display:grid;
+    grid-template-columns:repeat(3, minmax(200px, 1fr)) 180px;
+    gap:12px;
+    align-items:end;
+    margin-bottom:14px;
+  }
+  .form-grid input,.form-grid select{min-width:0;max-width:420px}
+  .form-grid > div[aria-hidden]{visibility:hidden}
+  .form-grid > div:last-child button{width:180px}
+  @media (max-width:1100px){
+    .form-grid{grid-template-columns:1fr 1fr}
+    .form-grid > div[aria-hidden]{display:none}
+    .form-grid > div:last-child{grid-column:1 / -1}
+  }
+  @media (max-width:700px){
+    .form-grid{grid-template-columns:1fr}
+    .form-grid > div:last-child button{width:100%}
+  }
+
   .tag{font-size:11px;padding:2px 8px;border-radius:999px;display:inline-block}
   .tag.ok,.tag.assist{background:color-mix(in oklab,var(--ok) 18%,transparent);color:var(--ok)}
   .tag.ng,.tag.disabled{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad)}
@@ -558,7 +582,7 @@ async function renderCatalog() {
 
     <section>
       <h2>新建编码</h2>
-      <div class="form">
+      <div class="form form-grid">
         <div><label for="nc_code">编码（不可改）<span class="req"> *</span></label><input id="nc_code" required placeholder="AB-1234-01"></div>
         <div><label for="nc_family">族（选已有或输入新族名）<span class="req"> *</span></label>
           <input id="nc_family" list="familyList" placeholder="支架类">
@@ -568,9 +592,10 @@ async function renderCatalog() {
         <div><button class="act" id="btnNewCode">建编码</button></div>
       </div>
       <h2 style="margin-top:16px">新建模型</h2>
-      <div class="form">
+      <div class="form form-grid">
         <div><label for="nm_code">模型编码<span class="req"> *</span></label><input id="nm_code" required placeholder="M1"></div>
         <div><label for="nm_name">名称</label><input id="nm_name" placeholder="支架-全型"></div>
+        <div aria-hidden="true"></div>
         <div><button class="act" id="btnNewModel">建模型</button></div>
       </div>
     </section>
@@ -1460,7 +1485,7 @@ async function renderDatasets() {
 
     <section>
       <h2>新建数据集</h2>
-      <div class="form">
+      <div class="form form-grid">
         <div><label for="ds_model">模型</label>
           <select id="ds_model">${models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("")}</select></div>
         <div><label for="ds_name">名称<span class="req"> *</span></label><input id="ds_name" placeholder="M1-2026-W46"></div>
