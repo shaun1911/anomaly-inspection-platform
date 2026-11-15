@@ -10,7 +10,7 @@ import sqlite3
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import record
 from ..serving.cache import cache
@@ -24,6 +24,8 @@ STAGES = ("candidate", "shadow", "assist", "disabled")
 
 
 class CodeIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"code": "AB-1234-01", "family": "支架类", "part": "全型"}]})
+
     code: str = Field(min_length=1, max_length=64)
     family: str | None = None
     family_id: int | None = None
@@ -32,25 +34,35 @@ class CodeIn(BaseModel):
 
 
 class ModelIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"code": "M1", "name": "支架-全型"}]})
+
     code: str = Field(min_length=1, max_length=64)
     name: str | None = None
 
 
 class VersionIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"version_no": 1}]})
+
     version_no: int = Field(ge=1)
     onnx_path: str | None = None
 
 
 class StatusIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"status": "assist"}]})
+
     status: str
 
 
 class BindingIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"code": "AB-1234-01", "model_id": 1}]})
+
     code: str
     model_id: int
 
 
 class ConfigIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"model_version_id": 1, "rev": 1, "roi_rect": [0, 0, 96, 96]}]})
+
     model_version_id: int
     rev: int = Field(ge=1)
     roi_rect: list[int] = Field(min_length=4, max_length=4)
@@ -58,6 +70,8 @@ class ConfigIn(BaseModel):
 
 
 class ThresholdIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"model_version_id": 1, "roi_rev": 1, "rev": 1, "th_lo": 0.4, "th_hi": 0.7}]})
+
     model_version_id: int
     roi_rev: int = Field(ge=1)
     rev: int | None = None          # 不传则由后端按 (version, roi_rev) 自增
@@ -270,6 +284,8 @@ def delete_model(model_id: int, conn: sqlite3.Connection = Depends(get_conn)) ->
 
 
 class OnnxIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"onnx_path": "F:\\anomaly\\data\\models\\M1-v3.onnx"}]})
+
     onnx_path: str
 
 

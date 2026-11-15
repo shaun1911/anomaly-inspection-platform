@@ -9,7 +9,7 @@ import json
 import sqlite3
 
 from fastapi import APIRouter, Depends, Header
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .. import whitelist
 from ..settings import get_value
@@ -24,6 +24,8 @@ ACTIVE_STAGES = ("shadow", "assist")
 
 
 class HeartbeatIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"station": "S1", "config_rev": "1"}]})
+
     station: str = Field(min_length=1, max_length=64)
     config_rev: str | None = None
 

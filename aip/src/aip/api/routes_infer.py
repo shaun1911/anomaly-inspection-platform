@@ -11,7 +11,7 @@ from pathlib import Path
 from PIL import Image
 
 from fastapi import APIRouter, Depends, File, Form, Header, Query, Response, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from .. import whitelist
 from ..inference.service import GATE_MESSAGES, FakePredictor, check_gate, process_job
@@ -259,6 +259,8 @@ def get_job(job_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
 
 
 class FeedbackIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"result_id": 1, "verdict": "ok", "note": "现场复判 OK"}]})
+
     result_id: int
     verdict: str
     note: str | None = None

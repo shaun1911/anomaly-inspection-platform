@@ -11,7 +11,7 @@ import sqlite3
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from ..audit import record
 from ..inference.onnx import PredictorUnavailable, build_predictor, load_session
@@ -41,6 +41,8 @@ def _fake_metrics(model_id: int, version_no: int) -> dict:
 
 
 class TrainIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"model_id": 1, "dataset_id": 1, "note": "夜间窗口训练"}]})
+
     model_id: int
     dataset_id: int
     note: str | None = None
@@ -117,6 +119,8 @@ def list_train(
 
 
 class ExportIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"backend": "stub"}]})
+
     backend: str = "stub"
 
 

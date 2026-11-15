@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from ..audit import record
 from ..store import tx
@@ -153,6 +153,8 @@ def pending(
 
 
 class ConfirmIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"verdict": "ok", "flip": False, "note": "划痕可接受", "confirmed_by": "admin"}]})
+
     verdict: str | None = None     # 不传 = 保留系统原结论
     flip: bool = False             # true = 各自翻转到相反结论
     note: str | None = None

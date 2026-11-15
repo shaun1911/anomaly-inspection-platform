@@ -8,7 +8,7 @@ import sqlite3
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, UploadFile, File, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from .. import dataset_audit
 from ..storage import is_locked
@@ -22,12 +22,16 @@ router = APIRouter(prefix="/api", tags=["dataset"])
 
 
 class DatasetIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"model_id": 1, "name": "M1-2026-W46", "note": "第 46 周样本"}]})
+
     model_id: int
     name: str
     note: str | None = None
 
 
 class ItemsIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"case_ids": [1, 2, 3]}]})
+
     case_ids: list[int]
 
 

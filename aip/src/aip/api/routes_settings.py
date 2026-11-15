@@ -6,7 +6,7 @@ import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pathlib import Path
 
 from .. import retention
@@ -23,6 +23,8 @@ router = APIRouter(prefix="/api", tags=["settings"])
 
 
 class SettingIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"value": 30, "actor": "web"}]})
+
     value: Any
     actor: str = "web"
 
@@ -33,6 +35,8 @@ def list_settings(conn: sqlite3.Connection = Depends(get_conn)) -> list[dict]:
 
 
 class BulkIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"values": {"retention.crop_days": 30, "review.gray_route": "queue"}, "actor": "web"}]})
+
     values: dict[str, Any]
     actor: str = "web"
 
@@ -62,6 +66,8 @@ def update_setting(
 
 
 class RetentionIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"dry_run": True, "actor": "web"}]})
+
     dry_run: bool = True
     actor: str = "web"
 
@@ -82,6 +88,8 @@ def maintenance_retention(body: RetentionIn, conn: sqlite3.Connection = Depends(
 
 
 class MoveIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"target": "D:\\aip-data", "dry_run": True}]})
+
     target: str
     dry_run: bool = True
 
@@ -102,11 +110,15 @@ def storage_move(body: MoveIn, conn: sqlite3.Connection = Depends(get_conn)) -> 
 
 
 class BackupIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"target": "D:\\aip-backup-20261115.zip", "actor": "web"}]})
+
     target: str
     actor: str = "web"
 
 
 class RestoreIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"archive": "D:\\aip-backup-20261115.zip", "target": "D:\\aip-data", "dry_run": True}]})
+
     archive: str
     target: str
     dry_run: bool = True
@@ -131,6 +143,8 @@ def storage_restore(body: RestoreIn, conn: sqlite3.Connection = Depends(get_conn
 
 
 class ArchiveIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"days": 180, "apply": False, "actor": "web"}]})
+
     days: int | None = None
     apply: bool = False
     actor: str = "web"
@@ -160,6 +174,8 @@ def audit_archive_apply(body: ArchiveIn, conn: sqlite3.Connection = Depends(get_
 
 
 class AuditImportIn(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"path": "F:\\anomaly\\data\\audit-archive\\audit-20261115.csv", "apply": False, "actor": "web"}]})
+
     path: str
     apply: bool = False
     actor: str = "web"

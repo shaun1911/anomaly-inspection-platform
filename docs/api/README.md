@@ -12,7 +12,8 @@
 |---|---|
 | Base URL | `http://<服务器>:8100` |
 | 页面 | `/admin`（后台）、`/panel`（测试用面板，可在设置中关闭） |
-| Swagger | `/docs`，机器可读 `/openapi.json` |
+| Swagger | `/docs`（**需联网加载 UI 资源**），机器可读 `/openapi.json` |
+| 请求示例 | 写接口的请求体已内置示例，Swagger 里「Try it out」会预填；离线时看 [`endpoints.md`](endpoints.md) 与本文示例 |
 | 编码 | UTF-8；JSON 接口 `Content-Type: application/json` |
 | 时间 | 全部 **UTC**，格式 `2026-11-15T09:20:50.000Z` |
 
