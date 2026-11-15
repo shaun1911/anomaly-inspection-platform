@@ -6,8 +6,10 @@
 <meta name="color-scheme" content="dark">
 <title>AIP 工位面板</title>
 <style>
-  :root{color-scheme:dark;--pri:#F26522;--ok:#34C759;--warn:#F5A623;--bad:#FF3B30;--g0:#0F1115;--g1:#1A1D23;--g2:#2A2F37;--g3:#3A404A;--t1:#F5F6F8;--t2:#A8AFBA;--t3:#6B7280}
+  :root{color-scheme:dark;--pri:#C2410C;--ok:#34C759;--warn:#F5A623;--bad:#FF3B30;--g0:#0F1115;--g1:#1A1D23;--g2:#2A2F37;--g3:#3A404A;--t1:#F5F6F8;--t2:#A8AFBA;--t3:#8A929E}
   *{box-sizing:border-box}
+  :focus-visible{outline:3px solid color-mix(in oklab, var(--pri) 75%, white);outline-offset:2px;border-radius:8px}
+  ::placeholder{color:var(--t3);opacity:1}
   body{margin:0;background:var(--g0);color:var(--t1);font:15px/1.5 "Microsoft YaHei",system-ui,sans-serif}
   header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--g1);border-bottom:1px solid var(--g2)}
   header h1{font-size:17px;margin:0;font-weight:600}
@@ -16,22 +18,23 @@
   main{display:grid;grid-template-columns:1fr 380px;gap:16px;padding:16px 20px}
   section{background:var(--g1);border:1px solid var(--g2);border-radius:12px;padding:16px}
   h2{font-size:14px;margin:0 0 12px;color:var(--t2);font-weight:600}
-  label{display:block;font-size:12px;color:var(--t3);margin:8px 0 4px}
+  label,.field-label{display:block;font-size:12px;color:var(--t3);margin:8px 0 4px}
   input,select{width:100%;padding:10px;border-radius:8px;border:1px solid var(--g3);background:var(--g2);color:var(--t1);font-size:15px}
   button{cursor:pointer;border:0;border-radius:8px;padding:12px 16px;font-size:15px;font-weight:600;color:#fff;background:var(--pri)}
   button.ghost{background:var(--g3)}
-  button.ok{background:var(--ok)}
-  button.bad{background:var(--bad)}
-  button:disabled{background:var(--g3);color:var(--t3);cursor:not-allowed}
+  button.ok{background:#147A32}
+  button.bad{background:#C62828}
+  button.warn{background:#A86500}
+  button:disabled{background:var(--g3);color:var(--t2);cursor:not-allowed}
   input[type=file]{padding:8px}
   input[type=file]::file-selector-button{background:var(--g3);color:var(--t1);border:0;border-radius:6px;padding:8px 12px;margin-right:10px;cursor:pointer;font-size:14px}
   .row{display:flex;gap:8px;margin-top:12px}
   .row button{flex:1}
   .chips{display:flex;flex-wrap:wrap;gap:8px;min-height:42px;align-items:center}
   .chip{background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:500}
-  .chip small{color:var(--t3);font-size:11px}
+  .chip small{color:var(--t3);font-size:12px}
   .chip.on{background:var(--pri);border-color:var(--pri);color:#fff}
-  #offlineBar{background:var(--bad);color:#fff;padding:14px 20px;font-size:16px;font-weight:600;text-align:center}
+  #offlineBar{background:#C62828;color:#fff;padding:14px 20px;font-size:16px;font-weight:600;text-align:center}
   .banner{margin-top:12px;border-radius:10px;padding:18px;font-size:22px;font-weight:700;text-align:center;background:var(--g2)}
   .banner small{display:block;font-size:13px;font-weight:400;color:var(--t2);margin-top:6px}
   .banner.ok{background:color-mix(in oklab,var(--ok) 22%,transparent);color:var(--ok)}
@@ -47,7 +50,7 @@
   .item{display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;background:var(--g2);cursor:pointer}
   .item:hover{outline:1px solid var(--g3)}
   .item .score{font-variant-numeric:tabular-nums;color:var(--t2);width:52px}
-  .tag{font-size:11px;padding:2px 8px;border-radius:999px}
+  .tag{font-size:12px;padding:2px 8px;border-radius:999px}
   .tag.ng{background:rgba(255,59,48,.2);color:#FF8A80}
   .tag.gray{background:rgba(245,166,35,.2);color:#FFC46B}
   .tag.ok{background:rgba(52,199,89,.2);color:#7BE495}
@@ -70,34 +73,34 @@
   <span class="pill" id="stationPill">站位：S1</span>
   <span class="pill" id="modelPill">未换型</span>
   <div class="spacer"></div>
-  <span class="pill" id="healthPill">健康检查中…</span>
+  <span class="pill" id="healthPill" role="status" aria-live="polite">健康检查中…</span>
 </header>
-<div id="offlineBar" hidden>服务已断开 —— 请停止推图，联系技师</div>
+<div id="offlineBar" role="alert" hidden>服务已断开 —— 请停止推图，联系技师</div>
 
 <main>
   <div style="display:flex;flex-direction:column;gap:16px">
     <section>
       <h2>① 换型</h2>
-      <label>站位</label>
+      <label for="station">站位</label>
       <input id="station" value="S1">
-      <label>选择产品（只列启用中的）</label>
-      <div class="chips" id="codePick"><span class="muted">加载中…</span></div>
-      <label style="margin-top:10px">或扫码/输入编码</label>
+      <span class="field-label" id="codePickLabel">选择产品（只列启用中的）</span>
+      <div class="chips" id="codePick" role="group" aria-labelledby="codePickLabel"><span class="muted">加载中…</span></div>
+      <label for="code" style="margin-top:10px">或扫码/输入编码</label>
       <input id="code" placeholder="扫描或输入编码（回车即换型）" autofocus>
-      <label style="margin-top:10px">件号（可扫码）</label>
+      <label for="partNo" style="margin-top:10px">件号（可扫码）</label>
       <input id="partNo" placeholder="P-20261114-0001">
-      <label style="margin-top:10px">批次（可选）</label>
+      <label for="batchNo" style="margin-top:10px">批次（可选）</label>
       <input id="batchNo" placeholder="2026-11-B01">
       <div class="row"><button id="btnLoad">换型</button></div>
-      <div class="status" id="loadStatus">尚未换型</div>
+      <div class="status" id="loadStatus" role="status" aria-live="polite">尚未换型</div>
     </section>
 
     <section>
       <h2>② 推图</h2>
-      <label>选择一张裁片（模拟相机）</label>
+      <label for="file">选择一张裁片（模拟相机）</label>
       <input type="file" id="file" accept="image/*">
       <div class="row"><button id="btnInfer" disabled>推图判定</button></div>
-      <div class="status" id="inferStatus">等待换型完成</div>
+      <div class="status" id="inferStatus" role="status" aria-live="polite">等待换型完成</div>
     </section>
 
     <section>
@@ -107,19 +110,19 @@
   </div>
 
   <section>
-    <h2>④ 待复核 <span class="pill" id="pendingCount">0 件</span></h2>
+    <h2>④ 待复核 <span class="pill" id="pendingCount" aria-live="polite">0 件</span></h2>
     <div class="queue" id="pending"><div class="empty">没有待复核的件</div></div>
   </section>
 </main>
 
-<dialog id="reviewDlg">
-  <h2 style="margin-bottom:12px">确认这一件</h2>
+<dialog id="reviewDlg" aria-labelledby="dlgTitle">
+  <h2 id="dlgTitle" style="margin-bottom:12px">确认这一件</h2>
   <div class="dialog-body">
     <div class="preview" id="preview"><span class="muted">加载裁片中…</span></div>
     <div>
       <div class="kv" id="detail"></div>
-      <label style="margin-top:14px">改判理由（仅在改判时选）</label>
-      <div class="reasons" id="reasons"></div>
+      <span class="field-label" id="reasonsLabel" style="margin-top:14px">改判理由（仅在改判时选）</span>
+      <div class="reasons" id="reasons" role="group" aria-labelledby="reasonsLabel"></div>
       <div class="row" style="margin-top:16px">
         <button class="ok" id="btnAccept">确认</button>
       </div>
@@ -271,7 +274,7 @@ async function openReview(resultId) {
   selectedReason = null;
   const labelText = r.label === "ok" ? "OK" : (r.label === "ng" ? "NG" : "灰区");
   $("btnAccept").textContent = `确认 ${labelText}（保持系统结论）`;
-  $("btnAccept").className = r.label === "ok" ? "ok" : "bad";
+  $("btnAccept").className = r.label === "ok" ? "ok" : (r.label === "ng" ? "bad" : "warn");
   $("btnFlip").disabled = true;
   $("btnFlip").textContent = "改判（先选理由）";
   $("reasons").innerHTML = REASONS.map(x => `<button data-r="${x}">${x}</button>`).join("");

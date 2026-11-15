@@ -83,6 +83,18 @@ async function main() {
     console.log(`${bad ? "FAIL" : "ok  "} ${name}`);
   }
 
+  // 工位面板单独检查
+  exceptions.length = 0;
+  await send("Page.navigate", { url: `${APP}/panel` });
+  await sleep(1500);
+  const panelText = (
+    await send("Runtime.evaluate", { expression: "document.body.innerText", returnByValue: true })
+  ).result?.result?.value || "";
+  const panelBad =
+    exceptions.length > 0 || panelText.includes("加载失败") || !panelText.includes("AIP 工位面板");
+  failures.push(...(panelBad ? [{ page: "panel", snippet: panelText.slice(0, 120) }] : []));
+  console.log(`${panelBad ? "FAIL" : "ok  "} panel`);
+
   await fetch(`${BASE}/json/close/${created.id}`, { method: "PUT" }).catch(() => {});
   if (failures.length) {
     console.error(JSON.stringify(failures, null, 2));
