@@ -10,7 +10,7 @@
   <table><caption class="sr-only">快捷键</caption>
     <thead><tr><th scope="col">按键</th><th scope="col">作用</th></tr></thead>
     <tbody>
-      <tr><td><kbd>J</kbd> / <kbd>K</kbd></td><td>下一件 / 上一件</td></tr>
+      <tr><td><kbd>J</kbd> <kbd>K</kbd></td><td>下一件 / 上一件</td></tr>
       <tr><td><kbd>O</kbd> / <kbd>N</kbd></td><td>判为 OK / 判为 NG（相反结论需先选理由）</td></tr>
       <tr><td><kbd>Enter</kbd></td><td>接受系统结论（灰区会提示先明确判定）</td></tr>
       <tr><td><kbd>1</kbd>–<kbd>5</kbd></td><td>选择理由：划痕/脏污/压伤/误报/其他</td></tr>
@@ -80,6 +80,8 @@
   .search-item{display:flex;gap:8px;align-items:center;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px}
   .search-item:hover,.search-item.on{background:var(--g2)}
   .search-item .muted{margin-left:auto}
+  .search-keys{padding:6px 8px 2px;margin-top:4px;border-top:1px solid var(--g3);
+    font-size:12px;color:var(--t2)}
   .search input{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:8px 12px;font-size:13px}
   .theme-sel{background:var(--g2);color:var(--t1);border:1px solid var(--g3);border-radius:6px;padding:4px 8px;font-size:13px;min-height:30px;width:auto;flex:0 0 auto}
   .pill{padding:4px 10px;border-radius:999px;background:var(--g2);color:var(--t2);font-size:12px}
@@ -275,7 +277,11 @@
   .ref-strip .tag.ok{background:color-mix(in oklab,var(--ok) 16%,transparent);color:var(--ok)}
   .ref-strip .tag.ng{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad)}
   .reasons{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
-  .review-tip{font-size:12px;margin-top:6px;line-height:1.4}
+  .review-tip{font-size:13px;color:var(--t2);margin-top:8px;line-height:1.5;display:flex;gap:6px;align-items:center}
+  kbd{font-family:inherit;font-size:12px;color:var(--t1);background:var(--g2);
+    border:1px solid var(--g3);border-bottom-width:2px;border-radius:4px;padding:1px 5px;white-space:nowrap}
+  .kbd-hint{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--t2);
+    background:var(--g2);border:1px solid var(--g3);border-radius:6px;padding:6px 10px}
   .reasons button{padding:6px 10px;font-size:12px;min-height:32px}
   .review-detail .row button{min-height:38px}
   .reasons button.sel{background:var(--brand);color:#fff}
@@ -283,7 +289,7 @@
   .row button{flex:1}
   dialog{background:var(--g1);color:var(--t1);border:1px solid var(--g3);border-radius:12px;padding:20px;width:min(520px,92vw)}
   dialog::backdrop{background:rgba(0,0,0,.5)}
-  dialog::after{content:"Esc 关闭";display:block;text-align:right;margin-top:10px;font-size:11px;color:var(--t3)}
+  dialog::after{content:"Esc 关闭";display:block;text-align:right;margin-top:12px;font-size:12px;color:var(--t2)}
   dialog label{display:block;font-size:12px;color:var(--t3);margin:10px 0 4px}
   dialog input,dialog select{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:9px 10px;font-size:13px}
   #toasts{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px;z-index:99}
@@ -1144,7 +1150,9 @@ async function renderQuality() {
           <div class="review-list">
             <div class="review-list-head">待复核 <span class="pill">${items.length}</span></div>
             <div id="rlist" class="queue"></div>
-            <div class="muted review-hint">${isGroup ? "点击分组下钻到件" : "键盘：J/K 切换 · O/N 判 OK/NG · Enter 接受 · 1–5 理由"}</div>
+            <div class="kbd-hint review-hint">${isGroup
+              ? "点击分组下钻到件"
+              : `<kbd>J</kbd>/<kbd>K</kbd> 切换 · <kbd>O</kbd>/<kbd>N</kbd> 判 OK/NG · <kbd>Enter</kbd> 接受 · <kbd>1–5</kbd> 理由`}</div>
           </div>
           <div class="review-detail">
             <div class="shot"><img id="shot" alt="裁片"></div>
@@ -2314,7 +2322,7 @@ async function renderBlindBatch(id) {
             <button class="ghost" id="jGray">灰区</button>
             <button class="ghost" id="jNg">NG</button>
           </div>
-          <div class="muted review-tip">快捷键：O 判 OK · G 灰区 · N 判 NG</div>` : `
+          <div class="kbd-hint review-tip"><kbd>O</kbd> 判 OK · <kbd>G</kbd> 灰区 · <kbd>N</kbd> 判 NG</div>` : `
           <div class="empty">全部判完，可以关批（需三方签字）。</div>
           <div class="form" style="grid-template-columns:1fr 1fr 1fr;margin-top:12px">
             <div><label for="signQ">质量签字</label><input id="signQ" placeholder="姓名"></div>
@@ -2714,7 +2722,7 @@ function renderSearch(results) {
       </div>`);
     }
   }
-  if (html.length) html.push('<div class="search-group" role="presentation" style="border-top:1px solid var(--g3);margin-top:4px">↑↓ 选择 · Enter 打开 · Esc 关闭</div>');
+  if (html.length) html.push('<div class="search-keys" role="presentation"><kbd>↑</kbd><kbd>↓</kbd> 选择 · <kbd>Enter</kbd> 打开 · <kbd>Esc</kbd> 关闭</div>');
   drop.innerHTML = html.length ? html.join("") : '<div class="search-group" role="presentation">没有匹配</div>';
   drop.hidden = false;
   $("jump").setAttribute("aria-expanded", "true");
