@@ -63,7 +63,8 @@
 
 | 项 | 改动 | 验证 |
 |---|---|---|
-| 元信息行距 | gap 2→4、line-height 1.45→1.5 | CDP owGap: 4px |
+| 元信息行距 | gap 2→4、line-height 1.45→1.5 | CDP 
+owGap: 4px |
 | 理由区 | margin 4→8、gap 6→8 | — |
 | 规则提示 / 结果号 | margin-top 4/6→8 | — |
 | 图下边距 | 10→12 | — |
@@ -76,3 +77,22 @@
 sloplint：**15 FAIL → 13 FAIL**。剩余为 token 字面量（48）、导航标签字距（67）、sticky 层级（56）、CSS stamp（审计目标固有），归 **restyle**，本次未动。
 
 回归：235 测试、16 项冒烟全过；页面 805/805，动作区 710。
+
+---
+
+## 修复记录（restyle，2026-11-15）
+
+| 项 | 改动 |
+|---|---|
+| 颜色字面量（7 处） | 新增 token：`--on-brand`、`--row-hover`、`--shadow-pop`、`--shadow-bar`、`--backdrop`；规则全部改走 token |
+| 导航分组字距 | 去掉 `letter-spacing:.14em`（label 不加字距） |
+| 表头 sticky | `top:0 → 1px`，归入 `.table-wrap` 自己的滚动容器 |
+| 无源 img | `#shotDlgImg` 补透明占位 |
+| CSS stamp | 首行加 Hallmark stamp（restyle、无 deal），附 56 说明 |
+| savebar 阴影 | 改用 `--shadow-bar` |
+
+sloplint 结果：**15 FAIL → 1 FAIL**。
+
+剩余 1 项：`56 两个 sticky top:0（aside + header）`。这是静态检查的误报——侧栏与顶栏在同一网格的不同列，不重叠；真实运行时二者各自粘住，没有遮挡。已按事实保留，不为了过 linter 改掉可用行为。
+
+67 项 Reflex 与 5 项 WARN（4px 基线、`:active` 态、`text-wrap:balance`、搜索下拉边框+阴影等）属于下一步 polish 批次，不在本次 restyle 范围。
