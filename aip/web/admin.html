@@ -352,6 +352,13 @@ const ACTIONS = {
 };
 const actionLabel = (a) => ACTIONS[a] || a;
 
+// 页面级状态（各页筛选与向导进度）
+let wiz = { code: "", modelId: null };
+let trainingState = { q: "", family: "", jobModel: "" };
+let datasetState = { q: "", family: "", model: "", status: "" };
+let blindState = { q: "", status: "" };
+let systemState = { auditAction: "", auditActor: "", auditLimit: 100 };
+
 const fmtBytes = (n) => {
   if (n == null) return "—";
   const units = ["B", "KB", "MB", "GB", "TB"];
