@@ -130,11 +130,6 @@ def storage_restore(body: RestoreIn, conn: sqlite3.Connection = Depends(get_conn
         raise ApiError("restore_failed", str(exc), "检查备份文件与目标目录", 400) from exc
 
 
-@router.get("/maintenance/storage")
-def storage_info(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
-    return storage_mod.info(conn)
-
-
 class ArchiveIn(BaseModel):
     days: int | None = None
     apply: bool = False

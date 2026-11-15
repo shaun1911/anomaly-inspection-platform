@@ -50,7 +50,13 @@ python -m venv .venv --system-site-packages
 
 ---
 
-'## 部署到另一台电脑（服务端）
+''## API 文档
+
+- 使用说明：[`docs/api/README.md`](docs/api/README.md)（认证、错误体、判定路由、示例）
+- 端点清单：[`docs/api/endpoints.md`](docs/api/endpoints.md)（由 `scripts/gen_api_doc.py` 生成）
+- 运行时 Swagger：`/docs`，机器可读：`/openapi.json`
+
+## 部署到另一台电脑（服务端）'
 
 服务端**不需要 CUDA/torch**，依赖只有 FastAPI / uvicorn / Pillow / numpy。
 
