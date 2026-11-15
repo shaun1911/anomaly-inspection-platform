@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from pathlib import Path
 
 from .. import retention
+from .. import storage as storage_mod
 from .. import settings as settings_mod
 from .deps import get_conn
 from .errors import ApiError
@@ -72,3 +73,23 @@ def maintenance_retention(body: RetentionIn, conn: sqlite3.Connection = Depends(
     return {"dry_run": False, **retention.apply(
         conn, db_file.parent, crop_days=crop_days, smoke_days=smoke_days, actor=body.actor
     )}
+
+
+class MoveIn(BaseModel):
+    target: str
+    dry_run: bool = True
+
+
+@router.get("/maintenance/storage")
+def storage_info(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    return storage_mod.info(conn)
+
+
+@router.post("/maintenance/storage/move")
+def storage_move(body: MoveIn, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    try:
+        if body.dry_run:
+            return {"dry_run": True, **storage_mod.plan_move(conn, body.target)}
+        return {"dry_run": False, **storage_mod.apply_move(conn, body.target)}
+    except storage_mod.StorageError as exc:
+        raise ApiError("storage_move_failed", str(exc), "换一个空目录或检查磁盘空间", 400) from exc

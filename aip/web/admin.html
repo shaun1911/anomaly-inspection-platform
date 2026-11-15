@@ -1327,6 +1327,19 @@ async function renderSettings() {
   const groupCount = (g) => rows.filter(r => r.group === g).length;
   const inGroup = rows.filter(r => r.group === group);
 
+  const storagePanel = group === "存储" ? `
+    <div class="cache-actions" style="flex-direction:column;align-items:stretch;gap:10px">
+      <div style="display:flex;justify-content:space-between;gap:12px">
+        <b>存储目录</b><span class="muted" id="storeInfo">读取中…</span>
+      </div>
+      <div class="filterbar" style="margin:0">
+        <input id="moveTarget" placeholder="目标空目录，例如 D:\aip-data" style="max-width:360px">
+        <button class="ghost" id="btnMovePlan">预检</button>
+        <button class="ghost" id="btnMoveApply">执行迁移</button>
+      </div>
+      <div id="moveOut" class="muted"></div>
+    </div>` : "";
+
   const cachePanel = group === "服务" ? `
     <div class="cache-actions">
       <div><b>模型缓存</b><span class="muted" id="cacheInfo">读取中…</span></div>
@@ -1376,6 +1389,7 @@ async function renderSettings() {
               }).join("")}
             </tbody></table>
           ${cachePanel}
+          ${storagePanel}
         </div>
       </div>
     </section>
@@ -1471,6 +1485,46 @@ async function renderSettings() {
     note.textContent = "令牌明文显示，便于现场录入工位客户端；请勿外传，换人/换线时及时更换。";
     const body = document.querySelector(".settings-body");
     if (body) body.insertBefore(note, body.children[1] || null);
+  }
+
+  if (group === "存储") {
+    api("/api/maintenance/storage").then(s => {
+      const el = document.getElementById("storeInfo");
+      if (el) el.textContent = `${s.root} · ${s.files} 个文件 · ${fmtBytes(s.bytes)} · 可用 ${fmtBytes(s.free)}`;
+    }).catch(() => {});
+
+    const showMove = (r) => {
+      const out = document.getElementById("moveOut");
+      if (r.problems && r.problems.length) {
+        out.textContent = "预检未通过：" + r.problems.join("；");
+        return;
+      }
+      if (r.dry_run) {
+        out.textContent = `可迁移：${r.files} 个文件 / ${fmtBytes(r.bytes)} → ${r.target}（目标可用 ${fmtBytes(r.free)}）`;
+      } else {
+        out.textContent = r.moved
+          ? `已复制到 ${r.target}（${r.files} 个文件 / ${fmtBytes(r.bytes)}）。用新目录重启：${r.restart_hint}`
+          : "迁移校验未通过：" + (r.problems || []).join("；");
+      }
+    };
+
+    $("btnMovePlan").onclick = async () => {
+      const target = $("moveTarget").value.trim();
+      if (!target) { toast("先填目标目录", true); return; }
+      try {
+        showMove(await post("/api/maintenance/storage/move", {target, dry_run: true}));
+      } catch (e) { toast(e.message, true); }
+    };
+
+    $("btnMoveApply").onclick = async () => {
+      const target = $("moveTarget").value.trim();
+      if (!target) { toast("先填目标目录", true); return; }
+      if (!confirm(`将把数据复制到：\n${target}\n\n迁移期间请暂停推图；完成后需用新目录重启服务。继续？`)) return;
+      try {
+        showMove(await post("/api/maintenance/storage/move", {target, dry_run: false}));
+        toast("已复制，按提示用新目录重启");
+      } catch (e) { toast(e.message, true); }
+    };
   }
 
   if (group === "服务") {

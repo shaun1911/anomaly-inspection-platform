@@ -94,7 +94,22 @@ node scripts/ui_smoke.mjs
 脚本：`seed_*`（演示）、`backfill_batch.py`（批次回填）、`backfill_case_sha.py`（判例补 sha）、
 `backfill_dataset_snapshot.py`（数据集补快照）、`retention.py`（清理）。
 
-## 数据目录（不入库）
+'## 更换数据目录
+
+数据目录是启动级配置（DB 连接与文件路径都绑定它），运行中不能热切换。流程：
+
+1. 设置 → 存储 → 填目标空目录 → **预检**（检查嵌套/占用/磁盘空间）；
+2. **执行迁移**：用 sqlite backup 做一致性快照，复制 `crops/cases/smoke`，并校验文件数与 DB 完整性；
+3. 用新目录重启：
+
+```powershell
+python scripts/dev_server.py --port 8100 --data-dir "D:\\aip-data"
+# 或设置环境变量 AIP_DATA_DIR
+```
+
+4. 确认数据正常后再手工删除旧目录（程序不会自动删）。
+
+## 数据目录（不入库）'
 
 ```
 data/aip.db          主库（WAL）

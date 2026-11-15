@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -24,8 +25,16 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8100)
-    parser.add_argument("--db", default=str(ROOT / "data" / "aip.db"))
+    parser.add_argument("--data-dir", default=None, help="数据目录（含 aip.db、crops、cases、smoke）")
+    parser.add_argument("--db", default=None, help="直接指定数据库文件（优先于 --data-dir）")
     args = parser.parse_args()
+
+    if args.db:
+        db_path = Path(args.db)
+    else:
+        data_dir = args.data_dir or os.environ.get("AIP_DATA_DIR") or str(ROOT / "data")
+        db_path = Path(data_dir) / "aip.db"
+    args.db = str(db_path)
 
     conn = store.connect(args.db)
     version = store.migrate(conn)
