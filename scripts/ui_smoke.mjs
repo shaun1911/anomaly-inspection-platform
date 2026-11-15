@@ -101,6 +101,28 @@ async function main() {
   failures.push(...(fitOk ? [] : [{ page: "review-fit", snippet: JSON.stringify(fit) }]));
   console.log(`${fitOk ? "ok  " : "FAIL"} review-fit (${fit.page}/${fit.vh}, actions ${fit.actions})`);
 
+  // 参考样例弹窗（有样例时点击缩略图应打开 dialog）
+  const refClick = (
+    await send("Runtime.evaluate", {
+      expression: `(() => { const i = document.querySelector('.ref-strip img'); if (!i) return 'none'; i.click(); return 'ok'; })()`,
+      returnByValue: true,
+    })
+  ).result?.result?.value;
+  if (refClick === "ok") {
+    await sleep(500);
+    const dlgOpen = (
+      await send("Runtime.evaluate", {
+        expression: "document.getElementById('refDlg')?.open === true",
+        returnByValue: true,
+      })
+    ).result?.result?.value;
+    failures.push(...(dlgOpen ? [] : [{ page: "refs-dialog", snippet: "dialog not open" }]));
+    console.log(`${dlgOpen ? "ok  " : "FAIL"} refs-dialog`);
+    await send("Runtime.evaluate", { expression: "document.getElementById('refDlg')?.close()" });
+  } else {
+    console.log("ok   refs-dialog (no refs)");
+  }
+
   // 暗色模式检查
   await send("Page.navigate", { url: `${APP}/admin#/workbench` });
   await sleep(1200);

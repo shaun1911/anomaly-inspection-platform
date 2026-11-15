@@ -5,6 +5,11 @@
 <meta name="color-scheme" content="light dark">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AIP 服务端</title>
+<dialog id="refDlg" style="width:min(920px,94vw)">
+  <h2 style="margin-bottom:12px">参考样例 <span class="muted">（历史判例，可能影响判断）</span></h2>
+  <div id="refDlgBody"></div>
+  <div class="row" style="margin-top:14px"><button class="ghost" onclick="this.closest('dialog').close()">关闭</button></div>
+</dialog>
 <script>
   // 主题：auto / light / dark，先应用再绘制，避免闪白
   try { document.documentElement.dataset.theme = localStorage.getItem("aip-theme") || "auto"; } catch (e) {}
@@ -238,9 +243,17 @@
     display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:10px}
   .shot img{max-width:100%;max-height:420px;image-rendering:pixelated}
   .kv{display:grid;grid-template-columns:76px 1fr;gap:2px 10px;font-size:12px;line-height:1.35}
+  .kv.kv2{grid-template-columns:52px 1fr 64px 1fr}
   .kv div:nth-child(odd){color:var(--t3)}
-  #rRefs{max-height:50px;overflow:auto}
-  #rRefs img{max-height:44px;width:auto;border-radius:4px}
+  #rRefs{max-height:none;overflow:visible}
+  .ref-strip{display:flex;gap:6px;align-items:center;overflow:hidden}
+  .ref-strip figure{margin:0;width:58px}
+  .ref-strip img{width:58px;height:58px;object-fit:cover;border-radius:6px;
+    border:1px solid var(--g3);background:var(--g2);cursor:zoom-in}
+  .ref-strip figcaption{display:none}
+  .ref-more{width:58px;height:58px;border-radius:6px;border:1px dashed var(--g3);
+    background:var(--g2);color:var(--t2);font-size:12px;cursor:pointer}
+  .ref-strip .lbl{font-size:11px;color:var(--t3);margin-right:2px}
   .reasons{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
   .reasons button{padding:6px 10px;font-size:12px;min-height:32px}
   .review-detail .row button{min-height:38px}
@@ -1190,14 +1203,15 @@ async function renderQuality() {
       const cur = items[idx];
       const ids = groupIds(cur);
       $("shot").src = `/results/${ids[0]}/image`;
+      $("rmeta").classList.add("kv2");
       $("rmeta").innerHTML = `
         <div>编码</div><div>${esc(cur.code)}</div>
         <div>件号</div><div>${esc(cur.part_no || "-")}</div>
         <div>待处理</div><div>${ids.length} 张</div>
-        <div>系统结论</div><div>${cur.kind === "part" ? `NG/灰区 ${cur.count} 张` : tag(cur.label)}</div>
-        <div>分数</div><div>${cur.kind === "part" ? cur.min_score.toFixed(3) + " ~ " + cur.max_score.toFixed(3) : cur.score.toFixed(3)}</div>
+        <div>结论</div><div>${cur.kind === "part" ? `NG/灰区 ${cur.count} 张` : tag(cur.label)}</div>
+        <div>分数</div><div>${cur.kind === "part" ? cur.min_score.toFixed(2) + " ~ " + cur.max_score.toFixed(2) : cur.score.toFixed(3)}</div>
         <div>批次</div><div>${esc(cur.batch_no || "-")}</div>
-        <div>首次时间</div><div>${fmtTime(cur.first_at || cur.created_at)}</div>
+        <div>首次</div><div>${fmtTime(cur.first_at || cur.created_at)}</div>
         <div>位置</div><div>${idx + 1} / ${items.length}</div>`;
       $("rshots").textContent = "结果号：" + ids.join(", ");
       $("rRefs").hidden = true;
@@ -1240,18 +1254,30 @@ async function renderQuality() {
       const box = $("rRefs");
       try {
         const refs = await api(`/results/${ids[0]}/references`);
-        const card = (c) => `<figure><img src="${c.image_url}" alt="${esc(c.verdict)} 样例" loading="lazy">
-          <figcaption>${esc(c.reason || "无理由")}</figcaption></figure>`;
-        box.innerHTML = `
-          <div class="refs">
-            <div><h2>OK 样例 <span class="pill">${refs.ok.length}</span></h2>
-              <div class="refrow">${refs.ok.length ? refs.ok.map(card).join("") : '<span class="muted">暂无</span>'}</div></div>
-            <div><h2>NG 样例 <span class="pill">${refs.ng.length}</span></h2>
-              <div class="refrow">${refs.ng.length ? refs.ng.map(card).join("") : '<span class="muted">暂无</span>'}</div></div>
-          </div>
-          ${refs.note ? `<p class="muted" style="margin:8px 0 0">${esc(refs.note)}</p>` : ""}`;
+        window.__refs = refs;
+        const all = [
+          ...refs.ok.map(c => ({...c, kind: "ok"})),
+          ...refs.ng.map(c => ({...c, kind: "ng"})),
+        ];
+        const thumb = (c) => `<figure title="${esc(c.kind.toUpperCase())} · ${esc(c.reason || "无理由")}">
+          <img src="${c.image_url}" alt="${esc(c.kind)} 样例" loading="lazy" data-ref="1"></figure>`;
+        const shown = all.slice(0, 4);
+        box.innerHTML = `<div class="ref-strip">
+          <span class="lbl">样例</span>
+          ${shown.map(thumb).join("") || '<span class="muted">暂无</span>'}
+          ${all.length > 4 ? `<button class="ref-more" id="refMore">+${all.length - 4}</button>` : ""}
+        </div>
+        ${refs.note ? `<div class="muted" style="margin-top:2px">${esc(refs.note)}</div>` : ""}`;
         box.hidden = false;
         $("rRefBtn").textContent = "收起参考样例";
+        const openDlg = () => {
+          $("refDlgBody").innerHTML = `<div class="refrow">${all.map(c => `<figure>
+            <img src="${c.image_url}" alt="${esc(c.kind)} 样例" loading="lazy">
+            <figcaption>${esc(c.kind.toUpperCase())} · ${esc(c.reason || "无理由")}</figcaption></figure>`).join("")}</div>`;
+          $("refDlg").showModal();
+        };
+        box.querySelectorAll("[data-ref]").forEach(img => { img.onclick = openDlg; });
+        if ($("refMore")) $("refMore").onclick = openDlg;
       } catch (e) { toast(e.message, true); }
     }
 
