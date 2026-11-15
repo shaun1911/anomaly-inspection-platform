@@ -214,3 +214,10 @@ v1 不做登录系统：站位用固定 token，管理页用内网访问控制�
 | P3 | 抽检批次 + 训练任务 + 向导 | 需新增盲判与训练接口 |
 
 **待建后端**：`/api/settings`、`/api/audit`、`/api/blind/*`、`/api/train/*`、`/api/codes/{code}/timeline`。
+## 风格基线（工业极简，2026-11-15）
+
+- 基准：ui-ux-pro-max 的 Minimalism / enterprise dashboard 方向；不采用玻璃拟态、深色氛围。
+- 正文 15px / 1.5；圆角：区块 8px、按钮与输入 6px；卡片左侧 3px 状态条（灰/琥珀/红）代替大面积底色。
+- 标题用 3px 品牌色左边条 + 0.06em 字距，强化"仪表分区"而非装饰。
+- 数字一律 	abular-nums；对比度基线 AA（主按钮 5.18、正文 7.56、次要 5.24）。
+- 作用域：全局 token（字号/圆角）已生效；工作台样板另有 ody[data-page="workbench"] 专项样式。

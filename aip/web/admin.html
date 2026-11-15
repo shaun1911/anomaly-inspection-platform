@@ -25,7 +25,7 @@
   }
   *{box-sizing:border-box}
   html,body{background:var(--g0)}
-  body{margin:0;color:var(--t1);font:14px/1.55 "Microsoft YaHei",system-ui,sans-serif}
+  body{margin:0;color:var(--t1);font:15px/1.5 "Microsoft YaHei",system-ui,sans-serif}
   :focus-visible{outline:3px solid var(--ring);outline-offset:2px;border-radius:6px}
 
   .shell{display:grid;grid-template-columns:196px 1fr;min-height:100vh}
@@ -57,13 +57,13 @@
   @keyframes prog{0%{transform:scaleX(.05);opacity:.7}50%{transform:scaleX(.6);opacity:1}100%{transform:scaleX(.95);opacity:.8}}
   main{padding:18px 22px;display:grid;gap:16px;align-content:start;max-width:1600px;margin:0 auto;width:100%}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px}
-  .card{background:var(--g1);text-decoration:none;color:inherit;display:block;border:1px solid var(--g3);border-radius:12px;padding:14px}
+  .card{background:var(--g1);text-decoration:none;color:inherit;display:block;border:1px solid var(--g3);border-radius:8px;padding:12px}
   .card b{display:block;font-size:22px;margin-top:4px;font-variant-numeric:tabular-nums}
   .card span{color:var(--t3);font-size:12px}
   .card.warn b{color:var(--warn)}
   .card.bad b{color:var(--bad)}
 
-  section{background:var(--g1);border:1px solid var(--g3);border-radius:12px;padding:16px}
+  section{background:var(--g1);border:1px solid var(--g3);border-radius:8px;padding:16px}
   h2{font-size:13px;margin:0 0 12px;color:var(--t2);font-weight:600;display:flex;align-items:center;gap:8px}
   h2 .pill{font-weight:400}
 
@@ -173,8 +173,23 @@
   .cache-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;
     margin-top:14px;padding:12px;border:1px solid var(--g3);border-radius:10px;background:var(--g2)}
   @media (max-width:900px){.settings-layout{grid-template-columns:1fr}.settings-nav{flex-direction:row;flex-wrap:wrap}}
+  /* 工业极简样板：工作台 */
+  body[data-page="workbench"] h2{
+    font-size:13px;letter-spacing:.06em;color:var(--t1);
+    border-left:3px solid var(--brand);padding-left:10px;margin-bottom:14px}
+  body[data-page="workbench"] .cards .card{
+    border-left:3px solid var(--g3);border-radius:6px;padding:12px 12px 10px}
+  body[data-page="workbench"] .cards .card.warn{border-left-color:var(--warn)}
+  body[data-page="workbench"] .cards .card.bad{border-left-color:var(--bad)}
+  body[data-page="workbench"] .cards .card span{font-size:12px;letter-spacing:.03em}
+  body[data-page="workbench"] .cards .card b{font-size:26px;line-height:1.15;margin-top:2px}
+  body[data-page="workbench"] .todo-card{border-left:3px solid var(--g3);border-radius:6px}
+  body[data-page="workbench"] .todo-card.warn{border-left-color:var(--warn)}
+  body[data-page="workbench"] .todo-card.bad{border-left-color:var(--bad)}
+  body[data-page="workbench"] table{font-size:13px}
+  body[data-page="workbench"] th{letter-spacing:.03em}
   .todo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
-  .todo-card{display:flex;flex-direction:column;gap:6px;padding:16px;border-radius:12px;
+  .todo-card{display:flex;flex-direction:column;gap:6px;padding:14px;border-radius:8px;
     border:1px solid var(--g3);background:var(--g2);text-decoration:none;color:inherit}
   .todo-card:hover{border-color:var(--brand)}
   .todo-title{font-size:13px;color:var(--t2)}
@@ -2479,6 +2494,7 @@ async function route() {
     on ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current");
   });
   $("title").textContent = name === "code" ? "编码详情" : (TITLES[name] || "工作台");
+  document.body.dataset.page = name;
   setBusy(true);
   try {
     if (name === "code" && arg) return await renderCode(decodeURIComponent(arg));
