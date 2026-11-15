@@ -8,8 +8,8 @@
 <style>
   :root{
     color-scheme: light dark;
-    --brand:#F26522;
-    --ok:light-dark(#1B8F3A,#34C759);
+    --brand:#C2410C;
+    --ok:light-dark(#147A32,#34C759);
     --warn:light-dark(#A86500,#F5A623);
     --bad:light-dark(#C62828,#FF453A);
     --g0:light-dark(#F4F5F7,#0F1115);
@@ -18,8 +18,8 @@
     --g3:light-dark(#D6DAE1,#3A404A);
     --t1:light-dark(#16181D,#F5F6F8);
     --t2:light-dark(#4B5563,#A8AFBA);
-    --t3:light-dark(#6B7280,#8A929E);
-    --ring:light-dark(rgba(242,101,34,.35),rgba(242,101,34,.55));
+    --t3:light-dark(#5B6472,#8A929E);
+    --ring:light-dark(rgba(194,65,12,.45),rgba(194,65,12,.6));
     accent-color: var(--brand);
     scrollbar-color: light-dark(#B9BFC8,#4A515C) transparent;
   }
@@ -44,13 +44,17 @@
   .search-drop{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:20;background:var(--g1);
     border:1px solid var(--g3);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);
     padding:6px;max-height:360px;overflow:auto}
-  .search-group{padding:6px 8px 2px;font-size:11px;color:var(--t3)}
+  .search-group{padding:6px 8px 2px;font-size:12px;color:var(--t3)}
   .search-item{display:flex;gap:8px;align-items:center;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px}
   .search-item:hover,.search-item.on{background:var(--g2)}
   .search-item .muted{margin-left:auto}
   .search input{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:8px 12px;font-size:13px}
   .pill{padding:4px 10px;border-radius:999px;background:var(--g2);color:var(--t2);font-size:12px}
 
+  #progress{position:fixed;left:0;right:0;top:0;height:3px;z-index:50;background:var(--brand);
+    transform-origin:left;animation:prog 900ms ease-in-out infinite}
+  #progress[hidden]{display:none}
+  @keyframes prog{0%{transform:scaleX(.05);opacity:.7}50%{transform:scaleX(.6);opacity:1}100%{transform:scaleX(.95);opacity:.8}}
   main{padding:18px 22px;display:grid;gap:16px;align-content:start;max-width:1600px;margin:0 auto;width:100%}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px}
   .card{background:var(--g1);text-decoration:none;color:inherit;display:block;border:1px solid var(--g3);border-radius:12px;padding:14px}
@@ -64,12 +68,15 @@
   h2 .pill{font-weight:400}
 
   table{width:100%;border-collapse:collapse;font-size:13px}
+  td,th{font-variant-numeric:tabular-nums}
+  .table-wrap{overflow:auto;max-height:calc(100vh - 230px);border-radius:8px}
+  .table-wrap thead th{position:sticky;top:0;z-index:1;background:var(--g1)}
   th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--g3)}
   th{color:var(--t3);font-weight:500;font-size:12px}
   tbody tr:hover{background:light-dark(#F7F8FA,#22262C)}
   tbody tr[data-code]{cursor:pointer}
 
-  label{display:block;font-size:11px;color:var(--t3);margin-bottom:4px}
+  label{display:block;font-size:12px;color:var(--t3);margin-bottom:4px}
   input.missing,select.missing{border-color:var(--bad);box-shadow:0 0 0 3px color-mix(in oklab,var(--bad) 20%,transparent)}
   .req{color:var(--bad)}
   input,select{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:8px 10px;font-size:13px}
@@ -104,7 +111,7 @@
     .form-grid > div:last-child button{width:100%}
   }
 
-  .tag{font-size:11px;padding:2px 8px;border-radius:999px;display:inline-block}
+  .tag{font-size:12px;padding:2px 8px;border-radius:999px;display:inline-block}
   .tag.ok,.tag.assist{background:color-mix(in oklab,var(--ok) 18%,transparent);color:var(--ok)}
   .tag.ng,.tag.disabled{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad)}
   .tag.gray,.tag.candidate,.tag.shadow{background:color-mix(in oklab,var(--warn) 18%,transparent);color:var(--warn)}
@@ -124,7 +131,7 @@
   .timeline{display:flex;flex-direction:column;gap:0}
   .tl{display:grid;grid-template-columns:150px 90px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid var(--g3);font-size:13px}
   .tl time{color:var(--t3);font-variant-numeric:tabular-nums;font-size:12px}
-  .kind{font-size:11px;color:var(--t3)}
+  .kind{font-size:12px;color:var(--t3)}
   .review{display:grid;grid-template-columns:380px 1fr;gap:16px;align-items:start}
   .review-list{background:var(--g1);border:1px solid var(--g3);border-radius:12px;padding:16px}
   .review-detail{background:var(--g1);border:1px solid var(--g3);border-radius:12px;padding:16px}
@@ -136,7 +143,7 @@
   .refrow{display:flex;gap:8px;flex-wrap:wrap}
   .refrow figure{margin:0;width:110px}
   .refrow img{width:110px;height:110px;object-fit:cover;border-radius:8px;border:1px solid var(--g3);background:var(--g2)}
-  .refrow figcaption{font-size:11px;color:var(--t3);margin-top:4px;line-height:1.4}
+  .refrow figcaption{font-size:12px;color:var(--t3);margin-top:4px;line-height:1.4}
   .thumb{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--g3);background:var(--g2)}
   .form-tight{
     display:grid;
@@ -204,7 +211,7 @@
   .row button{flex:1}
   dialog{background:var(--g1);color:var(--t1);border:1px solid var(--g3);border-radius:12px;padding:20px;width:min(520px,92vw)}
   dialog::backdrop{background:rgba(0,0,0,.5)}
-  dialog label{display:block;font-size:11px;color:var(--t3);margin:10px 0 4px}
+  dialog label{display:block;font-size:12px;color:var(--t3);margin:10px 0 4px}
   dialog input,dialog select{width:100%;background:var(--g2);border:1px solid var(--g3);color:var(--t1);border-radius:8px;padding:9px 10px;font-size:13px}
   #toasts{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px;z-index:99}
   #toasts output{padding:12px 16px;border-radius:10px;color:#fff;font-size:13px;background:var(--ok)}
@@ -240,14 +247,15 @@
       <h1 id="title">工作台</h1>
       <div class="search" id="searchWrap">
         <label class="sr-only" for="jump">搜索编码、件号或模型</label>
-        <input id="jump" placeholder="搜索编码 / 件号 / 模型" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="searchDrop">
-        <div id="searchDrop" class="search-drop" hidden></div>
+        <input id="jump" placeholder="搜索编码 / 件号 / 模型" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="searchDrop">
+        <div id="searchDrop" class="search-drop" role="listbox" aria-label="搜索结果" hidden></div>
       </div>
       <span class="pill" id="health" role="status">健康检查中…</span>
     </header>
     <main id="view" aria-live="polite"></main>
   </div>
 </div>
+<div id="progress" hidden aria-hidden="true"></div>
 <div id="toasts" aria-live="polite"></div>
 
 <dialog id="datasetDlg" style="width:min(860px,94vw)">
@@ -2439,6 +2447,25 @@ const TITLES = {
   training: "训练与发布", system: "系统", settings: "设置"
 };
 
+function setBusy(on) {
+  $("progress").hidden = !on;
+  if (on) $("view").setAttribute("aria-busy", "true");
+  else $("view").setAttribute("aria-busy", "false");
+}
+
+function enhanceTables() {
+  document.querySelectorAll("#view table").forEach(t => {
+    if (t.closest(".table-wrap")) return;
+    const wrap = document.createElement("div");
+    wrap.className = "table-wrap";
+    t.parentNode.insertBefore(wrap, t);
+    wrap.appendChild(t);
+  });
+}
+
+const viewObserver = new MutationObserver(() => enhanceTables());
+viewObserver.observe(document.getElementById("view"), {childList: true});
+
 async function route() {
   const raw = (location.hash.replace(/^#\/?/, "") || "workbench").split("?")[0];
   const [name, arg] = raw.split("/");
@@ -2447,6 +2474,7 @@ async function route() {
     on ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current");
   });
   $("title").textContent = name === "code" ? "编码详情" : (TITLES[name] || "工作台");
+  setBusy(true);
   try {
     if (name === "code" && arg) return await renderCode(decodeURIComponent(arg));
     if (name === "wizard") return await renderWizard();
@@ -2462,6 +2490,9 @@ async function route() {
     return await renderWorkbench();
   } catch (e) {
     $("view").innerHTML = `<section><div class="empty">加载失败：${esc(e.message)}<br><b>下一步</b>：${esc(e.body?.action || "刷新页面重试；仍失败请检查服务是否在跑")}</div></section>`;
+  } finally {
+    setBusy(false);
+    enhanceTables();
   }
 }
 
@@ -2482,6 +2513,7 @@ function closeSearch() {
   $("jump").setAttribute("aria-expanded", "false");
   searchItems = [];
   searchActive = -1;
+  $("jump").removeAttribute("aria-activedescendant");
 }
 
 function renderSearch(results) {
@@ -2496,17 +2528,17 @@ function renderSearch(results) {
   for (const [key, title, map] of groups) {
     const rows = results[key] || [];
     if (!rows.length) continue;
-    html.push(`<div class="search-group">${title}</div>`);
+    html.push(`<div class="search-group" role="presentation">${title}</div>`);
     for (const row of rows) {
       const item = map(row);
       searchItems.push(item);
       const i = searchItems.length - 1;
-      html.push(`<div class="search-item" data-i="${i}">
+      html.push(`<div class="search-item" role="option" id="sopt-${i}" aria-selected="false" data-i="${i}">
         <span>${esc(item.label)}</span><span class="muted">${esc(item.sub)}</span>
       </div>`);
     }
   }
-  drop.innerHTML = html.length ? html.join("") : '<div class="search-group">没有匹配</div>';
+  drop.innerHTML = html.length ? html.join("") : '<div class="search-group" role="presentation">没有匹配</div>';
   drop.hidden = false;
   $("jump").setAttribute("aria-expanded", "true");
   drop.querySelectorAll(".search-item").forEach(el => {
@@ -2526,8 +2558,11 @@ function openSearchItem(i) {
 function moveSearch(delta) {
   if (!searchItems.length) return;
   searchActive = (searchActive + delta + searchItems.length) % searchItems.length;
+  $("jump").setAttribute("aria-activedescendant", "sopt-" + searchActive);
   document.querySelectorAll("#searchDrop .search-item").forEach(el => {
-    el.classList.toggle("on", Number(el.dataset.i) === searchActive);
+    const on = Number(el.dataset.i) === searchActive;
+    el.classList.toggle("on", on);
+    el.setAttribute("aria-selected", on ? "true" : "false");
   });
 }
 
