@@ -95,12 +95,23 @@ def list_models(conn: sqlite3.Connection = Depends(get_conn)) -> list[dict]:
             " FROM model_version WHERE model_id = ? ORDER BY version_no DESC",
             (m["id"],),
         ).fetchall()
+        families = [
+            r["name"]
+            for r in conn.execute(
+                "SELECT DISTINCT f.name FROM binding b"
+                " JOIN product_code p ON p.id = b.product_code_id"
+                " JOIN family f ON f.id = p.family_id"
+                " WHERE b.model_id = ? AND b.active_to IS NULL ORDER BY f.name",
+                (m["id"],),
+            ).fetchall()
+        ]
         out.append(
             {
                 "id": m["id"],
                 "code": m["code"],
                 "name": m["name"],
                 "archived_at": m["archived_at"],
+                "families": families,
                 "versions": [
                     {
                         "version_no": v["version_no"],

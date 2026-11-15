@@ -406,6 +406,7 @@ async function renderWorkbench() {
 let showArchived = false;
 
 let wiz = { code: "", modelId: null };
+let trainingState = { q: "", family: "", jobModel: "" };
 
 async function renderWizard() {
   const [codes, models, bindings, datasets] = await Promise.all([
@@ -1763,6 +1764,16 @@ async function renderTraining() {
   ]);
   const frozen = datasets.filter(d => d.status === "frozen");
 
+  const families = [...new Set(models.flatMap(m => m.families || []))].sort();
+  const q = trainingState.q.trim().toLowerCase();
+  const shownModels = models.filter(m =>
+    (trainingState.family ? (m.families || []).includes(trainingState.family) : true) &&
+    (q ? (m.code + " " + (m.name || "")).toLowerCase().includes(q) : true)
+  );
+  const shownJobs = trainingState.jobModel
+    ? jobs.filter(j => j.model_code === trainingState.jobModel)
+    : jobs;
+
   const modelOptions = models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("");
 
   const datasetsFor = (modelId) => frozen.filter(d => d.model_id === modelId);
@@ -1802,11 +1813,15 @@ async function renderTraining() {
     </section>
 
     <section>
-      <h2>训练任务 <span class="pill">${jobs.length}</span></h2>
-      ${jobs.length === 0 ? `<div class="empty">还没有训练任务。<b>下一步</b>：在上方选一个模型开始第一次训练。</div>` : `
+      <h2>训练任务 <span class="pill">${shownJobs.length}${shownJobs.length !== jobs.length ? " / " + jobs.length : ""}</span>
+        <span style="margin-left:auto"><select id="tr_job_model" style="max-width:220px">
+          <option value="">全部模型</option>
+          ${models.map(m => `<option value="${esc(m.code)}" ${trainingState.jobModel === m.code ? "selected" : ""}>${esc(m.code)}</option>`).join("")}
+        </select></span></h2>
+      ${shownJobs.length === 0 ? `<div class="empty">${jobs.length ? "当前筛选下没有训练任务。" : "还没有训练任务。"}<b>下一步</b>：在上方选一个模型开始第一次训练。</div>` : `
       <table><caption class="sr-only">训练任务</caption>
         <thead><tr><th scope="col">#</th><th scope="col">模型</th><th scope="col">数据集</th><th scope="col">状态</th><th scope="col">召回</th><th scope="col">过杀</th><th scope="col">样本</th><th scope="col">完成时间</th></tr></thead>
-        <tbody>${jobs.map(j => `<tr>
+        <tbody>${shownJobs.map(j => `<tr>
           <td>${j.id}</td><td>${esc(j.model_code)}</td>
           <td class="muted">${j.dataset_id ? "#" + j.dataset_id + " " + esc(j.dataset_name || "") : "-"}</td>
           <td><span class="tag ${j.status === "succeeded" ? "ok" : j.status === "failed" ? "ng" : "gray"}">${esc(stLabel(j.status))}</span></td>
@@ -1818,8 +1833,15 @@ async function renderTraining() {
     </section>
 
     <section>
-      <h2>模型与版本 <span class="pill">${models.length} 个模型</span></h2>
-      ${models.length === 0 ? `<div class="empty">还没有模型。</div>` : models.map(m => {
+      <h2>模型与版本 <span class="pill">${shownModels.length} / ${models.length} 个模型</span>
+        <span style="margin-left:auto;display:flex;gap:8px">
+          <input id="tr_q" value="${esc(trainingState.q)}" placeholder="搜索模型编码/名称" style="max-width:220px">
+          <select id="tr_family" style="max-width:180px">
+            <option value="">全部族</option>
+            ${families.map(f => `<option value="${esc(f)}" ${trainingState.family === f ? "selected" : ""}>${esc(f)}</option>`).join("")}
+          </select>
+        </span></h2>
+      ${models.length === 0 ? `<div class="empty">还没有模型。</div>` : (shownModels.length === 0 ? `<div class="empty">没有匹配的模型。</div>` : shownModels.map(m => {
         const assist = m.versions.find(v => v.status === "assist");
         const candidate = m.versions.find(v => v.status === "candidate");
         return `
@@ -1839,7 +1861,7 @@ async function renderTraining() {
               <th scope="col">过杀</th><th scope="col">创建时间</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
             <tbody>${versionRows(m)}</tbody></table>`}
         </div>`;
-      }).join("")}
+      }).join(""))}
     </section>`;
 
   const fillDatasets = () => {
@@ -1855,6 +1877,14 @@ async function renderTraining() {
   };
   $("tr_model").onchange = fillDatasets;
   fillDatasets();
+
+  $("tr_q").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    trainingState.q = e.target.value;
+    renderTraining();
+  });
+  $("tr_family").onchange = (e) => { trainingState.family = e.target.value; renderTraining(); };
+  $("tr_job_model").onchange = (e) => { trainingState.jobModel = e.target.value; renderTraining(); };
 
   $("btnTrain").onclick = async () => {
     const mid = Number($("tr_model").value);
