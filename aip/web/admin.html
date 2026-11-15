@@ -143,7 +143,7 @@
   .form-tight > div:last-child button{width:180px}
   .input-with-action{display:flex;gap:8px;align-items:center}
   .input-with-action input{flex:1}
-  .input-with-action button{min-height:38px;white-space:nowrap}
+  .input-with-action button{min-height:34px;padding:6px 10px;white-space:nowrap}
   .settings-layout{display:grid;grid-template-columns:200px 1fr;gap:18px;align-items:start}
   .settings-nav{display:flex;flex-direction:column;gap:6px}
   .settings-tab{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
@@ -152,6 +152,7 @@
   .settings-tab:hover{border-color:var(--brand)}
   .settings-tab.on{background:var(--g2);border-color:var(--brand);font-weight:600}
   .settings-body{min-width:0}
+  .settings-body th{white-space:nowrap}
   .cache-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;
     margin-top:14px;padding:12px;border:1px solid var(--g3);border-radius:10px;background:var(--g2)}
   @media (max-width:900px){.settings-layout{grid-template-columns:1fr}.settings-nav{flex-direction:row;flex-wrap:wrap}}
@@ -1354,7 +1355,10 @@ async function renderSettings() {
                              <option value="false" ${String(val) !== "true" ? "selected" : ""}>关闭</option>
                            </select>`
                         : `<input data-k="${esc(r.key)}" data-kind="${r.kind}" value="${esc(val)}" aria-label="${esc(r.label)}">`}
-                      ${r.key === "station.token" ? `<button class="ghost" data-copy-token title="复制到剪贴板">复制</button>` : ""}
+                      ${r.key === "station.token" ? `
+                        <button class="ghost" data-gen-token title="生成随机令牌">生成</button>
+                        <button class="ghost" data-copy-token title="复制到剪贴板">复制</button>
+                        <button class="ghost" data-clear-token title="清空即关闭校验">清空</button>` : ""}
                     </div>
                   </td>
                   <td class="muted">${esc(def)}</td>
@@ -1412,6 +1416,30 @@ async function renderSettings() {
     document.querySelectorAll("#setRows tr").forEach(tr => {
       tr.hidden = q !== "" && !tr.dataset.row.includes(q);
     });
+  });
+
+  const tokenInput = () => document.querySelector('input[data-k="station.token"]');
+
+  document.querySelectorAll("[data-gen-token]").forEach(btn => {
+    btn.onclick = () => {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      const token = "aip_" + Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+      const input = tokenInput();
+      input.value = token;
+      input.dispatchEvent(new Event("input", {bubbles: true}));
+      toast("已生成，点击「保存修改」后生效");
+    };
+  });
+
+  document.querySelectorAll("[data-clear-token]").forEach(btn => {
+    btn.onclick = () => {
+      if (!confirm("清空令牌将关闭客户端校验（内网任何人可推图），确认？")) return;
+      const input = tokenInput();
+      input.value = "";
+      input.dispatchEvent(new Event("input", {bubbles: true}));
+      toast("已清空，保存后关闭校验", true);
+    };
   });
 
   document.querySelectorAll("[data-copy-token]").forEach(btn => {

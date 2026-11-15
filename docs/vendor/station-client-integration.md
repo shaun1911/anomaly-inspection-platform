@@ -44,7 +44,7 @@
 | 项 | 要求 |
 |---|---|
 | 协议 | HTTP/1.1，纯内网 |
-| 鉴权 | `X-Station-Token: <令牌>`（甲方配置后强制；未配置时可省略） |
+| 鉴权 | `X-Station-Token: <令牌>`（甲方在「设置 → 接入」生成后提供；未配置时可省略） |
 | 编码 | UTF-8；`Content-Type: multipart/form-data` |
 | 超时 | 建议连接 5s、读 30s |
 | 重试 | 见 §5，**必须带相同 `Idempotency-Key`** |
@@ -207,7 +207,7 @@
 
 供应商交付前必须自测通过：
 
-- [ ] 用错误令牌调用 `/station/config` 与 `/infer` → 均返回 401；
+- [ ] 用错误令牌调用 `/station/config` 与 `/infer` → 均返回 401；\n- [ ] 甲方在「设置 → 接入」点「生成」得到令牌，复制填入客户端后连通；
 - [ ] 未开启强制项时，缺 `part_no`/`batch_no` 仍可推图；开启后返回 400；
 - [ ] 推一张 8×8 图 → 422 `crop_too_small`，客户端展示 `action` 文案；
 - [ ] 推一张宽高与 ROI 不符的图 → 422 `crop_roi_mismatch`；
