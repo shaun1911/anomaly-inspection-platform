@@ -50,7 +50,27 @@ python -m venv .venv --system-site-packages
 
 ---
 
-## 目录结构
+'## 部署到另一台电脑（服务端）
+
+服务端**不需要 CUDA/torch**，依赖只有 FastAPI / uvicorn / Pillow / numpy。
+
+```powershell
+# 1) 打包（当前机器）
+powershell -ExecutionPolicy Bypass -File scripts\package_server.ps1
+#    生成 out/aip-server-<时间>.zip（约 7–10 MB）
+
+# 2) 目标机器：解压后
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+powershell -ExecutionPolicy Bypass -File scripts\start.ps1
+
+# 3) 局域网其它电脑访问
+#    http://<本机IP>:8100/panel
+```
+
+完整步骤（防火墙、开机自启、离线安装、升级回滚、数据搬迁）见
+[`docs/deploy/windows-deploy.md`](docs/deploy/windows-deploy.md)。
+
+## 目录结构'
 
 ```
 aip/src/aip/            服务端（store 迁移、cases、importer、settings、api/*）

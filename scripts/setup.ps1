@@ -1,45 +1,49 @@
-# One-shot environment setup for a fresh machine (Windows / PowerShell).
+﻿# 服务端一键安装（Windows）
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+#   powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Venv "D:\aip\.venv"
 #
-# Strategy: reuse the already-validated torch install of the base interpreter
-# (venv --system-site-packages), then install only what anomalib + aip need.
-# This avoids pip replacing torch+cu130 with a CPU wheel.
+# 只装服务端依赖，不装 torch/anomalib/CUDA。
+
 param(
-    [string]$Python = "python",
-    [switch]$Recreate
+    [string]$Venv = ".venv",
+    [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-if ($Recreate -and (Test-Path ".venv")) {
-    Write-Host "Removing existing .venv" -ForegroundColor Yellow
-    Remove-Item -Recurse -Force ".venv"
+Write-Host "== 检查 Python ==" -ForegroundColor Cyan
+$python = Get-Command python -ErrorAction SilentlyContinue
+if (-not $python) {
+    throw "未找到 python。请先安装 Python 3.10+ 64 位，并勾选 Add to PATH。"
+}
+$ver = & python -c "import sys; print('.'.join(map(str, sys.version_info[:2])))"
+Write-Host "Python $ver"
+
+$venvPath = if ([System.IO.Path]::IsPathRooted($Venv)) { $Venv } else { Join-Path $root $Venv }
+$py = Join-Path $venvPath "Scripts\python.exe"
+
+if ($Force -and (Test-Path $venvPath)) {
+    Write-Host "== 删除旧虚拟环境 ==" -ForegroundColor Yellow
+    Remove-Item $venvPath -Recurse -Force
 }
 
-if (-not (Test-Path ".venv\Scripts\python.exe")) {
-    Write-Host "Creating .venv (system-site-packages)" -ForegroundColor Green
-    & $Python -m venv .venv --system-site-packages
+if (-not (Test-Path $py)) {
+    Write-Host "== 创建虚拟环境 $venvPath ==" -ForegroundColor Cyan
+    & python -m venv $venvPath
 }
 
-$py = Join-Path $root ".venv\Scripts\python.exe"
-& $py -m pip install --disable-pip-version-check -q --upgrade pip
+Write-Host "== 安装依赖（仅服务端） ==" -ForegroundColor Cyan
+& $py -m pip install --upgrade pip
+& $py -m pip install -r (Join-Path $root "requirements-server.txt")
+& $py -m pip install -e (Join-Path $root "aip") --no-deps
 
-Write-Host "Installing anomalib (editable, no deps)" -ForegroundColor Green
-& $py -m pip install --disable-pip-version-check -q --no-deps -e .\anomalib
-
-Write-Host "Installing runtime dependencies" -ForegroundColor Green
-& $py -m pip install --disable-pip-version-check -q `
-    "timm" "einops" "freia>=0.2" "kornia>=0.6.6" "omegaconf>=2.1.1" `
-    "jsonargparse[signatures]>=4.27.7,<4.47.0" "rich>=13.5.2" "docstring_parser" "rich_argparse" `
-    "imagecodecs" "tifffile" "platformdirs>=4.9.4" `
-    "onnx" "onnxscript" "onnxruntime" "fastapi" "uvicorn[standard]" "python-multipart" "pytest"
-
-Write-Host "Installing aip (editable)" -ForegroundColor Green
-& $py -m pip install --disable-pip-version-check -q --no-deps -e .\aip
+Write-Host "== 自检 ==" -ForegroundColor Cyan
+& $py -c "import aip, fastapi, uvicorn, PIL, numpy; print('aip', aip.__version__ if hasattr(aip, '__version__') else 'ok')"
 
 Write-Host ""
-& (Join-Path $root ".venv\Scripts\aip.exe") doctor
-Write-Host "`nNext: .\.venv\Scripts\aip.exe demo ; .\.venv\Scripts\aip.exe train -c configs\demo_patchcore.yaml" -ForegroundColor Green
+Write-Host "安装完成。启动：" -ForegroundColor Green
+Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\start.ps1"
+Write-Host "  （默认监听 0.0.0.0:8100，局域网内其它电脑可访问）"
