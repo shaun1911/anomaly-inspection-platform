@@ -55,3 +55,24 @@
 | 分区层级、标签字体体系 | **full**（动构图，不建议） |
 
 本次审计只出报告。要按 **polish** 把上面 5 处间距 + en dash + 无源 img 一并修掉吗？改动约 12 行 CSS/文案，不动结构。
+---
+
+## 修复记录（polish，2026-11-15）
+
+已按最轻深度修掉：
+
+| 项 | 改动 | 验证 |
+|---|---|---|
+| 元信息行距 | gap 2→4、line-height 1.45→1.5 | CDP owGap: 4px |
+| 理由区 | margin 4→8、gap 6→8 | — |
+| 规则提示 / 结果号 | margin-top 4/6→8 | — |
+| 图下边距 | 10→12 | — |
+| en dash | 分数区间与快捷键说明改 ~ | 页面文本不再含 – |
+| 无源 img | #shot 加透明占位 src | sloplint FAIL 76 消失 |
+| overflow-x | html,body{overflow-x:clip} | FAIL 34 消失 |
+
+为保住 1440×900 首屏，@media (max-height:900px) 下样例缩略图降到 13vh（105px）；1920×1080 仍为 148px。
+
+sloplint：**15 FAIL → 13 FAIL**。剩余为 token 字面量（48）、导航标签字距（67）、sticky 层级（56）、CSS stamp（审计目标固有），归 **restyle**，本次未动。
+
+回归：235 测试、16 项冒烟全过；页面 805/805，动作区 710。

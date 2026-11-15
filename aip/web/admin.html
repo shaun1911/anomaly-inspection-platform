@@ -13,7 +13,7 @@
       <tr><td><kbd>J</kbd> <kbd>K</kbd></td><td>下一件 / 上一件</td></tr>
       <tr><td><kbd>O</kbd> / <kbd>N</kbd></td><td>判为 OK / 判为 NG（相反结论需先选理由）</td></tr>
       <tr><td><kbd>Enter</kbd></td><td>接受系统结论（灰区会提示先明确判定）</td></tr>
-      <tr><td><kbd>1</kbd>–<kbd>5</kbd></td><td>选择理由：划痕/脏污/压伤/误报/其他</td></tr>
+      <tr><td><kbd>1</kbd>~<kbd>5</kbd></td><td>选择理由：划痕/脏污/压伤/误报/其他</td></tr>
       <tr><td><kbd>?</kbd></td><td>打开本说明</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>关闭弹窗</td></tr>
     </tbody></table>
@@ -51,7 +51,7 @@
   html[data-theme="light"]{color-scheme:light}
   html[data-theme="dark"]{color-scheme:dark}
   html[data-theme="auto"]{color-scheme:light dark}
-  html,body{background:var(--g0)}
+  html,body{background:var(--g0);overflow-x:clip}
   body{margin:0;color:var(--t1);font:15px/1.5 "Microsoft YaHei",system-ui,sans-serif}
   :focus-visible{outline:3px solid var(--ring);outline-offset:2px;border-radius:6px}
 
@@ -120,7 +120,7 @@
   .form button{width:100%}
 
   /* 固定列宽表单：以 1920 为基准，整体靠左、不撑满
-     - 3 个输入列，每列 260–340px（不再用 1fr 拉伸）
+     - 3 个输入列，每列 260-340px（不再用 1fr 拉伸）
      - 按钮固定 180px，两个表单右边缘对齐
      - 列间距 16px，整块最大宽度 1248px
   */
@@ -260,10 +260,10 @@
   .item .score{flex:0 0 76px;white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums;color:var(--t2)}
   .hero{display:grid;grid-template-columns:1fr clamp(240px, 32vh, 340px);gap:12px;align-items:stretch;flex:0 0 auto}
   .hero-side{display:flex;flex-direction:column;gap:6px;min-width:0}
-  .shot{background:var(--g2);border-radius:8px;min-height:170px;height:100%;flex:0 0 auto;position:relative;
+  .shot{background:var(--g2);border-radius:8px;min-height:170px;height:100%;flex:0 0 auto;position:relative;margin-bottom:12px;
     display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:10px}
   .shot img{position:absolute;inset:0;margin:auto;width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
-  .kv{display:grid;grid-template-columns:76px 1fr;gap:2px 12px;font-size:12px;line-height:1.45}
+  .kv{display:grid;grid-template-columns:76px 1fr;gap:4px 12px;font-size:12px;line-height:1.5}
   .kv.kv2{grid-template-columns:52px 1fr 64px 1fr}
   .kv div:nth-child(odd){color:var(--t3)}
   #rRefs{max-height:none;overflow:visible}
@@ -279,8 +279,8 @@
   .ref-strip .tag{flex:0 0 auto}
   .ref-strip .tag.ok{background:color-mix(in oklab,var(--ok) 16%,transparent);color:var(--ok)}
   .ref-strip .tag.ng{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad)}
-  .reasons{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
-  .review-tip{font-size:13px;color:var(--t2);margin-top:4px;line-height:1.5;display:flex;gap:6px;align-items:center}
+  .reasons{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+  .review-tip{font-size:13px;color:var(--t2);margin-top:8px;line-height:1.5;display:flex;gap:6px;align-items:center}
   kbd{font-family:inherit;font-size:12px;color:var(--t1);background:var(--g2);
     border:1px solid var(--g3);border-bottom-width:2px;border-radius:4px;padding:1px 5px;white-space:nowrap}
   .kbd-hint{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--t2);
@@ -299,6 +299,11 @@
   #toasts output{padding:12px 16px;border-radius:10px;color:#fff;font-size:13px;background:var(--ok)}
   #toasts output[data-kind="bad"]{background:var(--bad)}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  @media (max-height:900px){
+    .ref-strip figure{width:clamp(96px, 13vh, 140px)}
+    .ref-strip img{width:clamp(96px, 13vh, 140px);height:clamp(96px, 13vh, 140px)}
+    .ref-more{width:clamp(96px, 13vh, 140px);height:clamp(96px, 13vh, 140px)}
+  }
   @media (max-width:900px){.shell{grid-template-columns:1fr}aside{position:static;height:auto}
     .kpi-row{grid-template-columns:repeat(3,1fr);row-gap:12px}
     .kpi-row .card:nth-child(4){border-left:0;padding-left:2px}
@@ -702,7 +707,7 @@ async function renderWizard() {
           <div><label for="wz_verdict">结论</label><select id="wz_verdict"><option value="ok">可接受 ok</option><option value="ng">缺陷 ng</option></select></div>
           <div><button class="act" id="wzAddCase">录入判例</button></div>
         </div>
-        <p class="muted">已录入 <b>${cases.length}</b> 条。建议先录 5–10 条（含至少 1 条 NG）再训练。</p>`)}
+        <p class="muted">已录入 <b>${cases.length}</b> 条。建议先录 5~10 条（含至少 1 条 NG）再训练。</p>`)}
 
       ${step(3, `<div class="form">
           <div><button class="act" id="wzTrain">建数据集 → 冻结 → 训练</button></div>
@@ -1155,18 +1160,18 @@ async function renderQuality() {
             <div id="rlist" class="queue"></div>
             <div class="kbd-hint review-hint">${isGroup
               ? "点击分组下钻到件"
-              : `<kbd>J</kbd>/<kbd>K</kbd> 切换 · <kbd>O</kbd>/<kbd>N</kbd> 判 OK/NG · <kbd>Enter</kbd> 接受 · <kbd>1–5</kbd> 理由`}</div>
+              : `<kbd>J</kbd>/<kbd>K</kbd> 切换 · <kbd>O</kbd>/<kbd>N</kbd> 判 OK/NG · <kbd>Enter</kbd> 接受 · <kbd>1~5</kbd> 理由`}</div>
           </div>
           <div class="review-detail">
             <div class="hero">
-              <div class="shot"><img id="shot" alt="裁片"></div>
+              <div class="shot"><img id="shot" alt="裁片" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="></div>
               <div class="hero-side">
                 <button class="ghost" id="rRefBtn">参考样例（可能影响判断）</button>
                 <div id="rRefs" hidden></div>
               </div>
             </div>
             <div class="kv" id="rmeta"></div>
-            <div id="rshots" class="muted" style="margin-top:6px"></div>
+            <div id="rshots" class="muted" style="margin-top:8px"></div>
             <div class="reasons" id="rreasons">
               ${REASONS.map((r, i) => `<button class="ghost" data-r="${r}">${i + 1}. ${r}</button>`).join("")}
             </div>
@@ -1199,7 +1204,7 @@ async function renderQuality() {
           ? `<span class="pill">${it.count} 张</span>`
           : tag(it.label);
         const score = it.kind === "part"
-          ? `${it.min_score.toFixed(2)}–${it.max_score.toFixed(2)}`
+          ? `${it.min_score.toFixed(2)} ~ ${it.max_score.toFixed(2)}`
           : it.score.toFixed(3);
         const partNo = it.part_no || "-";
         return `<div class="item ${i === idx ? "on" : ""}" data-i="${i}">
