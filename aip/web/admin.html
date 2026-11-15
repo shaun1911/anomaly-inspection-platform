@@ -131,6 +131,20 @@
   .refrow img{width:110px;height:110px;object-fit:cover;border-radius:8px;border:1px solid var(--g3);background:var(--g2)}
   .refrow figcaption{font-size:11px;color:var(--t3);margin-top:4px;line-height:1.4}
   .thumb{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--g3);background:var(--g2)}
+  .form-tight{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(260px, 340px)) 180px;
+    gap:16px;
+    align-items:end;
+    justify-content:start;
+    margin-bottom:14px;
+  }
+  .form-tight input,.form-tight select{min-width:0;max-width:340px}
+  .form-tight > div:last-child button{width:180px}
+  .model-block{border:1px solid var(--g3);border-radius:10px;padding:12px;margin-bottom:12px;background:var(--g1)}
+  .model-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+  .model-block table{margin-top:4px}
+  td button{min-height:38px;padding:8px 14px}
   .savebar{position:sticky;bottom:0;display:flex;align-items:center;gap:12px;background:var(--g1);border:1px solid var(--g3);border-radius:12px;padding:12px 16px;box-shadow:0 -4px 20px rgba(0,0,0,.15)}
   .savebar span{flex:1;color:var(--t2);font-size:13px}
   .wiz-step{border:1px solid var(--g3);border-radius:10px;padding:14px;margin-bottom:10px;opacity:.6}
@@ -259,6 +273,14 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
+window.addEventListener("error", (e) => {
+  const v = document.getElementById("view");
+  if (v) v.innerHTML = `<section><div class="empty">页面脚本异常：${String(e.message || e.error)}<br>请刷新重试</div></section>`;
+});
+window.addEventListener("unhandledrejection", (e) => {
+  const v = document.getElementById("view");
+  if (v) v.innerHTML = `<section><div class="empty">加载失败：${String(e.reason && e.reason.message || e.reason)}</div></section>`;
+});
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 async function api(path, opts) {
@@ -1736,22 +1758,46 @@ async function renderBlindBatch(id) {
 }
 
 async function renderTraining() {
-  const [jobs, models, datasets] = await Promise.all([api("/api/train"), api("/api/models"), api("/api/datasets")]);
+  const [jobs, models, datasets] = await Promise.all([
+    api("/api/train"), api("/api/models"), api("/api/datasets")
+  ]);
   const frozen = datasets.filter(d => d.status === "frozen");
+
+  const modelOptions = models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("");
+
+  const datasetsFor = (modelId) => frozen.filter(d => d.model_id === modelId);
+
+  const versionRows = (m) => m.versions.map(v => {
+    const ds = v.dataset_id ? `#${v.dataset_id}` : "-";
+    const rec = v.metrics && v.metrics.recall != null ? (v.metrics.recall * 100).toFixed(1) + "%" : "-";
+    const ovk = v.metrics && v.metrics.overkill != null ? (v.metrics.overkill * 100).toFixed(1) + "%" : "-";
+    const action = v.status === "candidate"
+      ? `<button class="act" data-publish="${m.id}:${v.version_no}" data-label="${esc(m.code)} v${v.version_no}">发布为生效</button>`
+      : v.status === "assist" ? '<span class="muted">当前生效</span>'
+      : v.status === "disabled" ? `<button class="ghost" data-revive="${m.id}:${v.version_no}" data-label="${esc(m.code)} v${v.version_no}">重新启用</button>`
+      : "";
+    return `<tr>
+      <td>v${v.version_no}</td>
+      <td class="muted">${ds}</td>
+      <td>${rec}</td>
+      <td>${ovk}</td>
+      <td class="muted">${fmtTime(v.created_at)}</td>
+      <td><span class="tag ${v.status}">${esc(stLabel(v.status))}</span></td>
+      <td>${action}</td>
+    </tr>`;
+  }).join("");
 
   $("view").innerHTML = `
     <section>
       <h2>训练新版本</h2>
-      <div class="form">
+      <div class="form-tight">
         <div><label for="tr_model">模型</label>
-          <select id="tr_model">${models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("")}</select>
-        </div>
+          <select id="tr_model">${modelOptions}</select></div>
         <div><label for="tr_dataset">数据集（已冻结）</label>
-          <select id="tr_dataset">${frozen.map(d => `<option value="${d.id}" data-model="${d.model_id}">#${d.id} ${esc(d.name)} · ${esc(d.model_code)} · ${d.count} 条</option>`).join("")}</select>
-        </div>
+          <select id="tr_dataset"></select></div>
         <div><button class="act" id="btnTrain">开始训练</button></div>
       </div>
-      ${frozen.length === 0 ? '<p class="muted">还没有已冻结的数据集：先去「数据集」建一个并冻结。</p>' : ""}
+      <p class="muted" id="trHint"></p>
       <p class="muted">当前是假训练器：只验证状态机与发布链路，指标为模拟值，不代表模型能力。</p>
     </section>
 
@@ -1762,6 +1808,7 @@ async function renderTraining() {
         <thead><tr><th scope="col">#</th><th scope="col">模型</th><th scope="col">数据集</th><th scope="col">状态</th><th scope="col">召回</th><th scope="col">过杀</th><th scope="col">样本</th><th scope="col">完成时间</th></tr></thead>
         <tbody>${jobs.map(j => `<tr>
           <td>${j.id}</td><td>${esc(j.model_code)}</td>
+          <td class="muted">${j.dataset_id ? "#" + j.dataset_id + " " + esc(j.dataset_name || "") : "-"}</td>
           <td><span class="tag ${j.status === "succeeded" ? "ok" : j.status === "failed" ? "ng" : "gray"}">${esc(stLabel(j.status))}</span></td>
           <td>${j.metrics ? (j.metrics.recall * 100).toFixed(1) + "%" : "-"}</td>
           <td>${j.metrics ? (j.metrics.overkill * 100).toFixed(1) + "%" : "-"}</td>
@@ -1771,50 +1818,65 @@ async function renderTraining() {
     </section>
 
     <section>
-      <h2>版本与发布</h2>
-      ${models.length === 0 ? `<div class="empty">还没有模型。</div>` : models.map(m => `
-        <div style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-            <b>${esc(m.code)}</b><span class="muted">${esc(m.name || "")}</span>
+      <h2>模型与版本 <span class="pill">${models.length} 个模型</span></h2>
+      ${models.length === 0 ? `<div class="empty">还没有模型。</div>` : models.map(m => {
+        const assist = m.versions.find(v => v.status === "assist");
+        const candidate = m.versions.find(v => v.status === "candidate");
+        return `
+        <div class="model-block">
+          <div class="model-head">
+            <b>${esc(m.code)}</b>
+            <span class="muted">${esc(m.name || "")}</span>
+            <span class="pill">${assist ? "生效 v" + assist.version_no : "无生效版本"}</span>
+            ${candidate ? `<span class="pill">候选 v${candidate.version_no}</span>` : ""}
             <span style="margin-left:auto">
-              <button class="ghost" data-rollback="${m.id}">回滚到上一版</button>
+              <button class="ghost" data-rollback="${m.id}" data-label="${esc(m.code)}">回滚到上一版</button>
             </span>
           </div>
           ${m.versions.length === 0 ? '<div class="muted">还没有版本</div>' : `
           <table><caption class="sr-only">${esc(m.code)} 的版本</caption>
-            <thead><tr><th scope="col">版本</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
-            <tbody>${m.versions.map(v => `<tr>
-              <td>v${v.version_no}</td>
-              <td><span class="tag ${v.status}">${esc(stLabel(v.status))}</span></td>
-              <td>${v.status === "candidate"
-                ? `<button class="act" data-publish="${m.id}:${v.version_no}">发布为生效</button>`
-                : v.status === "assist" ? '<span class="muted">当前生效</span>'
-                : v.status === "disabled" ? `<button class="ghost" data-revive="${m.id}:${v.version_no}">重新启用</button>`
-                : ""}</td>
-            </tr>`).join("")}</tbody></table>`}
-        </div>`).join("")}
+            <thead><tr><th scope="col">版本</th><th scope="col">数据集</th><th scope="col">召回</th>
+              <th scope="col">过杀</th><th scope="col">创建时间</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+            <tbody>${versionRows(m)}</tbody></table>`}
+        </div>`;
+      }).join("")}
     </section>`;
 
+  const fillDatasets = () => {
+    const mid = Number($("tr_model").value);
+    const list = datasetsFor(mid);
+    $("tr_dataset").innerHTML = list.length
+      ? list.map(d => `<option value="${d.id}">#${d.id} ${esc(d.name)} · ${d.count} 条</option>`).join("")
+      : '<option value="">该模型没有已冻结数据集</option>';
+    $("btnTrain").disabled = list.length === 0;
+    $("trHint").textContent = list.length
+      ? `将使用数据集 #${list[0].id}（族 ${list[0].family || "-"}，${list[0].count} 条，验证 ${list[0].val_ok + list[0].val_ng} 条）`
+      : "先去「数据集」为该模型建一个数据集并冻结。";
+  };
+  $("tr_model").onchange = fillDatasets;
+  fillDatasets();
+
   $("btnTrain").onclick = async () => {
+    const mid = Number($("tr_model").value);
+    const dsId = Number($("tr_dataset").value);
+    if (!dsId) { toast("该模型没有可用的已冻结数据集", true); return; }
     try {
-      const dsId = Number($("tr_dataset").value);
-      if (!dsId) { toast("先选择一个已冻结的数据集", true); return; }
-      const ds = frozen.find(d => d.id === dsId);
-      const r = await post("/api/train", {model_id: ds.model_id, dataset_id: dsId});
-      toast(`已训练出 v${r.version_no}，指标见列表`);
+      const r = await post("/api/train", {model_id: mid, dataset_id: dsId});
+      toast(`已训练出 v${r.version_no}，指标见下方版本表`);
       renderTraining();
     } catch (e) { toast(e.message, true); }
   };
+
   document.querySelectorAll("[data-publish]").forEach(btn => {
     btn.onclick = async () => {
       const [mid, vno] = btn.dataset.publish.split(":");
-      if (!confirm(`发布 ${btn.dataset.name} v${vno}？\n\n验证期进入"生效"后，该模型下所有编码立即使用新版本；旧版本降为已停用。`)) return;
+      if (!confirm(`发布 ${btn.dataset.label}？\n\n发布后该模型下所有编码立即使用新版本；旧版本降为已停用。`)) return;
       try {
         await api(`/api/models/${mid}/versions/${vno}/status`, {
           method: "PUT", headers: {"Content-Type": "application/json"},
           body: JSON.stringify({status: "assist"})
         });
-        toast(`v${vno} 已发布，旧版本自动降为 disabled`); renderTraining();
+        toast(`${btn.dataset.label} 已发布`); renderTraining();
       } catch (e) { toast(e.message, true); }
     };
   });
@@ -1826,7 +1888,7 @@ async function renderTraining() {
           method: "PUT", headers: {"Content-Type": "application/json"},
           body: JSON.stringify({status: "assist"})
         });
-        toast(`v${vno} 重新启用`); renderTraining();
+        toast(`${btn.dataset.label} 重新启用`); renderTraining();
       } catch (e) { toast(e.message, true); }
     };
   });
@@ -1838,7 +1900,7 @@ async function renderTraining() {
       const prev = m && m.versions.filter(v => v.status === "disabled" && cur && v.version_no < cur.version_no)
         .sort((a, b) => b.version_no - a.version_no)[0];
       if (!cur || !prev) { toast("没有可回退的版本", true); return; }
-      if (!confirm(`回滚：v${cur.version_no} → v${prev.version_no}？\n当前版本会降为已停用。`)) return;
+      if (!confirm(`回滚 ${btn.dataset.label}：v${cur.version_no} → v${prev.version_no}？\n当前版本会降为已停用。`)) return;
       try {
         const r = await post(`/api/models/${mid}/rollback`, {});
         toast(`已回滚 v${r.from} → v${r.to}`); renderTraining();
@@ -1847,22 +1909,10 @@ async function renderTraining() {
   });
 }
 
-function renderPlaceholder(title, need, items) {
-  $("view").innerHTML = `
-    <section>
-      <h2>${esc(title)}</h2>
-      <div class="empty">
-        这一页需要先补后端：<b>${esc(need)}</b>
-        <ul style="margin:10px 0 0 18px;line-height:2">${items.map(i => `<li>${i}</li>`).join("")}</ul>
-      </div>
-    </section>`;
-}
-
-/* ---------- 路由 ---------- */
-
 const TITLES = {
-  workbench: "工作台", wizard: "新建向导", catalog: "编码与模型", quality: "复核队列", cases: "判例库",
-  datasets: "数据集", blind: "抽检", training: "训练与发布", system: "系统", settings: "设置"
+  workbench: "工作台", wizard: "新建向导", catalog: "编码与模型", quality: "复核队列",
+  cases: "判例库", datasets: "数据集", blind: "抽检",
+  training: "训练与发布", system: "系统", settings: "设置"
 };
 
 async function route() {

@@ -91,8 +91,8 @@ def list_models(conn: sqlite3.Connection = Depends(get_conn)) -> list[dict]:
     out: list[dict] = []
     for m in models:
         versions = conn.execute(
-            "SELECT version_no, status, created_at FROM model_version"
-            " WHERE model_id = ? ORDER BY version_no DESC",
+            "SELECT version_no, status, created_at, metrics_json, dataset_id"
+            " FROM model_version WHERE model_id = ? ORDER BY version_no DESC",
             (m["id"],),
         ).fetchall()
         out.append(
@@ -101,7 +101,16 @@ def list_models(conn: sqlite3.Connection = Depends(get_conn)) -> list[dict]:
                 "code": m["code"],
                 "name": m["name"],
                 "archived_at": m["archived_at"],
-                "versions": [dict(v) for v in versions],
+                "versions": [
+                    {
+                        "version_no": v["version_no"],
+                        "status": v["status"],
+                        "created_at": v["created_at"],
+                        "dataset_id": v["dataset_id"],
+                        "metrics": json.loads(v["metrics_json"]) if v["metrics_json"] else None,
+                    }
+                    for v in versions
+                ],
             }
         )
     return out

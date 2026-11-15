@@ -238,7 +238,7 @@ def get_dataset(conn: sqlite3.Connection, dataset_id: int) -> dict:
 
 def list_datasets(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:
     rows = conn.execute(
-        "SELECT d.id, d.name, d.status, d.checksum, d.frozen_at, d.created_at,"
+        "SELECT d.id, d.name, d.model_id, d.status, d.checksum, d.frozen_at, d.created_at,"
         " f.name AS family, m.code AS model_code,"
         " (SELECT count(*) FROM dataset_item i WHERE i.dataset_id = d.id) AS count,"
         " (SELECT count(*) FROM dataset_item i JOIN case_item c ON c.id = i.case_id"
