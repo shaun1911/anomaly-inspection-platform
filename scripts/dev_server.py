@@ -19,6 +19,7 @@ import uvicorn  # noqa: E402
 
 from aip import store  # noqa: E402
 from aip.api.app import create_app  # noqa: E402
+from aip.maintenance_task import start_scheduler  # noqa: E402
 
 
 def main() -> int:
@@ -43,6 +44,7 @@ def main() -> int:
     print(f"panel:  http://{args.host}:{args.port}/panel")
     print(f"docs:   http://{args.host}:{args.port}/docs")
 
+    start_scheduler(args.db)
     uvicorn.run(create_app(args.db), host=args.host, port=args.port, log_level="info")
     return 0
 

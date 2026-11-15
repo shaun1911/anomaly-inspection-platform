@@ -55,7 +55,20 @@
 3. 导出成功后从 `audit_log` 删除；归档动作本身写一条 `audit.archive` 审计；
 4. 也可用 CLI：`python scripts/archive_audit.py [--days 90] [--apply]`。
 
-'归档是删库前先落盘，所以 CSV 就是事后追溯的唯一副本——要长期保存请把 `audit-archive/` 一并备份。
+''归档是删库前先落盘，所以 CSV 就是事后追溯的唯一副本——要长期保存请把 `audit-archive/` 一并备份。
+
+### 自动维护（开关）
+
+设置 → 存储：
+
+| 项 | 默认 | 说明 |
+|---|---|---|
+| `maintenance.auto_hour` | 3 | 每天几点执行（UTC 小时 0-23） |
+| `maintenance.auto_audit` | 关 | 每天按审计保留天数归档 |
+| `maintenance.auto_retention` | 关 | 每天按证据保留天数清理裁片/冒烟图 |
+
+服务启动时拉起守护线程；**存储迁移期间自动跳过**（写锁生效），每次执行写一条 `maintenance.auto` 审计。
+两个开关默认关闭——自动删数据必须显式打开。'
 
 **导回**：系统 → 「导入归档」或 `python scripts/archive_audit.py --import-csv <文件> [--apply]`。
 按 `(actor, action, entity, entity_id, created_at)` 去重，重复导入不会翻倍；预检不写库。'
