@@ -354,7 +354,7 @@ const ACTIONS = {
   "case.archive": "归档判例", "case.restore": "恢复判例", "case.conflict": "判例冲突",
   "setting.update": "修改设置", "setting.bulk_update": "批量修改设置",
   "storage.backup": "备份数据", "storage.move": "迁移存储", "storage.restore": "还原数据",
-  "storage.retention": "清理过期证据", "train.start": "启动训练", "train.cancel": "取消训练",
+  "storage.retention": "清理过期证据", "audit.archive": "归档审计", "audit.import": "导入归档", "train.start": "启动训练", "train.cancel": "取消训练",
   "model.rollback": "回滚版本", "model.archive": "归档模型", "model.patch": "模型改名",
   "code.patch": "修改编码", "code.active": "启用/停用编码",
   "code.archive": "归档编码", "code.restore": "恢复编码", "family.create": "新建族",
@@ -1683,7 +1683,10 @@ async function renderSystem() {
 
     <section>
       <h2>最近操作 <span class="pill">${auditTotal} 条</span>
-        <span style="margin-left:auto"><button class="ghost" id="btnArchiveAudit">归档 180 天前</button></span></h2>
+        <span style="margin-left:auto">
+          <button class="ghost" id="btnImportAudit">导入归档</button>
+          <button class="ghost" id="btnArchiveAudit">归档 180 天前</button>
+        </span></h2>
       <div class="filterbar">
         <select id="sys_action" style="max-width:220px">
           <option value="">全部动作</option>

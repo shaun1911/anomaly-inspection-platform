@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "aip" / "src"))
 
-from aip import audit_archive, store  # noqa: E402
+from aip import audit_archive, audit_import, store  # noqa: E402
 from aip.settings import get_value  # noqa: E402
 
 
@@ -23,10 +23,19 @@ def main() -> int:
     parser.add_argument("--db", default=str(ROOT / "data" / "aip.db"))
     parser.add_argument("--days", type=int, default=None)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--import-csv", default=None, help="导入归档 CSV（配合 --apply 写入）")
     args = parser.parse_args()
 
     conn = store.connect(args.db)
     try:
+        if args.import_csv:
+            out = audit_import.import_csv(conn, args.import_csv, apply=args.apply, actor="cli")
+            if not args.apply:
+                print(f"可导入 {out['count']} 行（重复 {out['duplicates']}）")
+            else:
+                print(f"已导入 {out['imported']} 行（跳过重复 {out['duplicates']}）")
+            return 0
+
         days = args.days or int(get_value(conn, "audit.retention_days"))
         if not args.apply:
             plan = audit_archive.plan(conn, days)

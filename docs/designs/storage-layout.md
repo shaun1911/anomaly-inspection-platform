@@ -55,7 +55,10 @@
 3. 导出成功后从 `audit_log` 删除；归档动作本身写一条 `audit.archive` 审计；
 4. 也可用 CLI：`python scripts/archive_audit.py [--days 90] [--apply]`。
 
-归档是删库前先落盘，所以 CSV 就是事后追溯的唯一副本——要长期保存请把 `audit-archive/` 一并备份。
+'归档是删库前先落盘，所以 CSV 就是事后追溯的唯一副本——要长期保存请把 `audit-archive/` 一并备份。
+
+**导回**：系统 → 「导入归档」或 `python scripts/archive_audit.py --import-csv <文件> [--apply]`。
+按 `(actor, action, entity, entity_id, created_at)` 去重，重复导入不会翻倍；预检不写库。'
 
 ## 备份与还原'
 

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .. import retention
 from .. import audit_archive
+from .. import audit_import
 from .. import backup as backup_mod
 from .. import storage as storage_mod
 from ..storage import is_locked
@@ -161,3 +162,19 @@ def audit_archive_apply(body: ArchiveIn, conn: sqlite3.Connection = Depends(get_
         )}
     except audit_archive.ArchiveError as exc:
         raise ApiError("archive_invalid", str(exc), "保留天数至少 30 天", 400) from exc
+
+
+class AuditImportIn(BaseModel):
+    path: str
+    apply: bool = False
+    actor: str = "web"
+
+
+@router.post("/maintenance/audit/import")
+def audit_import_csv(body: AuditImportIn, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    try:
+        return {"dry_run": not body.apply, **audit_import.import_csv(
+            conn, body.path, apply=body.apply, actor=body.actor
+        )}
+    except audit_import.ImportError_ as exc:
+        raise ApiError("audit_import_failed", str(exc), "检查 CSV 是否为系统导出的归档", 400) from exc
