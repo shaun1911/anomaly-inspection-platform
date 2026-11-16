@@ -144,6 +144,8 @@ if ($kind -eq "dir") {
             env=env, capture_output=True, timeout=180, check=False,
         )
         picked = out_file.read_text(encoding="utf-8").strip() if out_file.exists() else ""
+    except FileNotFoundError as exc:
+        raise ApiError("picker_unavailable", "服务端找不到 powershell，无法弹出选择框", "手动输入路径", 503) from exc
     except subprocess.TimeoutExpired as exc:
         raise ApiError("picker_timeout", "选择框超时未操作", "可手动输入路径", 408) from exc
     finally:
