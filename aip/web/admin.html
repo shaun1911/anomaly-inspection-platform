@@ -288,6 +288,8 @@
   .chip-del:hover{color:var(--bad)}
   .chip-new{display:flex;gap:6px}
   .chip-new .chip-input{flex:1;min-width:120px}
+  .settings-help{margin:0 0 10px;font-size:13px}
+  .row-dirty td{background:color-mix(in oklab,var(--brand) 7%,transparent)}
   .next-step{margin-top:12px;background:var(--g2);border:1px solid var(--g3);border-radius:6px;padding:10px 12px;font-size:13px}
   .next-step b{color:var(--t1)}
   .storage-tree summary{cursor:pointer;font-size:13px;color:var(--t2);margin-top:4px}
@@ -1900,6 +1902,17 @@ let settingsState = { group: "" };
 let settingsDirty = null;
 
 const SETTING_ORDER = ["抽样", "判定", "复核", "训练", "守门", "服务", "接入", "存储", "理由预设"];
+const GROUP_HELP = {
+  抽样: "盲判抽检的抽样规模、关批门槛与三方签字要求。",
+  判定: "判定分数的默认阈值、灰区路由与过杀门槛。",
+  复核: "复核页默认是否展示参考样例、理由预设。",
+  训练: "数据集冻结、训练提交与发布前的守门条件。",
+  守门: "发布/回滚时的指标与样本量门槛，防止低质量版本上线。",
+  服务: "模型缓存、心跳与后台维护任务。",
+  接入: "接口文档与客户端接入方式。",
+  存储: "数据目录迁移、备份还原、证据保留期。",
+  理由预设: "复核判 NG 时可选的改判理由，按顺序对应键盘 1~9。",
+};
 
 async function renderSettings() {
   const rows = await api("/api/settings");
@@ -1978,13 +1991,21 @@ async function renderSettings() {
         <div class="settings-body">
           <div class="filterbar">
             <input id="set_q" placeholder="搜索全部设置项（跨组）" aria-label="搜索全部设置项" style="max-width:280px">
+            <button class="ghost" id="setGroupDefaults" title="把本组所有项改回默认值（仍需保存）">本组恢复默认</button>
           </div>
+          <p class="muted settings-help">${esc(GROUP_HELP[group] || "")}　改动先暂存，点底部「保存修改」才生效。</p>
           <table><caption class="sr-only">${esc(group)} 配置</caption>
             <thead><tr><th scope="col">项</th><th scope="col">当前值</th><th scope="col">默认</th><th scope="col">最后修改</th></tr></thead>
             <tbody id="setRows">
               ${rows.map(r => {
                 const val = Array.isArray(r.value) ? r.value.join(",") : r.value;
                 const def = Array.isArray(r.default) ? r.default.join(",") : r.default;
+                const fmt = (v) => {
+                  if (r.kind === "bool") return (v === true || v === "true") ? "开启" : "关闭";
+                  if (r.key === "review.gray_route") return v === "stop" ? "直接拦停" : "进待复核";
+                  if (Array.isArray(v)) return v.join("、");
+                  return String(v);
+                };
                 const isDefault = String(val) === String(def);
                 const bound = (r.minimum != null || r.maximum != null)
                   ? `（范围 ${r.minimum ?? "-"} ~ ${r.maximum ?? "-"}）` : "";
@@ -2019,7 +2040,7 @@ async function renderSettings() {
                         <button class="ghost" data-clear-token title="清空即关闭校验">清空</button>` : ""}
                     </div>
                   </td>
-                  <td class="muted">${esc(def)}
+                  <td class="muted">${esc(fmt(r.default))}
                     <button class="ghost row-reset" data-def="${esc(r.key)}" ${isDefault ? "hidden" : ""}>恢复默认</button>
                   </td>
                   <td class="muted">${r.updated_by ? esc(r.updated_by) + "<br>" + fmtTime(r.updated_at) : "—"}</td>
@@ -2114,6 +2135,7 @@ async function renderSettings() {
       const orig = Array.isArray(row.value) ? row.value.join(",") : row.value;
       if (String(value) === String(orig)) dirty.delete(inp.dataset.k);
       else dirty.set(inp.dataset.k, value);
+      inp.closest("tr")?.classList.toggle("row-dirty", dirty.has(inp.dataset.k));
       const resetBtn = document.querySelector(`[data-def="${inp.dataset.k}"]`);
       const defVal = Array.isArray(row.default) ? row.default.join(",") : row.default;
       if (resetBtn) resetBtn.hidden = String(inp.value) === String(defVal);
@@ -2133,6 +2155,20 @@ async function renderSettings() {
       toast(`已恢复默认：${row.label}`);
     };
   });
+
+  $("setGroupDefaults").onclick = () => {
+    if (!confirm(`把「${group}」组全部改回默认值？改动仍需点保存才生效。`)) return;
+    inGroup.forEach(r => {
+      const inp = document.querySelector(`[data-k="${r.key}"]`);
+      if (!inp) return;
+      const defVal = Array.isArray(r.default) ? r.default.join(",") : r.default;
+      if (inp.type === "hidden") inp.value = String(defVal);
+      else inp.value = String(defVal);
+      inp.dispatchEvent(new Event("input", {bubbles: true}));
+      if (r.kind === "list") paintChips(r.key);
+    });
+    toast(`已把「${group}」组改回默认，记得保存`);
+  };
 
   applyFilter();
 
