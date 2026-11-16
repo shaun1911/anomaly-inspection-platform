@@ -241,6 +241,8 @@
   .row-group{display:none;margin-right:6px;font-size:11px}
   body.set-searching .row-group{display:inline-block}
   .row-reset{margin-left:6px;padding:2px 8px;min-height:26px;font-size:12px}
+  .next-step{margin-top:12px;background:var(--g2);border:1px solid var(--g3);border-radius:6px;padding:10px 12px;font-size:13px}
+  .next-step b{color:var(--t1)}
   .storage-tree summary{cursor:pointer;font-size:13px;color:var(--t2);margin-top:4px}
   .storage-tree pre{background:var(--g1);border:1px solid var(--g3);border-radius:8px;
     padding:10px 12px;font-size:12px;line-height:1.6;color:var(--t2);overflow:auto}
@@ -997,6 +999,18 @@ async function renderCode(code) {
     api("/api/models")
   ]);
   const cfgVer = d.version || d.draft_version;
+  const boundId = d.binding ? d.binding.model_id : null;
+  const orderedModels = [...models].sort((a, b) => (b.id === boundId ? 1 : 0) - (a.id === boundId ? 1 : 0));
+  const bindState = d.binding
+    ? `已绑定 <b>${esc(d.binding.model_code)}${d.binding.model_name ? " " + esc(d.binding.model_name) : ""}</b>（阶段 ${esc(d.binding.stage || "-")}）`
+    : "尚未绑定模型";
+  const nextStep = !d.binding
+    ? `下一步：在下方选择一个模型并点「绑定」。绑定后才能配置 ROI/阈值或去训练。`
+    : d.version
+      ? `已生效 v${d.version.version_no}。下一步：确认下方 ROI/阈值无误，或去工位面板换型推图。`
+      : d.draft_version
+        ? `已有候选版本 v${d.draft_version.version_no}，尚未发布。下一步：配置 ROI/阈值 → 导出 ONNX → 发布。`
+        : `已绑定模型，但该模型还没有版本。下一步：去「训练与发布」用冻结数据集训练一个版本。`;
   $("view").innerHTML = `
     <section>
       <h2>${esc(d.code)} ${d.active ? "" : '<span class="tag disabled">停用</span>'}
@@ -1007,21 +1021,28 @@ async function renderCode(code) {
         </span></h2>
       <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         <div class="card"><span>模型</span><b style="font-size:15px">${d.binding ? esc(d.binding.model_code) : "未绑定"}</b></div>
-        <div class="card"><span>版本</span><b style="font-size:15px">${d.version ? "v" + d.version.version_no + " " + d.version.status : "-"}</b></div>
+        <div class="card"><span>版本</span><b style="font-size:15px">${d.version ? "v" + d.version.version_no + " " + (stageLabel[d.version.status] || d.version.status) : d.draft_version ? "v" + d.draft_version.version_no + " 候选（未发布）" : "还没有版本"}</b></div>
         <div class="card"><span>ROI（rev ${d.config ? d.config.rev : "-"}）</span><b style="font-size:13px">${d.config ? esc(d.config.roi_rect.join(",")) : "未配置"}</b></div>
         <div class="card"><span>阈值（rev ${d.threshold ? d.threshold.rev ?? "-" : "-"}）</span><b style="font-size:13px">${d.threshold ? d.threshold.th_lo.toFixed(2) + " / " + d.threshold.th_hi.toFixed(2) : "未配置"}</b></div>
         <div class="card"><span>判例</span><b style="font-size:15px">${d.case_count}</b></div>
       </div>
       ${d.config ? `<p class="muted" style="margin:12px 0 0">ROI 矩形：${esc(JSON.stringify(d.config.roi_rect))}</p>` : ""}
+      <div class="next-step">
+        <div>${bindState}</div>
+        <div class="muted" style="margin-top:4px">${nextStep}</div>
+        ${!d.binding || !cfgVer
+          ? `<div style="margin-top:8px"><a class="ghost" href="#/training">去训练与发布 →</a></div>`
+          : ""}
+      </div>
     </section>
 
     <section>
       <h2>操作</h2>
       <div class="form">
         <div><label for="bind_model">换绑到模型</label>
-          <select id="bind_model">${models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("")}</select>
+          <select id="bind_model">${orderedModels.map(m => `<option value="${m.id}" ${m.id === boundId ? "selected" : ""}>${esc(m.code)} ${esc(m.name || "")}${m.id === boundId ? "（当前绑定）" : ""}</option>`).join("")}</select>
         </div>
-        <div><button class="act" id="btnBind">绑定</button></div>
+        <div><button class="act" id="btnBind">${d.binding ? "换绑" : "绑定"}</button></div>
       </div>
       ${cfgVer ? `
       ${d.draft_version ? '<p class="muted">当前配置作用于候选版本 v' + d.draft_version.version_no + '，发布后生效。</p>' : ''}
@@ -1080,9 +1101,14 @@ async function renderCode(code) {
     catch (e) { toast(e.message, true); }
   };
   $("btnBind").onclick = async () => {
+    const mid = Number($("bind_model").value);
+    const target = models.find(m => m.id === mid);
+    if (d.binding && d.binding.model_id === mid) { toast("当前已绑定该模型"); return; }
+    if (d.binding && !confirm(`从 ${d.binding.model_code} 换绑到 ${target ? target.code : mid}？旧绑定会保留历史记录。`)) return;
     try {
-      await post("/api/bindings", {code, model_id: Number($("bind_model").value)});
-      toast("已绑定"); renderCode(code);
+      await post("/api/bindings", {code, model_id: mid});
+      toast(d.binding ? `已换绑：${d.binding.model_code} → ${target ? target.code : mid}` : `已绑定 ${target ? target.code : mid}`);
+      renderCode(code);
     } catch (e) { toast(e.message, true); }
   };
   function openCfgHistory(d, ver) {
