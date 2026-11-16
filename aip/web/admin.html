@@ -290,6 +290,10 @@
   .chip-new .chip-input{flex:1;min-width:120px}
   .settings-help{margin:0 0 10px;font-size:13px}
   .row-dirty td{background:color-mix(in oklab,var(--brand) 7%,transparent)}
+  .storage-cards{display:flex;flex-direction:column;gap:10px}
+  .storage-card{border:1px solid var(--g3);border-radius:8px;padding:12px;background:var(--g1)}
+  .storage-card p{margin:2px 0 10px}
+  .storage-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
   .next-step{margin-top:12px;background:var(--g2);border:1px solid var(--g3);border-radius:6px;padding:10px 12px;font-size:13px}
   .next-step b{color:var(--t1)}
   .storage-tree summary{cursor:pointer;font-size:13px;color:var(--t2);margin-top:4px}
@@ -1929,30 +1933,41 @@ async function renderSettings() {
   const inGroup = rows.filter(r => r.group === group);
 
   const storagePanel = group === "存储" ? `
-    <div class="cache-actions" style="flex-direction:column;align-items:stretch;gap:10px">
-      <div style="display:flex;justify-content:space-between;gap:12px">
-        <b>存储目录</b><span class="muted" id="storeInfo">读取中…</span>
+    <div class="storage-cards">
+      <div class="storage-card">
+        <div class="storage-head"><b>当前存储</b><span class="muted" id="storeInfo">读取中…</span></div>
+        <p class="muted">迁移或还原后，需要用新目录重启服务；运行期间会自动锁住推图/上传/清理。</p>
       </div>
-      <div class="filterbar" style="margin:0">
-        <input id="moveTarget" placeholder="目标空目录，例如 D:\aip-data" style="max-width:360px">
-        <button class="ghost" id="btnMovePlan">预检</button>
-        <button class="ghost" id="btnMoveApply">执行迁移</button>
+
+      <div class="storage-card">
+        <b>迁移数据目录</b>
+        <p class="muted">把现有数据复制到空目录并校验。<b>先预检，再执行</b>；目标必须为空。</p>
+        <div class="filterbar" style="margin:0">
+          <input id="moveTarget" placeholder="目标空目录，例如 D:\aip-data" style="flex:1;min-width:220px">
+          <button class="ghost" id="btnMovePlan">预检</button>
+          <button class="act" id="btnMoveApply" disabled>执行迁移</button>
+        </div>
+        <div id="moveOut" class="muted"></div>
       </div>
-      <div id="moveOut" class="muted"></div>
-      <hr style="border:0;border-top:1px solid var(--g3);margin:4px 0">
-      <div class="filterbar" style="margin:0">
-        <b style="min-width:52px">备份</b>
-        <input id="backupTarget" placeholder="备份文件路径，例如 D:\aip-backup-20261115.zip" style="max-width:360px">
-        <button class="ghost" id="btnBackup">立即备份</button>
+
+      <div class="storage-card">
+        <b>备份与还原</b>
+        <p class="muted">备份生成 zip（数据库 + 文件清单）；还原目标必须是空目录。</p>
+        <div class="filterbar" style="margin:0">
+          <b style="min-width:44px">备份</b>
+          <input id="backupTarget" placeholder="备份文件路径，例如 D:\aip-backup-20261116.zip" style="flex:1;min-width:220px">
+          <button class="ghost" id="btnBackup">立即备份</button>
+        </div>
+        <div class="filterbar" style="margin:8px 0 0">
+          <b style="min-width:44px">还原</b>
+          <input id="restoreArchive" placeholder="备份文件 .zip" style="flex:1;min-width:160px">
+          <input id="restoreTarget" placeholder="还原到空目录" style="flex:1;min-width:160px">
+          <button class="ghost" id="btnRestorePlan">预检</button>
+          <button class="act" id="btnRestore" disabled>还原</button>
+        </div>
+        <div id="backupOut" class="muted"></div>
       </div>
-      <div class="filterbar" style="margin:0">
-        <b style="min-width:52px">还原</b>
-        <input id="restoreArchive" placeholder="备份文件路径 .zip" style="max-width:260px">
-        <input id="restoreTarget" placeholder="还原到空目录" style="max-width:260px">
-        <button class="ghost" id="btnRestorePlan">预检</button>
-        <button class="ghost" id="btnRestore">还原</button>
-      </div>
-      <div id="backupOut" class="muted"></div>
+
       <details class="storage-tree">
         <summary>目录结构说明</summary>
         <pre>&lt;data-dir&gt;/
@@ -2231,61 +2246,127 @@ async function renderSettings() {
   }
 
   if (group === "存储") {
+    let moveReadyFor = "";
+    let restoreReadyFor = "";
+
+    const stamp = () => {
+      const d = new Date();
+      const p2 = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}`;
+    };
+    const defaultBackupPath = (root) => {
+      const sep = String(root).includes("\\") ? "\\" : "/";
+      const parent = String(root).replace(/[\\/][^\\/]+$/, "") || String(root);
+      return `${parent}${sep}aip-backup-${stamp()}.zip`;
+    };
+
     api("/api/maintenance/storage").then(s => {
       const el = document.getElementById("storeInfo");
       if (el) el.textContent = `${s.root} · ${s.files} 个文件 · ${fmtBytes(s.bytes)} · 可用 ${fmtBytes(s.free)}`;
+      const backup = document.getElementById("backupTarget");
+      if (backup && !backup.value) backup.value = defaultBackupPath(s.root);
     }).catch(() => {});
+
+    const busy = (btn, on) => {
+      if (!btn) return;
+      btn.disabled = on;
+      if (on) { btn.dataset.label = btn.textContent; btn.textContent = "处理中…"; }
+      else if (btn.dataset.label) { btn.textContent = btn.dataset.label; }
+    };
 
     const showMove = (r) => {
       const out = document.getElementById("moveOut");
       if (r.problems && r.problems.length) {
         out.textContent = "预检未通过：" + r.problems.join("；");
-        return;
+        return false;
       }
       if (r.dry_run) {
-        out.textContent = `可迁移：${r.files} 个文件 / ${fmtBytes(r.bytes)} → ${r.target}（目标可用 ${fmtBytes(r.free)}）`;
+        out.textContent = `预检通过：${r.files} 个文件 / ${fmtBytes(r.bytes)} → ${r.target}（目标可用 ${fmtBytes(r.free)}）`;
       } else {
         out.textContent = r.moved
           ? `已复制到 ${r.target}（${r.files} 个文件 / ${fmtBytes(r.bytes)}）。用新目录重启：${r.restart_hint}`
           : "迁移校验未通过：" + (r.problems || []).join("；");
       }
+      return true;
     };
+
+    $("moveTarget").addEventListener("input", () => {
+      moveReadyFor = "";
+      const apply = $("btnMoveApply");
+      if (apply) apply.disabled = true;
+    });
 
     $("btnMovePlan").onclick = async () => {
       const target = $("moveTarget").value.trim();
       if (!target) { toast("先填目标目录", true); return; }
+      busy($("btnMovePlan"), true);
       try {
-        showMove(await post("/api/maintenance/storage/move", {target, dry_run: true}));
+        const r = await post("/api/maintenance/storage/move", {target, dry_run: true});
+        if (showMove(r)) {
+          moveReadyFor = target;
+          $("btnMoveApply").disabled = false;
+        }
       } catch (e) { toast(e.message, true); }
+      finally { busy($("btnMovePlan"), false); }
+    };
+
+    $("btnMoveApply").onclick = async () => {
+      const target = $("moveTarget").value.trim();
+      if (!target) { toast("先填目标目录", true); return; }
+      if (moveReadyFor !== target) { toast("目标变了，先重新预检", true); return; }
+      if (!confirm(`将把数据复制到：\n${target}\n\n迁移期间请暂停推图；完成后需用新目录重启服务。继续？`)) return;
+      busy($("btnMoveApply"), true);
+      try {
+        showMove(await post("/api/maintenance/storage/move", {target, dry_run: false}));
+        toast("已复制，按提示用新目录重启");
+        moveReadyFor = "";
+        $("btnMoveApply").disabled = true;
+      } catch (e) { toast(e.message, true); }
+      finally { busy($("btnMoveApply"), false); }
     };
 
     $("btnBackup").onclick = async () => {
       const target = $("backupTarget").value.trim();
       if (!target) { toast("先填备份文件路径", true); return; }
+      busy($("btnBackup"), true);
       try {
         const r = await post("/api/maintenance/backup", {target});
         $("backupOut").textContent = `已备份到 ${r.archive}（${r.files} 个文件 / ${fmtBytes(r.bytes)}，zip ${fmtBytes(r.size)}）sha256 ${r.sha256.slice(0, 16)}…`;
         toast("备份完成");
       } catch (e) { toast(e.message, true); }
+      finally { busy($("btnBackup"), false); }
     };
+
+    const resetRestore = () => {
+      restoreReadyFor = "";
+      const btn = $("btnRestore");
+      if (btn) btn.disabled = true;
+    };
+    $("restoreArchive").addEventListener("input", resetRestore);
+    $("restoreTarget").addEventListener("input", resetRestore);
 
     $("btnRestorePlan").onclick = async () => {
       const archive = $("restoreArchive").value.trim();
       if (!archive) { toast("先填备份文件路径", true); return; }
+      busy($("btnRestorePlan"), true);
       try {
         const r = await post("/api/maintenance/restore", {archive, target: "", dry_run: true});
         const m = r.manifest || {};
         $("backupOut").textContent = r.ok
           ? `备份可还原：${m.files} 个文件 / ${fmtBytes(m.bytes)}，schema v${m.schema_version}，创建于 ${m.created_at}`
           : "备份有问题：" + (r.problems || []).join("；");
+        if (r.ok) { restoreReadyFor = archive; $("btnRestore").disabled = false; }
       } catch (e) { toast(e.message, true); }
+      finally { busy($("btnRestorePlan"), false); }
     };
 
     $("btnRestore").onclick = async () => {
       const archive = $("restoreArchive").value.trim();
       const target = $("restoreTarget").value.trim();
       if (!archive || !target) { toast("备份文件与目标目录都要填", true); return; }
+      if (restoreReadyFor !== archive) { toast("备份文件变了，先重新预检", true); return; }
       if (!confirm(`把备份还原到：\n${target}\n\n目标必须为空；还原后用该目录重启服务。继续？`)) return;
+      busy($("btnRestore"), true);
       try {
         const r = await post("/api/maintenance/restore", {archive, target, dry_run: false});
         $("backupOut").textContent = r.restored
@@ -2293,16 +2374,7 @@ async function renderSettings() {
           : "还原校验未通过：" + (r.problems || []).join("；");
         toast(r.restored ? "还原完成" : "还原未通过", !r.restored);
       } catch (e) { toast(e.message, true); }
-    };
-
-    $("btnMoveApply").onclick = async () => {
-      const target = $("moveTarget").value.trim();
-      if (!target) { toast("先填目标目录", true); return; }
-      if (!confirm(`将把数据复制到：\n${target}\n\n迁移期间请暂停推图；完成后需用新目录重启服务。继续？`)) return;
-      try {
-        showMove(await post("/api/maintenance/storage/move", {target, dry_run: false}));
-        toast("已复制，按提示用新目录重启");
-      } catch (e) { toast(e.message, true); }
+      finally { busy($("btnRestore"), false); }
     };
   }
 
