@@ -125,3 +125,10 @@ git clone https://github.com/open-edge-platform/anomalib
 ## 许可
 
 [Apache License 2.0](LICENSE)。可商用、可修改、可再分发，需保留版权与许可声明；附带专利授权。
+
+### 真实训练（2026-11-16）
+
+- 训练后端：anomalib 2.7 + PatchCore（wide_resnet50_2），GPU 独立 worker 进程；
+- 训练完自动导出 ONNX（含 `.onnx.data` 权重文件）、在验证集上按过杀预算标定 `th_lo/th_hi`、写入 ROI；
+- 任务异步，日志在 `data/runs/<model>-vN/train.log`，结果在 `result.json`；
+- Sample1（553 张，334 训练 OK / 83 验证 OK / 68 验证 NG）实测：召回 100%、过杀 1.2%，推理正常。

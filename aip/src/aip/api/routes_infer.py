@@ -140,7 +140,8 @@ def submit(
 
     version_id, roi_rev, th_lo, th_hi = _resolve(conn, code)
     ver = conn.execute(
-        "SELECT model_id, version_no, onnx_path FROM model_version WHERE id = ?",
+        "SELECT model_id, version_no, onnx_path, onnx_input_range, onnx_aggregate"
+        " FROM model_version WHERE id = ?",
         (version_id,),
     ).fetchone()
     cache.configure(
@@ -160,8 +161,8 @@ def submit(
 
     predictor = build_predictor(
         session,
-        input_range=get_value(conn, "infer.onnx_input_range"),
-        aggregate=get_value(conn, "infer.onnx_aggregate"),
+        input_range=ver["onnx_input_range"] or get_value(conn, "infer.onnx_input_range"),
+        aggregate=ver["onnx_aggregate"] or get_value(conn, "infer.onnx_aggregate"),
     )
     tolerance = get_value(conn, "infer.crop_size_tolerance")
     if tolerance:

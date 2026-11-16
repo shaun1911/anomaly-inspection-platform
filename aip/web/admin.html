@@ -3197,7 +3197,7 @@ async function renderTraining() {
         <div><button class="act" id="btnTrain">开始训练</button></div>
       </div>
       <p class="muted" id="trHint"></p>
-      <p class="muted">当前是假训练器：只验证状态机与发布链路，指标为模拟值，不代表模型能力。</p>
+      <p class="muted">提交后任务在后台跑，可离开本页；完成后候选版本会自动带指标与 ONNX。</p>
     </section>`;
 
   const jobsSection = `
@@ -3216,7 +3216,7 @@ async function renderTraining() {
         <tbody>${jobRows.map(j => `<tr>
           <td>${j.id}</td><td>${esc(j.model_code)}</td>
           <td class="muted">${j.dataset_id ? "#" + j.dataset_id + " " + esc(j.dataset_name || "") : "-"}</td>
-          <td><span class="tag ${j.status === "succeeded" ? "ok" : j.status === "failed" ? "ng" : "gray"}">${esc(stLabel(j.status))}</span></td>
+          <td title="${j.metrics && j.metrics.error ? esc(j.metrics.error) : ""}"><span class="tag ${j.status === "succeeded" ? "ok" : j.status === "failed" ? "ng" : "gray"}">${esc(stLabel(j.status))}</span>${j.metrics && j.metrics.error ? ' <span class="muted" style="font-size:11px">失败，悬停看原因</span>' : ""}</td>
           <td>${j.metrics ? (j.metrics.recall * 100).toFixed(1) + "%" : "-"}</td>
           <td>${j.metrics ? (j.metrics.overkill * 100).toFixed(1) + "%" : "-"}</td>
           <td>${j.metrics ? j.metrics.train_samples : "-"}</td>
@@ -3270,8 +3270,8 @@ async function renderTraining() {
     <section>
       <h2>训练与发布 <span class="pill">${jobs.length} 任务 · ${models.length} 模型</span></h2>
       <p class="muted" style="margin:0 0 10px">
-        流程：数据集冻结 → 训练出候选版本 → 导出/挂 ONNX → 发布生效 → 工位推图。
-        当前为假训练器，指标是模拟值，只验证状态机与发布链路。
+        流程：数据集冻结 → 训练出候选版本 → 校验指标 → 发布生效 → 工位推图。
+        训练由服务端 anomalib（PatchCore）执行；首次会下载预训练权重，耗时取决于 GPU。
       </p>
       <div class="page-tabs">
         <button class="page-tab ${tab === "train" ? "on" : ""}" data-ttab="train">训练任务 ${jobs.length}</button>
@@ -3307,7 +3307,7 @@ async function renderTraining() {
       if (!dsId) { toast("该模型没有可用的已冻结数据集", true); return; }
       try {
         const r = await post("/api/train", {model_id: mid, dataset_id: dsId});
-        toast(`已训练出 v${r.version_no}，去「模型与版本」查看`);
+        toast(`训练已提交：v${r.version_no}，后台执行中`);
         renderTraining();
       } catch (e) { toast(e.message, true); }
     };
@@ -3378,6 +3378,13 @@ async function renderTraining() {
       } catch (e) { toast(e.message, true); }
     };
   });
+  if (jobs.some(j => j.status === "running")) {
+    clearTimeout(window.__trainPoll);
+    window.__trainPoll = setTimeout(() => {
+      if (document.body.dataset.page === "training") renderTraining();
+    }, 5000);
+  }
+
   document.querySelectorAll("[data-rollback]").forEach(btn => {
     btn.onclick = async () => {
       const mid = Number(btn.dataset.rollback);

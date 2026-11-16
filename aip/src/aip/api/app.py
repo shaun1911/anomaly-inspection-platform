@@ -43,6 +43,17 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
             "pool": "not_started",
         }
 
+    try:
+        boot = store.connect(app.state.db_path)
+        with store.tx(boot):
+            boot.execute(
+                "UPDATE train_job SET status = 'failed', error_code = 'server_restart',"
+                " finished_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE status = 'running'"
+            )
+        boot.close()
+    except sqlite3.Error:
+        pass
+
     from . import (
         routes_admin,
         routes_catalog,

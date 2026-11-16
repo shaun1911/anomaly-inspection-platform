@@ -117,32 +117,48 @@ def _split_for(case_id: int, verdict: str) -> str:
 
 
 def assign_splits(conn: sqlite3.Connection, dataset_id: int) -> dict:
-    """按类别比例划分 train / frozen_val；每类至少保留一条训练样本。"""
+    """按件号分组划分 train / frozen_val，避免同一件的多张图跨集合泄漏。
+
+    同一件号（无件号时退回单条判例）的所有判例必落在同一侧；每类至少留一组训练。
+    """
     rows = conn.execute(
-        "SELECT i.case_id, i.verdict_at_freeze, c.verdict"
+        "SELECT i.case_id, i.verdict_at_freeze, c.verdict, c.part_no"
         " FROM dataset_item i LEFT JOIN case_item c ON c.id = i.case_id"
         " WHERE i.dataset_id = ? ORDER BY i.case_id",
         (dataset_id,),
     ).fetchall()
 
-    by_class: dict[str, list[int]] = {"ok": [], "ng": []}
+    groups: dict[str, dict] = {}
     for r in rows:
         verdict = r["verdict_at_freeze"] or r["verdict"]
-        if verdict in by_class:
-            by_class[verdict].append(int(r["case_id"]))
+        if verdict not in ("ok", "ng"):
+            continue
+        key = str(r["part_no"] or f"case:{r['case_id']}")
+        grp = groups.setdefault(key, {"ids": [], "verdicts": set()})
+        grp["ids"].append(int(r["case_id"]))
+        grp["verdicts"].add(verdict)
+
+    by_class: dict[str, list[tuple[str, dict]]] = {"ok": [], "ng": []}
+    for key, grp in groups.items():
+        # 混合件号整体进训练，避免验证集出现同件另一侧样本
+        if len(grp["verdicts"]) > 1:
+            by_class["ok"].append((key, grp))
+            continue
+        by_class[next(iter(grp["verdicts"]))].append((key, grp))
 
     split_of: dict[int, str] = {}
-    for verdict, ids in by_class.items():
+    for verdict, items in by_class.items():
         ratio = VAL_RATIO[verdict]
-        n = len(ids)
+        n = len(items)
         val_n = 0 if n < 2 else max(1, round(n * ratio))
-        val_n = min(val_n, n - 1)  # 至少留一条训练
-        # 稳定排序：按散列值挑验证样本
-        ranked = sorted(ids, key=lambda cid: (cid * 2654435761) % 1000)
-        for cid in ranked[:val_n]:
-            split_of[cid] = "frozen_val"
-        for cid in ranked[val_n:]:
-            split_of[cid] = "train"
+        val_n = min(val_n, n - 1)
+        ranked = sorted(items, key=lambda pair: (hash(pair[0]) & 0xFFFFFFFF))
+        for key, grp in ranked[:val_n]:
+            for cid in grp["ids"]:
+                split_of[cid] = "frozen_val"
+        for key, grp in ranked[val_n:]:
+            for cid in grp["ids"]:
+                split_of[cid] = "train"
 
     for cid, split in split_of.items():
         conn.execute(

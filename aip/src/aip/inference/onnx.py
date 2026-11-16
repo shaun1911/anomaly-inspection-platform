@@ -59,6 +59,14 @@ def prepare_input(
     arr = np.asarray(rgb, dtype=np.float32) / 255.0
     if input_range == "pm1":
         arr = arr * 2.0 - 1.0
+    elif input_range in ("zero_one", "unit"):
+        pass
+    elif input_range == "imagenet":
+        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+        arr = (arr - mean) / std
+    else:
+        raise ValueError(f"未知 ONNX 输入范围: {input_range}")
     if channels_first:
         arr = np.transpose(arr, (2, 0, 1))
     return arr[None, ...], w, h
@@ -78,10 +86,15 @@ class OnnxPredictor:
         input_meta = self.session.get_inputs()[0]
         tensor, w, h = prepare_input(image_path, list(input_meta.shape), self.input_range)
         outputs = self.session.run(None, {input_meta.name: tensor})
+        metas = self.session.get_outputs() if hasattr(self.session, "get_outputs") else []
+        named = {meta.name: out for meta, out in zip(metas, outputs)}
         arrays = [o for o in outputs if isinstance(o, np.ndarray) and o.dtype.kind == "f"]
         if not arrays:
             raise PredictorUnavailable("模型没有浮点输出")
-        arr = max(arrays, key=lambda a: a.size)
+        # anomalib 导出带 pred_score：优先用它，避免从 anomaly_map 反推
+        arr = named.get("pred_score")
+        if not isinstance(arr, np.ndarray) or arr.dtype.kind != "f":
+            arr = max(arrays, key=lambda a: a.size)
         if self.aggregate == "mean":
             score = float(np.mean(arr))
         else:

@@ -16,6 +16,7 @@ from aip.api.app import create_app
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("AIP_WHITELIST", str(tmp_path / "none.yaml"))
+    monkeypatch.setenv("AIP_TRAIN_BACKEND", "fake")
     whitelist.reset_cache()
     db = tmp_path / "api.db"
     conn = store.connect(db)

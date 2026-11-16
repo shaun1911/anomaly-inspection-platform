@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -64,11 +65,45 @@ def start_training(body: TrainIn, conn: sqlite3.Connection = Depends(get_conn)) 
     if int(dataset["model_id"]) != body.model_id:
         raise ApiError("dataset_model_mismatch", "数据集属于另一个模型", "换数据集或换模型", 409)
 
+    running = conn.execute(
+        "SELECT id FROM train_job WHERE status = 'running' LIMIT 1"
+    ).fetchone()
+    if running is not None:
+        raise ApiError(
+            "train_busy", "已有训练任务在跑", "等它结束后再提交（GPU 同时只跑一个）", 409
+        )
+
     next_no = conn.execute(
         "SELECT COALESCE(MAX(version_no), 0) + 1 AS n FROM model_version WHERE model_id = ?",
         (body.model_id,),
     ).fetchone()["n"]
-    metrics = _fake_metrics(body.model_id, next_no)
+    backend = os.environ.get("AIP_TRAIN_BACKEND", "real")
+    model_code = conn.execute("SELECT code FROM model WHERE id = ?", (body.model_id,)).fetchone()["code"]
+    db_file = Path(conn.execute("PRAGMA database_list").fetchone()[2])
+
+    if backend == "fake":
+        metrics = _fake_metrics(body.model_id, next_no)
+        with tx(conn):
+            cur = conn.execute(
+                "INSERT INTO train_job (model_id, dataset_id, status, started_at)"
+                " VALUES (?, ?, 'running', strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+                (body.model_id, body.dataset_id),
+            )
+            job_id = int(cur.lastrowid)
+            conn.execute(
+                "INSERT INTO model_version (model_id, version_no, status, metrics_json, dataset_id)"
+                " VALUES (?, ?, 'candidate', ?, ?)",
+                (body.model_id, next_no, json.dumps(metrics, ensure_ascii=False), body.dataset_id),
+            )
+            conn.execute(
+                "UPDATE train_job SET status = 'succeeded', metrics_json = ?,"
+                " finished_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+                (json.dumps(metrics, ensure_ascii=False), job_id),
+            )
+            record(conn, actor="web", action="train.start", entity="model", entity_id=body.model_id,
+                   payload={"version_no": next_no, "job_id": job_id, "dataset_id": body.dataset_id,
+                            "backend": "fake"})
+        return {"job_id": job_id, "model_id": body.model_id, "version_no": next_no, "metrics": metrics}
 
     with tx(conn):
         cur = conn.execute(
@@ -79,17 +114,21 @@ def start_training(body: TrainIn, conn: sqlite3.Connection = Depends(get_conn)) 
         job_id = int(cur.lastrowid)
         conn.execute(
             "INSERT INTO model_version (model_id, version_no, status, metrics_json, dataset_id)"
-            " VALUES (?, ?, 'candidate', ?, ?)",
-            (body.model_id, next_no, json.dumps(metrics, ensure_ascii=False), body.dataset_id),
-        )
-        conn.execute(
-            "UPDATE train_job SET status = 'succeeded', metrics_json = ?,"
-            " finished_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-            (json.dumps(metrics, ensure_ascii=False), job_id),
+            " VALUES (?, ?, 'candidate', NULL, ?)",
+            (body.model_id, next_no, body.dataset_id),
         )
         record(conn, actor="web", action="train.start", entity="model", entity_id=body.model_id,
-               payload={"version_no": next_no, "job_id": job_id, "dataset_id": body.dataset_id})
-    return {"job_id": job_id, "model_id": body.model_id, "version_no": next_no, "metrics": metrics}
+               payload={"version_no": next_no, "job_id": job_id, "dataset_id": body.dataset_id,
+                        "backend": "anomalib"})
+
+    from ..training.runner import launch
+
+    launch(
+        db_path=db_file, job_id=job_id, model_id=body.model_id,
+        model_code=str(model_code), version_no=next_no, dataset_id=body.dataset_id,
+    )
+    return {"job_id": job_id, "model_id": body.model_id, "version_no": next_no,
+            "status": "running", "metrics": None}
 
 
 @router.get("/train")
@@ -216,10 +255,12 @@ def smoke(
         message, action = GATE_MESSAGES.get(gate, ("裁片不合格", "重新取图"))
         return {"passed": False, "gate": gate, "message": message, "action": action}
 
-    onnx_path = conn.execute(
-        "SELECT onnx_path FROM model_version WHERE model_id = ? AND version_no = ?",
+    meta = conn.execute(
+        "SELECT onnx_path, onnx_input_range, onnx_aggregate FROM model_version"
+        " WHERE model_id = ? AND version_no = ?",
         (model_id, version_no),
-    ).fetchone()["onnx_path"]
+    ).fetchone()
+    onnx_path = meta["onnx_path"]
     session = None
     if onnx_path:
         try:
@@ -228,8 +269,8 @@ def smoke(
             raise ApiError("predictor_unavailable", str(exc), "安装 onnxruntime", 503) from exc
     predictor = build_predictor(
         session,
-        input_range=get_value(conn, "infer.onnx_input_range"),
-        aggregate=get_value(conn, "infer.onnx_aggregate"),
+        input_range=meta["onnx_input_range"] or get_value(conn, "infer.onnx_input_range"),
+        aggregate=meta["onnx_aggregate"] or get_value(conn, "infer.onnx_aggregate"),
     )
     pred = predictor.predict(path)
     label = label_for(pred.score, th_lo, th_hi)
