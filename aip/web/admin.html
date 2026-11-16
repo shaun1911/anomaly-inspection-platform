@@ -1944,7 +1944,6 @@ async function renderSettings() {
         <p class="muted">把现有数据复制到空目录并校验。<b>先预检，再执行</b>；目标必须为空。</p>
         <div class="filterbar" style="margin:0">
           <input id="moveTarget" placeholder="目标空目录，例如 D:\aip-data" style="flex:1;min-width:220px">
-          <button class="ghost" data-pick="dir" data-for="moveTarget" data-title="选择迁移目标目录" title="在服务端本机选择目录">浏览…</button>
           <button class="ghost" id="btnMovePlan">预检</button>
           <button class="act" id="btnMoveApply" disabled>执行迁移</button>
         </div>
@@ -1957,15 +1956,12 @@ async function renderSettings() {
         <div class="filterbar" style="margin:0">
           <b style="min-width:44px">备份</b>
           <input id="backupTarget" placeholder="备份文件路径，例如 D:\aip-backup-20261116.zip" style="flex:1;min-width:220px">
-          <button class="ghost" data-pick="save" data-for="backupTarget" data-title="备份保存到" title="在服务端本机选择保存位置">浏览…</button>
           <button class="ghost" id="btnBackup">立即备份</button>
         </div>
         <div class="filterbar" style="margin:8px 0 0">
           <b style="min-width:44px">还原</b>
           <input id="restoreArchive" placeholder="备份文件 .zip" style="flex:1;min-width:160px">
-          <button class="ghost" data-pick="open" data-for="restoreArchive" data-title="选择备份文件" title="在服务端本机选择备份文件">浏览…</button>
           <input id="restoreTarget" placeholder="还原到空目录" style="flex:1;min-width:160px">
-          <button class="ghost" data-pick="dir" data-for="restoreTarget" data-title="选择还原目标目录" title="在服务端本机选择目录">浏览…</button>
           <button class="ghost" id="btnRestorePlan">预检</button>
           <button class="act" id="btnRestore" disabled>还原</button>
         </div>
@@ -2270,27 +2266,6 @@ async function renderSettings() {
       const backup = document.getElementById("backupTarget");
       if (backup && !backup.value) backup.value = defaultBackupPath(s.root);
     }).catch(() => {});
-
-    document.querySelectorAll("[data-pick]").forEach(btn => {
-      btn.onclick = async () => {
-        const input = document.getElementById(btn.dataset.for);
-        if (!input) return;
-        busy(btn, true);
-        try {
-          const r = await post("/api/system/pick-path", {
-            kind: btn.dataset.pick,
-            title: btn.dataset.title || "选择路径",
-            default: input.value.trim() || null,
-          });
-          input.value = r.path;
-          input.dispatchEvent(new Event("input", {bubbles: true}));
-        } catch (e) {
-          toast(e.message + "（可手动输入）", true);
-        } finally {
-          busy(btn, false);
-        }
-      };
-    });
 
     const busy = (btn, on) => {
       if (!btn) return;
