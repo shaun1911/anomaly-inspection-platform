@@ -491,6 +491,18 @@ window.addEventListener("unhandledrejection", (e) => {
   if (v) v.innerHTML = `<section><div class="empty">加载失败：${String(e.reason && e.reason.message || e.reason)}</div></section>`;
 });
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const PAGE_SIZE_KEY = "aip-page-size";
+const PAGE_SIZE_OPTIONS = [20, 25, 50, 100];
+function listPageSize() {
+  const n = Number(localStorage.getItem(PAGE_SIZE_KEY));
+  return PAGE_SIZE_OPTIONS.includes(n) ? n : 25;
+}
+function setListPageSize(n) { localStorage.setItem(PAGE_SIZE_KEY, String(n)); }
+function pageSizeSelect(id) {
+  return `<label class="muted" style="display:flex;align-items:center;gap:6px">每页 <select id="${id}" aria-label="每页条数" style="width:82px">`
+    + PAGE_SIZE_OPTIONS.map(n => `<option value="${n}" ${listPageSize() === n ? "selected" : ""}>${n}</option>`).join("")
+    + `</select></label>`;
+}
 
 async function api(path, opts) {
   const resp = await fetch(path, opts);
@@ -886,7 +898,7 @@ let showArchived = false;
 let catalogState = { tab: "codes", q: "", page: 0, modelQ: "" };
 
 async function renderCatalog() {
-  const pageSize = 20;
+  const pageSize = listPageSize();
   const cp = new URLSearchParams({
     include_archived: String(showArchived),
     limit: String(pageSize),
@@ -935,6 +947,7 @@ async function renderCatalog() {
           <input id="cat_q" value="${esc(catalogState.q)}" placeholder="搜索编码 / 零件 / 型号，回车" aria-label="搜索编码" style="max-width:280px">
           <button class="act" id="btnNewCode">新建编码</button>
           <button class="ghost" id="btnArchived">${showArchived ? "隐藏已归档" : "显示已归档"}</button>
+          ${pageSizeSelect("cat_ps")}
         </div>
         ${codesTotal === 0 ? `<div class="empty">没有匹配的编码。${catalogState.q ? "换个关键词，或" : ""}点「新建编码」。</div>` : `
         <table><caption class="sr-only">产品编码列表</caption>
@@ -1015,6 +1028,7 @@ async function renderCatalog() {
     });
   }
   if ($("btnArchived")) $("btnArchived").onclick = () => { showArchived = !showArchived; catalogState.page = 0; renderCatalog(); };
+  if ($("cat_ps")) $("cat_ps").onchange = (e) => { setListPageSize(e.target.value); catalogState.page = 0; renderCatalog(); };
 
   document.querySelectorAll("[data-archive]").forEach(btn => {
     btn.onclick = async (ev) => {
@@ -1360,7 +1374,7 @@ function ageText(iso) {
 let rhState = { code: "", verdict: "", actor: "", since: "", until: "", page: 0 };
 
 async function renderReviewHistory() {
-  const pageSize = 25;
+  const pageSize = listPageSize();
   const params = new URLSearchParams({
     limit: String(pageSize),
     offset: String(rhState.page * pageSize),
@@ -1390,6 +1404,7 @@ async function renderReviewHistory() {
         <input id="rh_until" type="date" value="${esc(rhState.until)}" aria-label="结束日期" style="width:150px">
         <button class="act" id="rh_query">查询</button>
         <button class="ghost" id="rh_reset">重置</button>
+        ${pageSizeSelect("rh_ps")}
       </div>
       ${data.items.length === 0 ? `<div class="empty">没有符合条件的复判记录。</div>` : `
       <table><caption class="sr-only">复判记录</caption>
@@ -1425,6 +1440,7 @@ async function renderReviewHistory() {
   $("rh_code").addEventListener("keydown", (e) => { if (e.key === "Enter") apply(); });
   $("rh_actor").addEventListener("keydown", (e) => { if (e.key === "Enter") apply(); });
   $("rh_reset").onclick = () => { rhState = { code: "", verdict: "", actor: "", since: "", until: "", page: 0 }; renderReviewHistory(); };
+  $("rh_ps").onchange = (e) => { setListPageSize(e.target.value); rhState.page = 0; renderReviewHistory(); };
   if ($("rhPrev")) $("rhPrev").onclick = () => { rhState.page = Math.max(0, rhState.page - 1); renderReviewHistory(); };
   if ($("rhNext")) $("rhNext").onclick = () => { rhState.page += 1; renderReviewHistory(); };
   document.querySelectorAll("[data-rid]").forEach(tr => {
@@ -2181,6 +2197,7 @@ async function renderSettings() {
 }
 
 async function renderSystem() {
+  systemState.auditPageSize = listPageSize();
   const params = new URLSearchParams({
     limit: String(systemState.auditPageSize),
     offset: String(systemState.auditPage * systemState.auditPageSize),
@@ -2249,6 +2266,7 @@ async function renderSystem() {
         <input id="sys_until" type="datetime-local" value="${esc(systemState.auditUntil)}" title="结束时间（UTC）" style="max-width:210px">
         <span class="muted" title="时间按 UTC 存储与比较">UTC</span>
         <button class="ghost" id="sys_reset">重置</button>
+        ${pageSizeSelect("sys_ps")}
       </div>
       ${audit.length === 0 ? `<div class="empty">${systemState.auditAction || systemState.auditActor ? "当前筛选下没有记录。" : "还没有审计记录。"}</div>` : `
       <table><caption class="sr-only">审计</caption>
@@ -2265,9 +2283,63 @@ async function renderSystem() {
         <button class="ghost" id="auditNext" ${systemState.auditPage + 1 >= auditPages ? "disabled" : ""}>下一页</button>
       </div>`}
     </section>`;
+
+  const applyAudit = () => {
+    systemState.auditAction = $("sys_action").value;
+    systemState.auditActor = $("sys_actor").value;
+    systemState.auditSince = $("sys_since").value;
+    systemState.auditUntil = $("sys_until").value;
+    systemState.auditPage = 0;
+    renderSystem();
+  };
+  $("sys_action").onchange = applyAudit;
+  $("sys_actor").addEventListener("keydown", (e) => { if (e.key === "Enter") applyAudit(); });
+  $("sys_since").onchange = applyAudit;
+  $("sys_until").onchange = applyAudit;
+  $("sys_reset").onclick = () => {
+    systemState = { auditAction: "", auditActor: "", auditSince: "", auditUntil: "", auditPage: 0, auditPageSize: listPageSize() };
+    renderSystem();
+  };
+  $("sys_ps").onchange = (e) => { setListPageSize(e.target.value); systemState.auditPage = 0; renderSystem(); };
+  if ($("auditPrev")) $("auditPrev").onclick = () => { systemState.auditPage = Math.max(0, systemState.auditPage - 1); renderSystem(); };
+  if ($("auditNext")) $("auditNext").onclick = () => { systemState.auditPage += 1; renderSystem(); };
+
+  $("btnPreview").onclick = async () => {
+    try {
+      const r = await post("/api/maintenance/retention", {dry_run: true});
+      $("storageOut").textContent = `可清理 ${r.count} 个文件 / ${fmtBytes(r.bytes)}（裁剪保留 ${r.crop_days} 天，冒烟保留 ${r.smoke_days} 天）`;
+    } catch (e) { $("storageOut").textContent = e.message; }
+  };
+  $("btnClean").onclick = async () => {
+    if (!confirm("按当前保留期清理过期文件？判例引用的图和待复核证据不会删。")) return;
+    try {
+      const r = await post("/api/maintenance/retention", {dry_run: false, actor: "web"});
+      $("storageOut").textContent = `已清理 ${r.deleted ?? r.count ?? 0} 个文件，释放 ${fmtBytes(r.bytes ?? 0)}`;
+      toast("清理完成");
+    } catch (e) { toast(e.message, true); }
+  };
+  $("btnArchiveAudit").onclick = async () => {
+    if (!confirm("把 180 天前的审计日志归档为 CSV？（不删除，归档后可按需导入）")) return;
+    try {
+      const r = await post("/api/maintenance/audit/archive", {apply: true, actor: "web"});
+      toast(`已归档 ${r.count ?? 0} 条`);
+      renderSystem();
+    } catch (e) { toast(e.message, true); }
+  };
+  $("btnImportAudit").onclick = async () => {
+    const path = prompt("输入审计归档 CSV 的完整路径：");
+    if (!path) return;
+    try {
+      const preview = await post("/api/maintenance/audit/import", {path, apply: false});
+      if (!confirm(`将导入 ${preview.count ?? 0} 条审计记录，继续？`)) return;
+      const done = await post("/api/maintenance/audit/import", {path, apply: true, actor: "web"});
+      toast(`已导入 ${done.count ?? 0} 条`);
+      renderSystem();
+    } catch (e) { toast(e.message, true); }
+  };
 }
 
-let caseState = {code: "", verdict: "", source: "", partNo: "", batchNo: "", conflict: false, showArchived: false, page: 0, pageSize: 25};
+let caseState = {code: "", verdict: "", source: "", partNo: "", batchNo: "", conflict: false, showArchived: false, page: 0, pageSize: listPageSize()};
 let selectedCases = new Set();
 
 async function renderCases() {
@@ -2310,6 +2382,7 @@ async function renderCases() {
         ${conflicts.length ? `<span class="pill" style="background:color-mix(in oklab,var(--bad) 18%,transparent);color:var(--bad)">冲突 ${conflicts.length}</span>` : ""}
         <span style="margin-left:auto">
           <button class="ghost" id="btnAddDataset" disabled>加入数据集（0）</button>
+          ${pageSizeSelect("cq_ps")}
           <button class="ghost" id="btnExport">导出 CSV</button>
           <button class="act" id="newCase">录入判例</button>
         </span></h2>
@@ -2425,6 +2498,7 @@ async function renderCases() {
 
   $("cq_code").onchange = (e) => { caseState.code = e.target.value; renderCases(); };
   $("cq_verdict").onchange = (e) => { caseState.verdict = e.target.value; renderCases(); };
+  $("cq_ps").onchange = (e) => { caseState.pageSize = Number(e.target.value); setListPageSize(e.target.value); caseState.page = 0; renderCases(); };
   $("cq_source").onchange = (e) => { caseState.source = e.target.value; renderCases(); };
   $("cq_arch").onchange = (e) => { caseState.showArchived = e.target.value === "1"; renderCases(); };
   $("cq_part").addEventListener("keydown", (e) => {
