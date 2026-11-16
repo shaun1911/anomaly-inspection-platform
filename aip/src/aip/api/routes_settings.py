@@ -87,6 +87,72 @@ def maintenance_retention(body: RetentionIn, conn: sqlite3.Connection = Depends(
     )}
 
 
+class PickPathIn(BaseModel):
+    kind: str = "dir"          # dir | open | save
+    title: str | None = None
+    default: str | None = None
+
+
+@router.post("/system/pick-path")
+def pick_path(body: PickPathIn) -> dict:
+    """在服务端桌面弹出系统选择框，返回本机绝对路径（仅 Windows）。"""
+    import os
+    import subprocess
+    import tempfile
+
+    if os.name != "nt":
+        raise ApiError("picker_unsupported", "当前系统不支持本地路径选择", "手动输入路径", 400)
+    kind = body.kind if body.kind in ("dir", "open", "save") else "dir"
+    out_file = Path(tempfile.mkstemp(suffix=".txt")[1])
+    script = r"""
+Add-Type -AssemblyName System.Windows.Forms
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$kind = $env:AIP_PICK_KIND
+$title = $env:AIP_PICK_TITLE
+$default = $env:AIP_PICK_DEFAULT
+$out = $env:AIP_PICK_OUT
+$path = ""
+if ($kind -eq "dir") {
+  $d = New-Object System.Windows.Forms.FolderBrowserDialog
+  if ($title) { $d.Description = $title }
+  if ($default -and (Test-Path -LiteralPath $default)) { $d.SelectedPath = $default }
+  if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $path = $d.SelectedPath }
+} elseif ($kind -eq "open") {
+  $f = New-Object System.Windows.Forms.OpenFileDialog
+  if ($title) { $f.Title = $title }
+  $f.Filter = "备份/文件 (*.zip;*.csv)|*.zip;*.csv|所有文件 (*.*)|*.*"
+  if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $path = $f.FileName }
+} else {
+  $f = New-Object System.Windows.Forms.SaveFileDialog
+  if ($title) { $f.Title = $title }
+  $f.Filter = "Zip (*.zip)|*.zip"
+  if ($default) { $f.FileName = $default }
+  if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $path = $f.FileName }
+}
+[System.IO.File]::WriteAllText($out, $path, [System.Text.Encoding]::UTF8)
+"""
+    env = dict(os.environ)
+    env.update({
+        "AIP_PICK_KIND": kind,
+        "AIP_PICK_TITLE": body.title or "选择路径",
+        "AIP_PICK_DEFAULT": body.default or "",
+        "AIP_PICK_OUT": str(out_file),
+    })
+    try:
+        subprocess.run(
+            ["powershell", "-NoProfile", "-STA", "-Command", script],
+            env=env, capture_output=True, timeout=180, check=False,
+        )
+        picked = out_file.read_text(encoding="utf-8").strip() if out_file.exists() else ""
+    except subprocess.TimeoutExpired as exc:
+        raise ApiError("picker_timeout", "选择框超时未操作", "可手动输入路径", 408) from exc
+    finally:
+        out_file.unlink(missing_ok=True)
+    if not picked:
+        raise ApiError("picker_cancelled", "没有选择路径", "可手动输入路径", 400)
+    return {"path": picked}
+
+
 class MoveIn(BaseModel):
     model_config = ConfigDict(json_schema_extra={"examples": [{"target": "D:\\aip-data", "dry_run": True}]})
 
