@@ -418,14 +418,37 @@
 <div id="progress" hidden aria-hidden="true"></div>
 <div id="toasts" aria-live="polite"></div>
 
-<dialog id="datasetDlg" style="width:min(860px,94vw)">
+<dialog id="dsNewDlg" style="width:min(560px,92vw)">
+  <h2 style="margin-bottom:12px">新建数据集</h2>
+  <label for="nds_model">模型</label>
+  <select id="nds_model"></select>
+  <label for="nds_name">名称<span class="req"> *</span></label>
+  <input id="nds_name" placeholder="M1-2026-W46">
+  <div class="row" style="margin-top:14px">
+    <button class="act" id="ndsSave">建数据集</button>
+    <button class="ghost" onclick="this.closest('dialog').close()">取消</button>
+  </div>
+</dialog>
+
+<dialog id="datasetDlg" style="width:min(960px,94vw)">
   <h2 id="datasetTitle" style="margin-bottom:8px">数据集</h2>
-  <p id="datasetSummary" class="muted" style="margin:0 0 12px"></p>
-  <table><caption class="sr-only">数据集成员</caption>
-    <thead><tr><th scope="col">判例</th><th scope="col">编码</th><th scope="col">件号</th>
-      <th scope="col">结论</th><th scope="col">划分</th><th scope="col">理由</th></tr></thead>
-    <tbody id="datasetBody"></tbody></table>
-  <div class="row" style="margin-top:14px"><button class="ghost" onclick="this.closest('dialog').close()">关闭</button></div>
+  <p id="datasetSummary" class="muted" style="margin:0 0 10px"></p>
+  <div class="filterbar">
+    <input id="dsdQ" placeholder="搜索判例号 / 编码 / 件号" aria-label="搜索数据集成员" style="width:260px">
+    <span id="dsdCount" class="muted"></span>
+  </div>
+  <div class="table-wrap" style="max-height:52vh;border:1px solid var(--g3);border-radius:8px">
+    <table><caption class="sr-only">数据集成员</caption>
+      <thead><tr><th scope="col">判例</th><th scope="col">编码</th><th scope="col">件号</th>
+        <th scope="col">结论</th><th scope="col">划分</th><th scope="col">理由</th></tr></thead>
+      <tbody id="datasetBody"></tbody></table>
+  </div>
+  <div class="row" style="margin-top:10px;align-items:center">
+    <button class="ghost" id="dsdPrev">上一页</button>
+    <span style="flex:1"></span>
+    <button class="ghost" id="dsdNext">下一页</button>
+  </div>
+  <div class="row" style="margin-top:10px"><button class="ghost" onclick="this.closest('dialog').close()">关闭</button></div>
 </dialog>
 
 <dialog id="auditDlg">
@@ -554,7 +577,6 @@ const actionLabel = (a) => ACTIONS[a] || a;
 // 页面级状态（各页筛选与向导进度）
 let wiz = { code: "", modelId: null };
 let trainingState = { q: "", family: "", jobModel: "" };
-let datasetState = { q: "", family: "", model: "", status: "" };
 let blindState = { q: "", status: "" };
 let systemState = { auditAction: "", auditActor: "", auditSince: "", auditUntil: "", auditPage: 0, auditPageSize: 20 };
 
@@ -2540,6 +2562,29 @@ const STATUS_LABEL = {
 };
 const stLabel = (s) => STATUS_LABEL[s] || s;
 
+let datasetState = { q: "", family: "", model: "", status: "", page: 0 };
+let ddState = { items: [], q: "", page: 0, size: 50 };
+
+function renderDatasetDetail() {
+  const q = ddState.q.trim().toLowerCase();
+  const shown = ddState.items.filter(it => !q ||
+    [it.case_id, it.code, it.part_no].some(v => String(v || "").toLowerCase().includes(q)));
+  const pages = Math.max(1, Math.ceil(shown.length / ddState.size));
+  if (ddState.page >= pages) ddState.page = pages - 1;
+  const rows = shown.slice(ddState.page * ddState.size, (ddState.page + 1) * ddState.size);
+  $("datasetBody").innerHTML = rows.length
+    ? rows.map(it => `<tr>
+        <td>${it.case_id}</td><td>${esc(it.code)}</td><td>${esc(it.part_no || "-")}</td>
+        <td>${tag(it.verdict)}</td>
+        <td>${it.split === "frozen_val" ? '<span class="tag candidate">验证</span>' : "训练"}</td>
+        <td>${esc(it.reason || "-")}</td>
+      </tr>`).join("")
+    : '<tr><td colspan="6" class="empty">没有匹配的成员</td></tr>';
+  $("dsdCount").textContent = `第 ${ddState.page + 1} / ${pages} 页 · ${shown.length} 条${ddState.q ? "（已筛选）" : ""}`;
+  $("dsdPrev").disabled = ddState.page === 0;
+  $("dsdNext").disabled = ddState.page + 1 >= pages;
+}
+
 async function renderDatasets() {
   const [datasets, models] = await Promise.all([api("/api/datasets"), api("/api/models")]);
 
@@ -2552,13 +2597,21 @@ async function renderDatasets() {
     (datasetState.status ? d.status === datasetState.status : true) &&
     (q ? (d.name || "").toLowerCase().includes(q) : true)
   );
+  const pageSize = listPageSize();
+  const pages = Math.max(1, Math.ceil(shown.length / pageSize));
+  if (datasetState.page >= pages) datasetState.page = pages - 1;
+  const rows = shown.slice(datasetState.page * pageSize, (datasetState.page + 1) * pageSize);
 
   $("view").innerHTML = `
     <section>
       <h2>数据集 <span class="pill">${shown.length} / ${datasets.length}</span>
-        <span style="margin-left:auto"><button class="act" id="btnNewDataset">新建数据集</button></span></h2>
+        <span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          ${pageSizeSelect("ds_ps")}
+          <button class="act" id="btnNewDataset">新建数据集</button>
+        </span></h2>
       <p class="muted" style="margin:0 0 12px">
-        数据集是训练集快照：一个零件、一个模型、一组判例。冻结后成员不可改，校验和保证训练可复现。
+        数据集是训练集快照：<b>判例库勾选 → 加入数据集 → 冻结 → 训练时选择</b>。
+        草稿可改；冻结后成员锁定，校验和保证“这版模型用了哪些数据”可复现。
       </p>
       <div class="filterbar">
         <input id="ds_q" value="${esc(datasetState.q)}" placeholder="搜索名称，回车筛选" style="max-width:200px">
@@ -2576,58 +2629,58 @@ async function renderDatasets() {
           <option value="draft" ${datasetState.status === "draft" ? "selected" : ""}>草稿</option>
         </select>
       </div>
-      ${shown.length === 0 ? `<div class="empty">${datasets.length ? "当前筛选下没有数据集。" : "还没有数据集。"}<b>怎么做</b>：在判例库勾选判例 → 加入数据集 → 冻结 → 训练时选择它。</div>` : `
+      ${shown.length === 0 ? `<div class="empty">${datasets.length ? "当前筛选下没有数据集。" : "还没有数据集。"}<b>怎么做</b>：判例库勾选判例 → 加入数据集 → 冻结 → 训练时选择它。</div>` : `
       <table><caption class="sr-only">数据集列表</caption>
         <thead><tr><th scope="col">#</th><th scope="col">名称</th><th scope="col">零件</th><th scope="col">模型</th>
-          <th scope="col">总数</th><th scope="col">OK</th><th scope="col">NG</th>
-          <th scope="col">验证 OK</th><th scope="col">验证 NG</th>
+          <th scope="col">样本（OK/NG）</th><th scope="col">验证（OK/NG）</th>
           <th scope="col">状态</th><th scope="col">校验和</th><th scope="col">操作</th></tr></thead>
-        <tbody>${shown.map(d => `<tr>
+        <tbody>${rows.map(d => `<tr>
           <td>${d.id}</td><td>${esc(d.name)}</td><td>${esc(d.family || "-")}</td><td>${esc(d.model_code)}</td>
-          <td>${d.count}</td>
-          <td>${d.ok_count}</td>
-          <td>${d.ng_count}</td>
-          <td>${d.val_ok}</td>
-          <td>${d.val_ng}</td>
+          <td>${d.count} <span class="muted">（${d.ok_count}/${d.ng_count}）</span></td>
+          <td>${d.val_ok + d.val_ng} <span class="muted">（${d.val_ok}/${d.val_ng}）</span></td>
           <td>${d.status === "frozen" ? '<span class="tag ok">已冻结</span>' : '<span class="tag candidate">草稿</span>'}</td>
           <td class="muted">${d.checksum ? d.checksum.slice(0, 12) + "…" : "-"}</td>
           <td>
             <button class="ghost" data-detail="${d.id}">明细</button>
             <a class="ghost" href="/api/datasets/${d.id}/export.csv">导出</a>
-            ${d.status === "frozen" ? `<button class="ghost" data-audit="${d.id}">核对</button>` : ""}
-            ${d.status === "draft" ? `<button class="ghost" data-freeze="${d.id}">冻结</button>` : ""}
+            ${d.status === "frozen" ? `<button class="ghost" data-audit="${d.id}">核对</button><a class="ghost" href="#/training">去训练</a>` : ""}
+            ${d.status === "draft" ? `<button class="ghost" data-freeze="${d.id}">冻结</button><a class="ghost" href="#/cases">去加判例</a>` : ""}
           </td>
-        </tr>`).join("")}</tbody></table>`}
-    </section>
-
-    <section>
-      <h2>新建数据集</h2>
-      <div class="form form-grid">
-        <div><label for="ds_model">模型</label>
-          <select id="ds_model">${models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("")}</select></div>
-        <div><label for="ds_name">名称<span class="req"> *</span></label><input id="ds_name" placeholder="M1-2026-W46"></div>
-        <div><button class="act" id="btnCreateDataset">建数据集</button></div>
-      </div>
+        </tr>`).join("")}</tbody></table>
+      <div class="row" style="margin-top:10px;align-items:center">
+        <button class="ghost" id="dsPrev" ${datasetState.page === 0 ? "disabled" : ""}>上一页</button>
+        <span class="muted" style="flex:1;text-align:center">第 ${datasetState.page + 1} / ${pages} 页 · 共 ${shown.length} 条</span>
+        <button class="ghost" id="dsNext" ${datasetState.page + 1 >= pages ? "disabled" : ""}>下一页</button>
+      </div>`}
     </section>`;
 
+  const applyFilter = (fn) => { fn(); datasetState.page = 0; renderDatasets(); };
   $("ds_q").addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
-    datasetState.q = e.target.value;
-    renderDatasets();
+    applyFilter(() => { datasetState.q = e.target.value; });
   });
-  $("ds_family").onchange = (e) => { datasetState.family = e.target.value; renderDatasets(); };
-  $("ds_model").onchange = (e) => { datasetState.model = e.target.value; renderDatasets(); };
-  $("ds_status").onchange = (e) => { datasetState.status = e.target.value; renderDatasets(); };
+  $("ds_family").onchange = (e) => applyFilter(() => { datasetState.family = e.target.value; });
+  $("ds_model").onchange = (e) => applyFilter(() => { datasetState.model = e.target.value; });
+  $("ds_status").onchange = (e) => applyFilter(() => { datasetState.status = e.target.value; });
+  $("ds_ps").onchange = (e) => { setListPageSize(e.target.value); datasetState.page = 0; renderDatasets(); };
+  if ($("dsPrev")) $("dsPrev").onclick = () => { datasetState.page = Math.max(0, datasetState.page - 1); renderDatasets(); };
+  if ($("dsNext")) $("dsNext").onclick = () => { datasetState.page += 1; renderDatasets(); };
 
-  $("btnNewDataset").onclick = () => $("ds_name").focus();
-  $("btnCreateDataset").onclick = async () => {
-    if (!need($("ds_name"), "数据集名称")) return;
+  $("btnNewDataset").onclick = () => {
+    $("nds_model").innerHTML = models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("");
+    $("nds_name").value = "";
+    $("dsNewDlg").showModal();
+  };
+  $("ndsSave").onclick = async () => {
+    if (!need($("nds_name"), "数据集名称")) return;
     try {
-      const r = await post("/api/datasets", {model_id: Number($("ds_model").value), name: $("ds_name").value.trim()});
+      await post("/api/datasets", {model_id: Number($("nds_model").value), name: $("nds_name").value.trim()});
+      $("dsNewDlg").close();
       toast("数据集已创建，去判例库勾选加入");
       renderDatasets();
     } catch (e) { toast(e.message, true); }
   };
+
   document.querySelectorAll("[data-detail]").forEach(btn => {
     btn.onclick = async () => {
       try {
@@ -2636,19 +2689,17 @@ async function renderDatasets() {
         $("datasetTitle").textContent = `数据集 #${d.id} ${d.name}`;
         $("datasetSummary").textContent =
           `共 ${s.total} 条 · OK ${s.ok} / NG ${s.ng} · 训练 OK ${s.train_ok} NG ${s.train_ng}` +
-          ` · 验证 OK ${s.val_ok} NG ${s.val_ng}（状态：${d.status === "frozen" ? "已冻结" : "草稿"}）`;
-        $("datasetBody").innerHTML = d.items.length
-          ? d.items.map(it => `<tr>
-              <td>${it.case_id}</td><td>${esc(it.code)}</td><td>${esc(it.part_no || "-")}</td>
-              <td>${tag(it.verdict)}</td>
-              <td>${it.split === "frozen_val" ? '<span class="tag candidate">验证</span>' : "训练"}</td>
-              <td>${esc(it.reason || "-")}</td>
-            </tr>`).join("")
-          : '<tr><td colspan="6" class="empty">数据集为空</td></tr>';
+          ` · 验证 OK ${s.val_ok} NG ${s.val_ng}（${d.status === "frozen" ? "已冻结" : "草稿"}）`;
+        ddState = { items: d.items, q: "", page: 0, size: 50 };
+        $("dsdQ").value = "";
+        renderDatasetDetail();
         $("datasetDlg").showModal();
       } catch (e) { toast(e.message, true); }
     };
   });
+  $("dsdQ").oninput = (e) => { ddState.q = e.target.value; ddState.page = 0; renderDatasetDetail(); };
+  $("dsdPrev").onclick = () => { ddState.page = Math.max(0, ddState.page - 1); renderDatasetDetail(); };
+  $("dsdNext").onclick = () => { ddState.page += 1; renderDatasetDetail(); };
 
   document.querySelectorAll("[data-audit]").forEach(btn => {
     btn.onclick = async () => {
