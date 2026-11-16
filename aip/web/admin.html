@@ -885,10 +885,21 @@ let showArchived = false;
 let catalogState = { tab: "codes", q: "", page: 0, modelQ: "" };
 
 async function renderCatalog() {
-  const [codes, bindings, models, families] = await Promise.all([
-    api("/api/codes?include_archived=" + showArchived), api("/api/bindings"), api("/api/models"),
+  const pageSize = 20;
+  const cp = new URLSearchParams({
+    include_archived: String(showArchived),
+    limit: String(pageSize),
+    offset: String(catalogState.page * pageSize),
+  });
+  if (catalogState.q.trim()) cp.set("q", catalogState.q.trim());
+  const [codesData, bindings, models, families] = await Promise.all([
+    api("/api/codes/page?" + cp), api("/api/bindings"), api("/api/models"),
     api("/api/families")
   ]);
+  const codes = codesData.items;
+  const codesTotal = codesData.total;
+  const pages = Math.max(1, Math.ceil(codesTotal / pageSize));
+  if (catalogState.page >= pages) { catalogState.page = pages - 1; return renderCatalog(); }
   const famModels = await Promise.all(
     families.map(f => api(`/api/families/${f.id}/models`).catch(() => null))
   );
@@ -899,20 +910,14 @@ async function renderCatalog() {
   const stageTag = (s) => `<span class="tag ${esc(s)}">${esc(stageName[s] || s)}</span>`;
 
   const tab = catalogState.tab;
-  const q = catalogState.q.trim().toLowerCase();
-  const filtered = codes.filter(c => !q ||
-    [c.code, c.family, c.part].some(v => String(v || "").toLowerCase().includes(q)));
-  const pageSize = 20;
-  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  if (catalogState.page >= pages) catalogState.page = pages - 1;
-  const rows = filtered.slice(catalogState.page * pageSize, (catalogState.page + 1) * pageSize);
+  const rows = codes;
 
   const mq = catalogState.modelQ.trim().toLowerCase();
   const modelRows = models.filter(m => !mq ||
     [m.code, m.name].some(v => String(v || "").toLowerCase().includes(mq)));
 
   const tabs = [
-    ["codes", `产品编码 ${codes.length}`],
+    ["codes", `产品编码 ${codesTotal}`],
     ["models", `模型与版本 ${models.length}`],
     ["families", `产品族 ${families.length}`],
   ];
@@ -930,7 +935,7 @@ async function renderCatalog() {
           <button class="act" id="btnNewCode">新建编码</button>
           <button class="ghost" id="btnArchived">${showArchived ? "隐藏已归档" : "显示已归档"}</button>
         </div>
-        ${filtered.length === 0 ? `<div class="empty">没有匹配的编码。${catalogState.q ? "换个关键词，或" : ""}点「新建编码」。</div>` : `
+        ${codesTotal === 0 ? `<div class="empty">没有匹配的编码。${catalogState.q ? "换个关键词，或" : ""}点「新建编码」。</div>` : `
         <table><caption class="sr-only">产品编码列表</caption>
           <thead><tr><th scope="col">编码</th><th scope="col">族 / 零件</th><th scope="col">状态</th><th scope="col">当前模型</th><th scope="col">阶段</th><th scope="col">操作</th></tr></thead>
           <tbody>${rows.map(c => {
@@ -949,7 +954,7 @@ async function renderCatalog() {
           }).join("")}</tbody></table>
         <div class="row" style="margin-top:10px;align-items:center">
           <button class="ghost" id="catPrev" ${catalogState.page === 0 ? "disabled" : ""}>上一页</button>
-          <span class="muted" style="flex:1;text-align:center">第 ${catalogState.page + 1} / ${pages} 页 · 共 ${filtered.length} 条</span>
+          <span class="muted" style="flex:1;text-align:center">第 ${catalogState.page + 1} / ${pages} 页 · 共 ${codesTotal} 条</span>
           <button class="ghost" id="catNext" ${catalogState.page + 1 >= pages ? "disabled" : ""}>下一页</button>
         </div>`}
       ` : tab === "models" ? `
@@ -1078,52 +1083,45 @@ async function renderCatalog() {
   };
 }
 
+let codeState = { code: "", tab: "overview" };
+
 async function renderCode(code) {
   const [d, tl, models] = await Promise.all([
     api(`/api/codes/${encodeURIComponent(code)}/detail`),
     api(`/api/codes/${encodeURIComponent(code)}/timeline?limit=20`),
     api("/api/models")
   ]);
+  if (codeState.code !== code) codeState = { code, tab: "overview" };
+  const tab = codeState.tab;
   const cfgVer = d.version || d.draft_version;
   const boundId = d.binding ? d.binding.model_id : null;
   const orderedModels = [...models].sort((a, b) => (b.id === boundId ? 1 : 0) - (a.id === boundId ? 1 : 0));
+  const stageLabel = {candidate:"候选", assist:"生效", shadow:"影子", disabled:"停用"};
   const bindState = d.binding
-    ? `已绑定 <b>${esc(d.binding.model_code)}${d.binding.model_name ? " " + esc(d.binding.model_name) : ""}</b>（阶段 ${esc(d.binding.stage || "-")}）`
+    ? `已绑定 <b>${esc(d.binding.model_code)}${d.binding.model_name ? " " + esc(d.binding.model_name) : ""}</b>（阶段 ${esc(stageLabel[d.binding.stage] || d.binding.stage || "-")}）`
     : "尚未绑定模型";
   const nextStep = !d.binding
-    ? `下一步：在下方选择一个模型并点「绑定」。绑定后才能配置 ROI/阈值或去训练。`
+    ? `下一步：在「配置」页签选择一个模型并绑定。`
     : d.version
-      ? `已生效 v${d.version.version_no}。下一步：确认下方 ROI/阈值无误，或去工位面板换型推图。`
+      ? `已生效 v${d.version.version_no}。下一步：确认「配置」中的 ROI/阈值，或去工位面板换型推图。`
       : d.draft_version
-        ? `已有候选版本 v${d.draft_version.version_no}，尚未发布。下一步：配置 ROI/阈值 → 导出 ONNX → 发布。`
+        ? `已有候选版本 v${d.draft_version.version_no}，尚未发布。下一步：在「配置」页签配 ROI/阈值 → 导出 ONNX → 发布。`
         : `已绑定模型，但该模型还没有版本。下一步：去「训练与发布」用冻结数据集训练一个版本。`;
-  $("view").innerHTML = `
-    <section>
-      <h2>${esc(d.code)} ${d.active ? "" : '<span class="tag disabled">停用</span>'}
-        <span class="pill">${esc(d.family || "")} ${esc(d.part || "")}</span>
-        <span style="margin-left:auto">
-          <button class="ghost" id="btnToggle">${d.active ? "停用编码" : "启用编码"}</button>
-          <button class="ghost" id="btnArchive">归档</button>
-        </span></h2>
-      <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
-        <div class="card"><span>模型</span><b style="font-size:15px">${d.binding ? esc(d.binding.model_code) : "未绑定"}</b></div>
-        <div class="card"><span>版本</span><b style="font-size:15px">${d.version ? "v" + d.version.version_no + " " + (stageLabel[d.version.status] || d.version.status) : d.draft_version ? "v" + d.draft_version.version_no + " 候选（未发布）" : "还没有版本"}</b></div>
-        <div class="card"><span>ROI（rev ${d.config ? d.config.rev : "-"}）</span><b style="font-size:13px">${d.config ? esc(d.config.roi_rect.join(",")) : "未配置"}</b></div>
-        <div class="card"><span>阈值（rev ${d.threshold ? d.threshold.rev ?? "-" : "-"}）</span><b style="font-size:13px">${d.threshold ? d.threshold.th_lo.toFixed(2) + " / " + d.threshold.th_hi.toFixed(2) : "未配置"}</b></div>
-        <div class="card"><span>判例</span><b style="font-size:15px">${d.case_count}</b></div>
-      </div>
-      ${d.config ? `<p class="muted" style="margin:12px 0 0">ROI 矩形：${esc(JSON.stringify(d.config.roi_rect))}</p>` : ""}
-      <div class="next-step">
-        <div>${bindState}</div>
-        <div class="muted" style="margin-top:4px">${nextStep}</div>
-        ${!d.binding || !cfgVer
-          ? `<div style="margin-top:8px"><a class="ghost" href="#/training">去训练与发布 →</a></div>`
-          : ""}
-      </div>
-    </section>
 
+  const tabs = [["overview", "概览"], ["config", "配置"], ["judgment", "判定"], ["timeline", "时间线"]];
+  const overviewHtml = `
+    <div class="next-step">
+      <div>${bindState}</div>
+      <div class="muted" style="margin-top:4px">${nextStep}</div>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost" data-goto="config">去配置 ROI / 阈值</button>
+        ${!d.binding || !cfgVer ? `<a class="ghost" href="#/training">去训练与发布 →</a>` : ""}
+      </div>
+    </div>`;
+
+  const configHtml = `
     <section>
-      <h2>操作</h2>
+      <h2>绑定与配置</h2>
       <div class="form">
         <div><label for="bind_model">换绑到模型</label>
           <select id="bind_model">${orderedModels.map(m => `<option value="${m.id}" ${m.id === boundId ? "selected" : ""}>${esc(m.code)} ${esc(m.name || "")}${m.id === boundId ? "（当前绑定）" : ""}</option>`).join("")}</select>
@@ -1145,8 +1143,9 @@ async function renderCode(code) {
       <div class="row" style="margin-top:8px">
         <button class="ghost" id="btnCfgHistory">配置历史管理（ROI ${(d.config_history || []).length} · 阈值 ${(d.threshold_history || []).length}）</button>
       </div>` : `<div class="empty">这个编码还没有可用版本。<b>下一步</b>：先绑定模型，并让该模型有一个 assist/shadow 版本。</div>`}
-    </section>
+    </section>`;
 
+  const judgmentHtml = `
     <section>
       <h2>最近判定 <span class="pill">最近 20 条</span></h2>
       ${d.recent_results.length === 0 ? `<div class="empty">这个编码还没有判定记录。<b>下一步</b>：去工位面板扫码换型并推图。</div>` : `
@@ -1157,8 +1156,9 @@ async function renderCode(code) {
           <td>${r.confirmed_by ? esc(r.confirmed_by) : (r.label === 'ok' ? '<span class="muted">—</span>' : '<span class="muted">待复核</span>')}</td>
           <td class="muted">${fmtTime(r.created_at)}</td></tr>`).join("")}
         </tbody></table>`}
-    </section>
+    </section>`;
 
+  const timelineHtml = `
     <section>
       <h2>时间线</h2>
       <div class="timeline">
@@ -1167,14 +1167,34 @@ async function renderCode(code) {
       </div>
     </section>`;
 
-  document.querySelectorAll("[data-shot]").forEach(tr => {
-    tr.onclick = () => {
-      $("shotDlgImg").src = `/results/${tr.dataset.shot}/image`;
-      $("shotDlgTitle").textContent = `结果 #${tr.dataset.shot}`;
-      $("shotDlg").showModal();
-    };
-  });
+  $("view").innerHTML = `
+    <section>
+      <h2>${esc(d.code)} ${d.active ? "" : '<span class="tag disabled">停用</span>'}
+        <span class="pill">${esc(d.family || "")} ${esc(d.part || "")}</span>
+        <span style="margin-left:auto">
+          <button class="ghost" id="btnToggle">${d.active ? "停用编码" : "启用编码"}</button>
+          <button class="ghost" id="btnArchive">归档</button>
+        </span></h2>
+      <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        <div class="card"><span>模型</span><b style="font-size:15px">${d.binding ? esc(d.binding.model_code) : "未绑定"}</b></div>
+        <div class="card"><span>版本</span><b style="font-size:15px">${d.version ? "v" + d.version.version_no + " " + (stageLabel[d.version.status] || d.version.status) : d.draft_version ? "v" + d.draft_version.version_no + " 候选（未发布）" : "还没有版本"}</b></div>
+        <div class="card"><span>ROI（rev ${d.config ? d.config.rev : "-"}）</span><b style="font-size:13px">${d.config ? esc(d.config.roi_rect.join(",")) : "未配置"}</b></div>
+        <div class="card"><span>阈值（rev ${d.threshold ? d.threshold.rev ?? "-" : "-"}）</span><b style="font-size:13px">${d.threshold ? d.threshold.th_lo.toFixed(2) + " / " + d.threshold.th_hi.toFixed(2) : "未配置"}</b></div>
+        <div class="card"><span>判例</span><b style="font-size:15px">${d.case_count}</b></div>
+      </div>
+      <div class="page-tabs" style="margin-top:12px">
+        ${tabs.map(([k, label]) => `<button class="page-tab ${tab === k ? "on" : ""}" data-ctab="${k}">${label}</button>`).join("")}
+      </div>
+      ${tab === "overview" ? overviewHtml : ""}
+    </section>
+    ${tab === "config" ? configHtml : tab === "judgment" ? judgmentHtml : tab === "timeline" ? timelineHtml : ""}`;
 
+  document.querySelectorAll("[data-ctab]").forEach(btn => {
+    btn.onclick = () => { codeState.tab = btn.dataset.ctab; renderCode(code); };
+  });
+  document.querySelectorAll("[data-goto]").forEach(btn => {
+    btn.onclick = () => { codeState.tab = btn.dataset.goto; renderCode(code); };
+  });
   $("btnToggle").onclick = async () => {
     try {
       await post(`/api/codes/${encodeURIComponent(code)}/active`, {active: !d.active});
@@ -1186,17 +1206,27 @@ async function renderCode(code) {
     try { await post(`/api/codes/${encodeURIComponent(code)}/archive`, {}); toast("已归档"); location.hash = "#/catalog"; }
     catch (e) { toast(e.message, true); }
   };
-  $("btnBind").onclick = async () => {
-    const mid = Number($("bind_model").value);
-    const target = models.find(m => m.id === mid);
-    if (d.binding && d.binding.model_id === mid) { toast("当前已绑定该模型"); return; }
-    if (d.binding && !confirm(`从 ${d.binding.model_code} 换绑到 ${target ? target.code : mid}？旧绑定会保留历史记录。`)) return;
-    try {
-      await post("/api/bindings", {code, model_id: mid});
-      toast(d.binding ? `已换绑：${d.binding.model_code} → ${target ? target.code : mid}` : `已绑定 ${target ? target.code : mid}`);
-      renderCode(code);
-    } catch (e) { toast(e.message, true); }
-  };
+  if ($("btnBind")) {
+    $("btnBind").onclick = async () => {
+      const mid = Number($("bind_model").value);
+      const target = models.find(m => m.id === mid);
+      if (d.binding && d.binding.model_id === mid) { toast("当前已绑定该模型"); return; }
+      if (d.binding && !confirm(`从 ${d.binding.model_code} 换绑到 ${target ? target.code : mid}？旧绑定会保留历史记录。`)) return;
+      try {
+        await post("/api/bindings", {code, model_id: mid});
+        toast(d.binding ? `已换绑：${d.binding.model_code} → ${target ? target.code : mid}` : `已绑定 ${target ? target.code : mid}`);
+        renderCode(code);
+      } catch (e) { toast(e.message, true); }
+    };
+  }
+  document.querySelectorAll("[data-shot]").forEach(tr => {
+    tr.onclick = () => {
+      $("shotDlgImg").src = `/results/${tr.dataset.shot}/image`;
+      $("shotDlgTitle").textContent = `结果 #${tr.dataset.shot}`;
+      $("shotDlg").showModal();
+    };
+  });
+
   function openCfgHistory(d, ver) {
     $("cfgDlgSub").textContent = `候选 v${ver.version_no}`;
     const cfg = d.config_history || [];
@@ -1290,7 +1320,7 @@ async function renderCode(code) {
     $("cfgDlg").showModal();
   }
 
-  if (cfgVer) {
+  if (cfgVer && $("btnRoi")) {
     $("btnRoi").onclick = async () => {
       try {
         const roi = $("roi_box").value.split(",").map(Number);

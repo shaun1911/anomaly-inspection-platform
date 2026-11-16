@@ -128,6 +128,36 @@ def list_codes(
     return [_row_to_dict(r) for r in rows]
 
 
+@router.get("/codes/page")
+def page_codes(
+    q: str = "",
+    include_archived: bool = False,
+    limit: int = 20,
+    offset: int = 0,
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> dict:
+    clauses: list[str] = []
+    params: list[object] = []
+    if not include_archived:
+        clauses.append("p.archived_at IS NULL")
+    if q.strip():
+        like = f"%{q.strip()}%"
+        clauses.append("(p.code LIKE ? OR p.part LIKE ? OR f.name LIKE ?)")
+        params += [like, like, like]
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+    total = conn.execute(
+        "SELECT count(*) c FROM product_code p LEFT JOIN family f ON f.id = p.family_id" + where,
+        params,
+    ).fetchone()["c"]
+    rows = conn.execute(
+        "SELECT p.*, f.name AS family FROM product_code p"
+        " LEFT JOIN family f ON f.id = p.family_id" + where +
+        " ORDER BY p.code LIMIT ? OFFSET ?",
+        params + [max(1, min(limit, 200)), max(0, offset)],
+    ).fetchall()
+    return {"items": [_row_to_dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+
+
 class CodePatch(BaseModel):
     family: str | None = None
     family_id: int | None = None
