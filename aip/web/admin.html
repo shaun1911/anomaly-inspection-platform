@@ -995,8 +995,8 @@ async function renderCode(code) {
       <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         <div class="card"><span>模型</span><b style="font-size:15px">${d.binding ? esc(d.binding.model_code) : "未绑定"}</b></div>
         <div class="card"><span>版本</span><b style="font-size:15px">${d.version ? "v" + d.version.version_no + " " + d.version.status : "-"}</b></div>
-        <div class="card"><span>ROI rev</span><b style="font-size:15px">${d.config ? d.config.rev : "-"}</b></div>
-        <div class="card"><span>阈值</span><b style="font-size:15px">${d.threshold ? d.threshold.th_lo.toFixed(2) + " / " + d.threshold.th_hi.toFixed(2) : "-"}</b></div>
+        <div class="card"><span>ROI（rev ${d.config ? d.config.rev : "-"}）</span><b style="font-size:13px">${d.config ? esc(d.config.roi_rect.join(",")) : "未配置"}</b></div>
+        <div class="card"><span>阈值（rev ${d.threshold ? d.threshold.rev ?? "-" : "-"}）</span><b style="font-size:13px">${d.threshold ? d.threshold.th_lo.toFixed(2) + " / " + d.threshold.th_hi.toFixed(2) : "未配置"}</b></div>
         <div class="card"><span>判例</span><b style="font-size:15px">${d.case_count}</b></div>
       </div>
       ${d.config ? `<p class="muted" style="margin:12px 0 0">ROI 矩形：${esc(JSON.stringify(d.config.roi_rect))}</p>` : ""}
@@ -1018,9 +1018,27 @@ async function renderCode(code) {
       </div>
       <div class="form">
         <div><label for="th_box">改阈值（th_lo,th_hi）</label><input id="th_box" value="${d.threshold ? esc(d.threshold.th_lo + "," + d.threshold.th_hi) : "0.45,0.60"}"></div>
+        <div><label for="th_reason">变更原因（可选）</label><input id="th_reason" placeholder="例：过杀偏高，调松"></div>
         <div><button class="ghost" id="btnTh">保存阈值</button></div>
       </div>
-      <p class="muted">改 ROI 与阈值会产生新的 rev，旧值保留可追溯；不影响已在跑的结果。</p>` :
+      <p class="muted">改 ROI 与阈值会产生新的 rev，旧值保留可追溯；不影响已在跑的结果。</p>
+      ${(d.config_history && d.config_history.length) ? `
+      <table style="margin-top:10px"><caption class="sr-only">ROI 历史</caption>
+        <thead><tr><th scope="col">ROI rev</th><th scope="col">矩形 x1,y1,x2,y2</th><th scope="col">时间</th></tr></thead>
+        <tbody>${d.config_history.map(c => `<tr>
+          <td>${c.rev}${d.config && c.rev === d.config.rev ? ' <span class="tag ok">当前</span>' : ""}</td>
+          <td>${esc(c.roi_rect.join(","))}</td>
+          <td class="muted">${fmtTime(c.created_at)}</td>
+        </tr>`).join("")}</tbody></table>` : ""}
+      ${(d.threshold_history && d.threshold_history.length) ? `
+      <table style="margin-top:10px"><caption class="sr-only">阈值历史</caption>
+        <thead><tr><th scope="col">阈值 rev</th><th scope="col">对应 ROI rev</th><th scope="col">th_lo / th_hi</th><th scope="col">理由</th><th scope="col">时间</th></tr></thead>
+        <tbody>${d.threshold_history.map(c => `<tr>
+          <td>${c.rev}</td><td>${c.roi_rev}</td>
+          <td>${c.th_lo.toFixed(2)} / ${c.th_hi.toFixed(2)}</td>
+          <td class="muted">${esc(c.reason || "-")}</td>
+          <td class="muted">${fmtTime(c.created_at)}</td>
+        </tr>`).join("")}</tbody></table>` : ""}` :
       `<div class="empty">这个编码还没有可用版本。<b>下一步</b>：先绑定模型，并让该模型有一个 assist/shadow 版本。</div>`}
     </section>
 
@@ -1073,15 +1091,19 @@ async function renderCode(code) {
     $("btnRoi").onclick = async () => {
       try {
         const roi = $("roi_box").value.split(",").map(Number);
+        const before = d.config ? d.config.roi_rect.join(",") : "未配置";
         await post("/api/configs", {model_version_id: cfgVer.id, rev: (d.config ? d.config.rev : 0) + 1, roi_rect: roi});
-        toast("ROI 已保存"); renderCode(code);
+        toast(`ROI 已保存：${before} → ${roi.join(",")}`);
+        renderCode(code);
       } catch (e) { toast(e.message, true); }
     };
     $("btnTh").onclick = async () => {
       try {
         const [lo, hi] = $("th_box").value.split(",").map(Number);
-        await post("/api/thresholds", {model_version_id: cfgVer.id, roi_rev: d.config ? d.config.rev : 1, th_lo: lo, th_hi: hi});
-        toast("阈值已保存"); renderCode(code);
+        const before = d.threshold ? `${d.threshold.th_lo.toFixed(2)} / ${d.threshold.th_hi.toFixed(2)}` : "未配置";
+        await post("/api/thresholds", {model_version_id: cfgVer.id, roi_rev: d.config ? d.config.rev : 1, th_lo: lo, th_hi: hi, reason: $("th_reason").value.trim() || null});
+        toast(`阈值已保存：${before} → ${lo.toFixed(2)} / ${hi.toFixed(2)}`);
+        renderCode(code);
       } catch (e) { toast(e.message, true); }
     };
   }

@@ -78,6 +78,7 @@ class ThresholdIn(BaseModel):
     th_lo: float
     th_hi: float
     mode: str = "normal"
+    reason: str | None = None
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict:
@@ -539,8 +540,8 @@ def create_threshold(body: ThresholdIn, conn: sqlite3.Connection = Depends(get_c
         try:
             cur = conn.execute(
                 "INSERT INTO threshold_rev"
-                " (model_version_id, roi_rev, rev, th_lo, th_hi, mode)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
+                " (model_version_id, roi_rev, rev, th_lo, th_hi, mode, reason)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     body.model_version_id,
                     body.roi_rev,
@@ -548,6 +549,7 @@ def create_threshold(body: ThresholdIn, conn: sqlite3.Connection = Depends(get_c
                     body.th_lo,
                     body.th_hi,
                     body.mode,
+                    body.reason,
                 ),
             )
         except sqlite3.IntegrityError as exc:
@@ -565,6 +567,6 @@ def create_threshold(body: ThresholdIn, conn: sqlite3.Connection = Depends(get_c
             action="threshold.create",
             entity="model_version",
             entity_id=str(body.model_version_id),
-            payload={"rev": rev, "th_lo": body.th_lo, "th_hi": body.th_hi, "mode": body.mode},
+            payload={"rev": rev, "th_lo": body.th_lo, "th_hi": body.th_hi, "mode": body.mode, "reason": body.reason},
         )
     return {"id": cur.lastrowid}

@@ -360,10 +360,30 @@ def code_detail(code: str, conn: sqlite3.Connection = Depends(get_conn)) -> dict
         ).fetchone()
         if config:
             threshold = conn.execute(
-                "SELECT th_lo, th_hi, mode FROM threshold_rev"
+                "SELECT rev, th_lo, th_hi, mode FROM threshold_rev"
                 " WHERE model_version_id = ? AND roi_rev = ? ORDER BY rev DESC LIMIT 1",
                 (target["id"], config["rev"]),
             ).fetchone()
+
+    config_history = threshold_history = []
+    if target:
+        config_history = [
+            dict(rev=r["rev"], roi_rect=json.loads(r["roi_rect"]), created_at=r["created_at"])
+            for r in conn.execute(
+                "SELECT rev, roi_rect, created_at FROM config_rev"
+                " WHERE model_version_id = ? ORDER BY rev DESC LIMIT 10",
+                (target["id"],),
+            ).fetchall()
+        ]
+        threshold_history = [
+            dict(rev=r["rev"], roi_rev=r["roi_rev"], th_lo=r["th_lo"], th_hi=r["th_hi"],
+                 mode=r["mode"], reason=r["reason"], created_at=r["created_at"])
+            for r in conn.execute(
+                "SELECT rev, roi_rev, th_lo, th_hi, mode, reason, created_at"
+                " FROM threshold_rev WHERE model_version_id = ? ORDER BY id DESC LIMIT 10",
+                (target["id"],),
+            ).fetchall()
+        ]
 
     results = conn.execute(
         "SELECT r.id, r.score, r.label, r.confirmed_by, r.created_at"
@@ -411,7 +431,10 @@ def code_detail(code: str, conn: sqlite3.Connection = Depends(get_conn)) -> dict
         }
         if config
         else None,
+        "config_history": config_history,
+        "threshold_history": threshold_history,
         "threshold": {
+            "rev": threshold["rev"],
             "th_lo": threshold["th_lo"],
             "th_hi": threshold["th_hi"],
             "mode": threshold["mode"],
