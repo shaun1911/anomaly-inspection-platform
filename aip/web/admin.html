@@ -21,6 +21,33 @@
   <div class="row" style="margin-top:14px"><button class="ghost" onclick="this.closest('dialog').close()">关闭</button></div>
 </dialog>
 
+<dialog id="codeDlg" style="width:min(620px,92vw)">
+  <h2 style="margin-bottom:12px">新建编码</h2>
+  <label for="nc_code">编码（不可改）<span class="req"> *</span></label>
+  <input id="nc_code" placeholder="AB-1234-01">
+  <label for="nc_family">族（选已有或输入新族名）<span class="req"> *</span></label>
+  <input id="nc_family" list="familyList" placeholder="支架类">
+  <datalist id="familyList"></datalist>
+  <label for="nc_part">零件</label>
+  <input id="nc_part" placeholder="全型">
+  <div class="row" style="margin-top:14px">
+    <button class="act" id="codeSave">建编码</button>
+    <button class="ghost" onclick="this.closest('dialog').close()">取消</button>
+  </div>
+</dialog>
+
+<dialog id="modelDlg" style="width:min(560px,92vw)">
+  <h2 style="margin-bottom:12px">新建模型</h2>
+  <label for="nm_code">模型编码<span class="req"> *</span></label>
+  <input id="nm_code" placeholder="M1">
+  <label for="nm_name">名称</label>
+  <input id="nm_name" placeholder="支架-全型">
+  <div class="row" style="margin-top:14px">
+    <button class="act" id="modelSave">建模型</button>
+    <button class="ghost" onclick="this.closest('dialog').close()">取消</button>
+  </div>
+</dialog>
+
 <dialog id="cfgDlg" style="width:min(960px,94vw)">
   <h2 style="margin-bottom:10px">配置历史 <span class="pill" id="cfgDlgSub"></span></h2>
   <div class="filterbar" style="margin-bottom:10px">
@@ -241,6 +268,11 @@
   .row-group{display:none;margin-right:6px;font-size:11px}
   body.set-searching .row-group{display:inline-block}
   .row-reset{margin-left:6px;padding:2px 8px;min-height:26px;font-size:12px}
+  .page-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+  .page-tab{background:var(--g2);color:var(--t2);border:1px solid var(--g3);border-radius:6px;
+    padding:7px 12px;font-size:13px;cursor:pointer}
+  .page-tab:hover{border-color:var(--brand)}
+  .page-tab.on{background:var(--t1);color:var(--g1);border-color:var(--t1);font-weight:600}
   .next-step{margin-top:12px;background:var(--g2);border:1px solid var(--g3);border-radius:6px;padding:10px 12px;font-size:13px}
   .next-step b{color:var(--t1)}
   .storage-tree summary{cursor:pointer;font-size:13px;color:var(--t2);margin-top:4px}
@@ -850,6 +882,8 @@ async function renderWizard() {
 
 let showArchived = false;
 
+let catalogState = { tab: "codes", q: "", page: 0, modelQ: "" };
+
 async function renderCatalog() {
   const [codes, bindings, models, families] = await Promise.all([
     api("/api/codes?include_archived=" + showArchived), api("/api/bindings"), api("/api/models"),
@@ -864,92 +898,130 @@ async function renderCatalog() {
   const stageName = {candidate: "候选", assist: "生效", shadow: "影子", disabled: "停用"};
   const stageTag = (s) => `<span class="tag ${esc(s)}">${esc(stageName[s] || s)}</span>`;
 
+  const tab = catalogState.tab;
+  const q = catalogState.q.trim().toLowerCase();
+  const filtered = codes.filter(c => !q ||
+    [c.code, c.family, c.part].some(v => String(v || "").toLowerCase().includes(q)));
+  const pageSize = 20;
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  if (catalogState.page >= pages) catalogState.page = pages - 1;
+  const rows = filtered.slice(catalogState.page * pageSize, (catalogState.page + 1) * pageSize);
+
+  const mq = catalogState.modelQ.trim().toLowerCase();
+  const modelRows = models.filter(m => !mq ||
+    [m.code, m.name].some(v => String(v || "").toLowerCase().includes(mq)));
+
+  const tabs = [
+    ["codes", `产品编码 ${codes.length}`],
+    ["models", `模型与版本 ${models.length}`],
+    ["families", `产品族 ${families.length}`],
+  ];
+
   $("view").innerHTML = `
     <section>
-      <h2>产品编码 <span class="pill">${codes.length}</span>
-        <span style="margin-left:auto">
+      <h2>编码与模型 <span class="pill">${codes.length} 编码 · ${models.length} 模型 · ${families.length} 族</span></h2>
+      <div class="page-tabs">
+        ${tabs.map(([k, label]) => `<button class="page-tab ${tab === k ? "on" : ""}" data-tab="${k}">${label}</button>`).join("")}
+      </div>
+
+      ${tab === "codes" ? `
+        <div class="filterbar">
+          <input id="cat_q" value="${esc(catalogState.q)}" placeholder="搜索编码 / 族 / 零件，回车" aria-label="搜索编码" style="max-width:280px">
+          <button class="act" id="btnNewCode">新建编码</button>
           <button class="ghost" id="btnArchived">${showArchived ? "隐藏已归档" : "显示已归档"}</button>
-        </span></h2>
-      ${codes.length === 0 ? `<div class="empty">还没有编码。<b>怎么做</b>：先在下面建编码，再建模型并绑定。</div>` : `
-      <table><caption class="sr-only">产品编码列表</caption>
-        <thead><tr><th scope="col">编码</th><th scope="col">族 / 零件</th><th scope="col">状态</th><th scope="col">当前模型</th><th scope="col">阶段</th><th scope="col">操作</th></tr></thead>
-        <tbody>${codes.map(c => {
-          const b = byCode[c.code];
-          return `<tr data-code="${esc(c.code)}" tabindex="0" title="点击或回车查看编码详情">
-            <td>${esc(c.code)}</td>
-            <td>${esc(c.family || "-")} / ${esc(c.part || "-")}</td>
-            <td>${c.active ? "启用" : '<span class="tag disabled">停用</span>'}</td>
-            <td>${b ? esc(modelCodeById[b.model_id] || ("#" + b.model_id)) : '<span class="muted">未绑定</span>'}</td>
-            <td>${b ? stageTag(b.stage) : "-"}</td>
-            <td>${c.archived_at
-              ? `<button class="ghost" data-restore="${esc(c.code)}">取消归档</button>`
-              : `<button class="ghost" data-archive="${esc(c.code)}" ${b ? "disabled title=\"先解绑再归档\"" : ""}>归档</button>`}
-              <button class="ghost" data-delcode="${esc(c.code)}">删除</button></td>
-          </tr>`;
-        }).join("")}</tbody></table>`}
-    </section>
-
-    <section>
-      <h2>新建编码</h2>
-      <div class="form form-grid">
-        <div><label for="nc_code">编码（不可改）<span class="req"> *</span></label><input id="nc_code" required placeholder="AB-1234-01"></div>
-        <div><label for="nc_family">族（选已有或输入新族名）<span class="req"> *</span></label>
-          <input id="nc_family" list="familyList" placeholder="支架类">
-          <datalist id="familyList">${families.map(f => `<option value="${esc(f.name)}">`).join("")}</datalist>
         </div>
-        <div><label for="nc_part">零件</label><input id="nc_part" placeholder="全型"></div>
-        <div><button class="act" id="btnNewCode">建编码</button></div>
-      </div>
-      <h2 style="margin-top:16px">新建模型</h2>
-      <div class="form form-grid">
-        <div><label for="nm_code">模型编码<span class="req"> *</span></label><input id="nm_code" required placeholder="M1"></div>
-        <div><label for="nm_name">名称</label><input id="nm_name" placeholder="支架-全型"></div>
-        <div aria-hidden="true"></div>
-        <div><button class="act" id="btnNewModel">建模型</button></div>
-      </div>
-    </section>
-
-    <section>
-      <h2>产品族</h2>
-      ${families.length === 0 ? `<div class="empty">还没有族。新建编码时填一个族名即可自动创建。</div>` : `
-      <table><caption class="sr-only">产品族</caption>
-        <thead><tr><th scope="col">族</th><th scope="col">编码数</th><th scope="col">模型</th><th scope="col">一致性</th></tr></thead>
-        <tbody>${families.map((f, i) => {
-          const fm = famModels[i];
-          const modelsText = fm && fm.model_ids.length ? fm.model_ids.map(id => modelCodeById[id] || ("#" + id)).join(", ") : '<span class="muted">未绑定</span>';
-          return `<tr>
-            <td>${esc(f.name)}</td><td>${f.code_count}</td><td>${modelsText}</td>
-            <td>${!fm || fm.model_ids.length <= 1 ? '<span class="tag ok">一致</span>'
-              : '<span class="tag ng">分裂</span> <span class="muted">' + esc(fm.note) + "</span>"}</td>
-          </tr>`;
-        }).join("")}</tbody></table>`}
-    </section>
-
-    <section>
-      <h2>模型与版本</h2>
-      ${models.length === 0 ? `<div class="empty">还没有模型。建完模型后，在编码详情里建版本、配 ROI 与阈值。</div>` : `
-      <table><caption class="sr-only">模型列表</caption>
-        <thead><tr><th scope="col">ID</th><th scope="col">编码</th><th scope="col">名称</th><th scope="col">版本</th><th scope="col">操作</th></tr></thead>
-        <tbody>${models.map(m => `<tr>
-          <td>${m.id}</td><td>${esc(m.code)}</td><td>${esc(m.name || "-")}</td>
-          <td>${m.versions.length ? m.versions.map(v => `<span class="tag ${v.status}">v${v.version_no} ${v.status}</span>`).join(" ") : '<span class="muted">无版本</span>'}</td>
-          <td><button class="ghost" data-delmodel="${m.id}" data-model-code="${esc(m.code)}">删除</button></td>
-        </tr>`).join("")}</tbody></table>
-`}
+        ${filtered.length === 0 ? `<div class="empty">没有匹配的编码。${catalogState.q ? "换个关键词，或" : ""}点「新建编码」。</div>` : `
+        <table><caption class="sr-only">产品编码列表</caption>
+          <thead><tr><th scope="col">编码</th><th scope="col">族 / 零件</th><th scope="col">状态</th><th scope="col">当前模型</th><th scope="col">阶段</th><th scope="col">操作</th></tr></thead>
+          <tbody>${rows.map(c => {
+            const b = byCode[c.code];
+            return `<tr data-code="${esc(c.code)}" tabindex="0" title="点击或回车查看编码详情">
+              <td>${esc(c.code)}</td>
+              <td>${esc(c.family || "-")} / ${esc(c.part || "-")}</td>
+              <td>${c.active ? "启用" : '<span class="tag disabled">停用</span>'}</td>
+              <td>${b ? esc(modelCodeById[b.model_id] || ("#" + b.model_id)) : '<span class="muted">未绑定</span>'}</td>
+              <td>${b ? stageTag(b.stage) : "-"}</td>
+              <td>${c.archived_at
+                ? `<button class="ghost" data-restore="${esc(c.code)}">取消归档</button>`
+                : `<button class="ghost" data-archive="${esc(c.code)}" ${b ? "disabled title=\"先解绑再归档\"" : ""}>归档</button>`}
+                <button class="ghost" data-delcode="${esc(c.code)}">删除</button></td>
+            </tr>`;
+          }).join("")}</tbody></table>
+        <div class="row" style="margin-top:10px;align-items:center">
+          <button class="ghost" id="catPrev" ${catalogState.page === 0 ? "disabled" : ""}>上一页</button>
+          <span class="muted" style="flex:1;text-align:center">第 ${catalogState.page + 1} / ${pages} 页 · 共 ${filtered.length} 条</span>
+          <button class="ghost" id="catNext" ${catalogState.page + 1 >= pages ? "disabled" : ""}>下一页</button>
+        </div>`}
+      ` : tab === "models" ? `
+        <div class="filterbar">
+          <input id="cat_mq" value="${esc(catalogState.modelQ)}" placeholder="搜索模型编码 / 名称，回车" aria-label="搜索模型" style="max-width:280px">
+          <button class="act" id="btnNewModel">新建模型</button>
+        </div>
+        ${modelRows.length === 0 ? `<div class="empty">没有匹配的模型。</div>` : `
+        <table><caption class="sr-only">模型列表</caption>
+          <thead><tr><th scope="col">ID</th><th scope="col">编码</th><th scope="col">名称</th><th scope="col">版本</th><th scope="col">操作</th></tr></thead>
+          <tbody>${modelRows.map(m => `<tr>
+            <td>${m.id}</td><td>${esc(m.code)}</td><td>${esc(m.name || "-")}</td>
+            <td>${m.versions.length ? m.versions.map(v => `<span class="tag ${v.status}">v${v.version_no} ${stageName[v.status] || v.status}</span>`).join(" ") : '<span class="muted">无版本</span>'}</td>
+            <td><button class="ghost" data-delmodel="${m.id}" data-model-code="${esc(m.code)}">删除</button></td>
+          </tr>`).join("")}</tbody></table>`}
+      ` : `
+        ${families.length === 0 ? `<div class="empty">还没有族。新建编码时填一个族名即可自动创建。</div>` : `
+        <table><caption class="sr-only">产品族</caption>
+          <thead><tr><th scope="col">族</th><th scope="col">编码数</th><th scope="col">模型</th><th scope="col">一致性</th></tr></thead>
+          <tbody>${families.map((f, i) => {
+            const fm = famModels[i];
+            const modelsText = fm && fm.model_ids.length ? fm.model_ids.map(id => modelCodeById[id] || ("#" + id)).join(", ") : '<span class="muted">未绑定</span>';
+            return `<tr>
+              <td>${esc(f.name)}</td><td>${f.code_count}</td><td>${modelsText}</td>
+              <td>${!fm || fm.model_ids.length <= 1 ? '<span class="tag ok">一致</span>'
+                : '<span class="tag ng">分裂</span> <span class="muted">' + esc(fm.note) + "</span>"}</td>
+            </tr>`;
+          }).join("")}</tbody></table>`}
+        <p class="muted" style="margin-top:10px">族在「新建编码」时自动创建；这里只做一致性核对。</p>
+      `}
     </section>`;
 
+  document.querySelectorAll("[data-tab]").forEach(btn => {
+    btn.onclick = () => { catalogState.tab = btn.dataset.tab; catalogState.page = 0; renderCatalog(); };
+  });
   document.querySelectorAll("tr[data-code]").forEach(tr => {
     tr.addEventListener("keydown", (e) => {
       if (e.key === "Enter") { e.preventDefault(); tr.click(); }
     });
     tr.onclick = () => { location.hash = "#/code/" + encodeURIComponent(tr.dataset.code); };
   });
-  $("btnArchived").onclick = () => { showArchived = !showArchived; renderCatalog(); };
+  if ($("catPrev")) $("catPrev").onclick = () => { catalogState.page = Math.max(0, catalogState.page - 1); renderCatalog(); };
+  if ($("catNext")) $("catNext").onclick = () => { catalogState.page += 1; renderCatalog(); };
+  if ($("cat_q")) {
+    $("cat_q").addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      catalogState.q = e.target.value;
+      catalogState.page = 0;
+      renderCatalog();
+    });
+  }
+  if ($("cat_mq")) {
+    $("cat_mq").addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      catalogState.modelQ = e.target.value;
+      renderCatalog();
+    });
+  }
+  if ($("btnArchived")) $("btnArchived").onclick = () => { showArchived = !showArchived; catalogState.page = 0; renderCatalog(); };
+
   document.querySelectorAll("[data-archive]").forEach(btn => {
     btn.onclick = async (ev) => {
       ev.stopPropagation();
       if (!confirm(`归档 ${btn.dataset.archive}？归档后从列表与选择器消失，历史保留。`)) return;
       try { await post(`/api/codes/${encodeURIComponent(btn.dataset.archive)}/archive`, {}); toast("已归档"); renderCatalog(); }
+      catch (e) { toast(e.message, true); }
+    };
+  });
+  document.querySelectorAll("[data-restore]").forEach(btn => {
+    btn.onclick = async (ev) => {
+      ev.stopPropagation();
+      try { await post(`/api/codes/${encodeURIComponent(btn.dataset.restore)}/restore`, {}); toast("已恢复"); renderCatalog(); }
       catch (e) { toast(e.message, true); }
     };
   });
@@ -960,25 +1032,6 @@ async function renderCatalog() {
       if (await hardDelete(`/api/codes/${encodeURIComponent(code)}`, code)) renderCatalog();
     };
   });
-
-  document.querySelectorAll("[data-restore]").forEach(btn => {
-    btn.onclick = async (ev) => {
-      ev.stopPropagation();
-      try { await post(`/api/codes/${encodeURIComponent(btn.dataset.restore)}/restore`, {}); toast("已恢复"); renderCatalog(); }
-      catch (e) { toast(e.message, true); }
-    };
-  });
-  $("btnNewCode").onclick = async () => {
-    if (!need($("nc_code"), "编码") || !need($("nc_family"), "族")) return;
-    try {
-      await post("/api/codes", {
-        code: $("nc_code").value.trim(),
-        family: $("nc_family").value || null,
-        part: $("nc_part").value || null
-      });
-      toast("编码已创建"); renderCatalog();
-    } catch (e) { toast(e.message, true); }
-  };
   document.querySelectorAll("[data-delmodel]").forEach(btn => {
     btn.onclick = async () => {
       const code = btn.dataset.modelCode;
@@ -986,11 +1039,41 @@ async function renderCatalog() {
     };
   });
 
-  $("btnNewModel").onclick = async () => {
+  if ($("btnNewCode")) {
+    $("btnNewCode").onclick = () => {
+      $("familyList").innerHTML = families.map(f => `<option value="${esc(f.name)}">`).join("");
+      $("nc_code").value = ""; $("nc_family").value = ""; $("nc_part").value = "";
+      $("codeDlg").showModal();
+    };
+  }
+  if ($("btnNewModel")) {
+    $("btnNewModel").onclick = () => {
+      $("nm_code").value = ""; $("nm_name").value = "";
+      $("modelDlg").showModal();
+    };
+  }
+  $("codeSave").onclick = async () => {
+    if (!need($("nc_code"), "编码") || !need($("nc_family"), "族")) return;
+    try {
+      await post("/api/codes", {
+        code: $("nc_code").value.trim(),
+        family: $("nc_family").value || null,
+        part: $("nc_part").value || null
+      });
+      $("codeDlg").close();
+      toast("编码已创建");
+      catalogState.tab = "codes";
+      renderCatalog();
+    } catch (e) { toast(e.message, true); }
+  };
+  $("modelSave").onclick = async () => {
     if (!need($("nm_code"), "模型编码")) return;
     try {
       await post("/api/models", {code: $("nm_code").value.trim(), name: $("nm_name").value || null});
-      toast("模型已创建"); renderCatalog();
+      $("modelDlg").close();
+      toast("模型已创建");
+      catalogState.tab = "models";
+      renderCatalog();
     } catch (e) { toast(e.message, true); }
   };
 }
