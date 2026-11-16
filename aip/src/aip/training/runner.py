@@ -130,6 +130,9 @@ def _run(db_path: Path, job_id: int, model_id: int, model_code: str,
         models_dir.mkdir(parents=True, exist_ok=True)
         final_onnx = models_dir / f"{model_code}-v{version_no}.onnx"
         shutil.copy2(result["onnx_path"], final_onnx)
+        # torch ONNX 可能把权重拆成 .onnx.data 外部文件，必须一起复制
+        for sidecar in Path(result["onnx_path"]).parent.glob(Path(result["onnx_path"]).name + ".*"):
+            shutil.copy2(sidecar, models_dir / sidecar.name)
 
         with tx(conn):
             version = conn.execute(

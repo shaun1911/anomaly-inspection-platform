@@ -132,3 +132,4 @@ git clone https://github.com/open-edge-platform/anomalib
 - 训练完自动导出 ONNX（含 `.onnx.data` 权重文件）、在验证集上按过杀预算标定 `th_lo/th_hi`、写入 ROI；
 - 任务异步，日志在 `data/runs/<model>-vN/train.log`，结果在 `result.json`；
 - Sample1（553 张，334 训练 OK / 83 验证 OK / 68 验证 NG）实测：召回 100%、过杀 1.2%，推理正常。
+- Sample2 独立验证：S2 模型在未参与训练的 Validation Data（90 OK / 20 NG）上召回 100%、过杀 2.2%、AUC 0.994。

@@ -77,6 +77,8 @@ def ensure_dataset(c: httpx.Client, model_id: int, name: str) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dir", default=str(ROOT / "sample" / "Sample1"))
+    parser.add_argument("--ok-dir", default="")
+    parser.add_argument("--ng-dir", default="")
     parser.add_argument("--code", required=True)
     parser.add_argument("--family", default="排线口B")
     parser.add_argument("--model", required=True)
@@ -92,8 +94,11 @@ def main() -> int:
     if not root.is_absolute():
         root = ROOT / root
     files: list[tuple[Path, str]] = []
-    for verdict, folder in (("ok", "OK"), ("ng", "NG")):
-        d = root / folder
+    if args.ok_dir and args.ng_dir:
+        pairs = (("ok", Path(args.ok_dir)), ("ng", Path(args.ng_dir)))
+    else:
+        pairs = (("ok", root / "OK"), ("ng", root / "NG"))
+    for verdict, d in pairs:
         if not d.is_dir():
             continue
         for f in sorted(d.iterdir()):
