@@ -25,10 +25,10 @@
   <h2 style="margin-bottom:12px">新建编码</h2>
   <label for="nc_code">编码（不可改）<span class="req"> *</span></label>
   <input id="nc_code" placeholder="AB-1234-01">
-  <label for="nc_family">族（选已有或输入新族名）<span class="req"> *</span></label>
+  <label for="nc_family">零件（选已有或输入新零件名）<span class="req"> *</span></label>
   <input id="nc_family" list="familyList" placeholder="支架类">
   <datalist id="familyList"></datalist>
-  <label for="nc_part">零件</label>
+  <label for="nc_part">型号</label>
   <input id="nc_part" placeholder="全型">
   <div class="row" style="margin-top:14px">
     <button class="act" id="codeSave">建编码</button>
@@ -527,7 +527,7 @@ const ACTIONS = {
   "storage.retention": "清理过期证据", "audit.archive": "归档审计", "audit.import": "导入归档", "maintenance.auto": "自动维护", "train.start": "启动训练", "train.cancel": "取消训练",
   "model.rollback": "回滚版本", "model.archive": "归档模型", "model.patch": "模型改名",
   "code.patch": "修改编码", "code.active": "启用/停用编码",
-  "code.archive": "归档编码", "code.restore": "恢复编码", "family.create": "新建族",
+  "code.archive": "归档编码", "code.restore": "恢复编码", "family.create": "新建零件",
   "dataset.create": "新建数据集", "dataset.add": "加入判例", "dataset.remove": "移出判例",
   "dataset.freeze": "冻结数据集", "batch.backfill": "回填批次",
   "blind.create": "建抽检批次", "blind.close": "关闭抽检批次",
@@ -745,8 +745,8 @@ async function renderWizard() {
       <p class="muted" style="margin:0 0 12px">只显示当前该做的一步；完成后自动进入下一步，随时可从左侧导航离开。</p>
       ${step(0, `<div class="form">
           <div><label for="wz_code">编码<span class="req"> *</span></label><input id="wz_code" placeholder="AB-1234-01"></div>
-          <div><label for="wz_family">族<span class="req"> *</span></label><input id="wz_family" list="wzFamilies" placeholder="支架类"></div>
-          <div><label for="wz_part">零件</label><input id="wz_part" placeholder="全型"></div>
+          <div><label for="wz_family">零件<span class="req"> *</span></label><input id="wz_family" list="wzFamilies" placeholder="支架类"></div>
+          <div><label for="wz_part">型号</label><input id="wz_part" placeholder="全型"></div>
           <div><button class="act" id="wzCreateCode">建编码</button></div>
         </div>
         ${codes.length ? `<div class="form"><div><label for="wz_pick">或选择已有编码</label>
@@ -919,25 +919,25 @@ async function renderCatalog() {
   const tabs = [
     ["codes", `产品编码 ${codesTotal}`],
     ["models", `模型与版本 ${models.length}`],
-    ["families", `产品族 ${families.length}`],
+    ["families", `零件 ${families.length}`],
   ];
 
   $("view").innerHTML = `
     <section>
-      <h2>编码与模型 <span class="pill">${codes.length} 编码 · ${models.length} 模型 · ${families.length} 族</span></h2>
+      <h2>编码与模型 <span class="pill">${codes.length} 编码 · ${models.length} 模型 · ${families.length} 零件</span></h2>
       <div class="page-tabs">
         ${tabs.map(([k, label]) => `<button class="page-tab ${tab === k ? "on" : ""}" data-tab="${k}">${label}</button>`).join("")}
       </div>
 
       ${tab === "codes" ? `
         <div class="filterbar">
-          <input id="cat_q" value="${esc(catalogState.q)}" placeholder="搜索编码 / 族 / 零件，回车" aria-label="搜索编码" style="max-width:280px">
+          <input id="cat_q" value="${esc(catalogState.q)}" placeholder="搜索编码 / 零件 / 型号，回车" aria-label="搜索编码" style="max-width:280px">
           <button class="act" id="btnNewCode">新建编码</button>
           <button class="ghost" id="btnArchived">${showArchived ? "隐藏已归档" : "显示已归档"}</button>
         </div>
         ${codesTotal === 0 ? `<div class="empty">没有匹配的编码。${catalogState.q ? "换个关键词，或" : ""}点「新建编码」。</div>` : `
         <table><caption class="sr-only">产品编码列表</caption>
-          <thead><tr><th scope="col">编码</th><th scope="col">族 / 零件</th><th scope="col">状态</th><th scope="col">当前模型</th><th scope="col">阶段</th><th scope="col">操作</th></tr></thead>
+          <thead><tr><th scope="col">编码</th><th scope="col">零件 / 型号</th><th scope="col">状态</th><th scope="col">当前模型</th><th scope="col">阶段</th><th scope="col">操作</th></tr></thead>
           <tbody>${rows.map(c => {
             const b = byCode[c.code];
             return `<tr data-code="${esc(c.code)}" tabindex="0" title="点击或回车查看编码详情">
@@ -971,9 +971,9 @@ async function renderCatalog() {
             <td><button class="ghost" data-delmodel="${m.id}" data-model-code="${esc(m.code)}">删除</button></td>
           </tr>`).join("")}</tbody></table>`}
       ` : `
-        ${families.length === 0 ? `<div class="empty">还没有族。新建编码时填一个族名即可自动创建。</div>` : `
-        <table><caption class="sr-only">产品族</caption>
-          <thead><tr><th scope="col">族</th><th scope="col">编码数</th><th scope="col">模型</th><th scope="col">一致性</th></tr></thead>
+        ${families.length === 0 ? `<div class="empty">还没有零件。新建编码时填一个零件名即可自动创建。</div>` : `
+        <table><caption class="sr-only">零件</caption>
+          <thead><tr><th scope="col">零件</th><th scope="col">编码数</th><th scope="col">模型</th><th scope="col">一致性</th></tr></thead>
           <tbody>${families.map((f, i) => {
             const fm = famModels[i];
             const modelsText = fm && fm.model_ids.length ? fm.model_ids.map(id => modelCodeById[id] || ("#" + id)).join(", ") : '<span class="muted">未绑定</span>';
@@ -983,7 +983,7 @@ async function renderCatalog() {
                 : '<span class="tag ng">分裂</span> <span class="muted">' + esc(fm.note) + "</span>"}</td>
             </tr>`;
           }).join("")}</tbody></table>`}
-        <p class="muted" style="margin-top:10px">族在「新建编码」时自动创建；这里只做一致性核对。</p>
+        <p class="muted" style="margin-top:10px">零件在「新建编码」时自动创建；这里只做一致性核对。</p>
       `}
     </section>`;
 
@@ -1058,7 +1058,7 @@ async function renderCatalog() {
     };
   }
   $("codeSave").onclick = async () => {
-    if (!need($("nc_code"), "编码") || !need($("nc_family"), "族")) return;
+    if (!need($("nc_code"), "编码") || !need($("nc_family"), "零件")) return;
     try {
       await post("/api/codes", {
         code: $("nc_code").value.trim(),
@@ -1382,7 +1382,7 @@ async function renderQuality() {
       <select id="fq_code" aria-label="编码"><option value="">编码：全部</option>
         ${codes.map(c => `<option value="${esc(c.code)}" ${reviewState.code === c.code ? "selected" : ""}>${esc(c.code)}</option>`).join("")}
       </select>
-      <select id="fq_family" aria-label="族"><option value="">族：全部</option>
+      <select id="fq_family" aria-label="零件"><option value="">零件：全部</option>
         ${families.map(f => `<option value="${esc(f.name)}" ${reviewState.family === f.name ? "selected" : ""}>${esc(f.name)}</option>`).join("")}
       </select>
       <input id="fq_batch" value="${esc(reviewState.batch)}" placeholder="批次（精确，回车筛选）" aria-label="批次">
@@ -1400,7 +1400,7 @@ async function renderQuality() {
       <select id="fq_group" aria-label="视图">
         <option value="part" ${reviewState.groupBy === "part" ? "selected" : ""}>按件聚合</option>
         <option value="code" ${reviewState.groupBy === "code" ? "selected" : ""}>按编码</option>
-        <option value="family" ${reviewState.groupBy === "family" ? "selected" : ""}>按族</option>
+        <option value="family" ${reviewState.groupBy === "family" ? "selected" : ""}>按零件</option>
         <option value="batch" ${reviewState.groupBy === "batch" ? "selected" : ""}>按批次</option>
         <option value="result" ${reviewState.groupBy === "result" ? "selected" : ""}>按单条结果</option>
       </select>
@@ -2371,12 +2371,12 @@ async function renderDatasets() {
       <h2>数据集 <span class="pill">${shown.length} / ${datasets.length}</span>
         <span style="margin-left:auto"><button class="act" id="btnNewDataset">新建数据集</button></span></h2>
       <p class="muted" style="margin:0 0 12px">
-        数据集是训练集快照：一个族、一个模型、一组判例。冻结后成员不可改，校验和保证训练可复现。
+        数据集是训练集快照：一个零件、一个模型、一组判例。冻结后成员不可改，校验和保证训练可复现。
       </p>
       <div class="filterbar">
         <input id="ds_q" value="${esc(datasetState.q)}" placeholder="搜索名称，回车筛选" style="max-width:200px">
         <select id="ds_family" style="max-width:160px">
-          <option value="">全部族</option>
+          <option value="">全部零件</option>
           ${families.map(f => `<option value="${esc(f)}" ${datasetState.family === f ? "selected" : ""}>${esc(f)}</option>`).join("")}
         </select>
         <select id="ds_model" style="max-width:160px">
@@ -2391,7 +2391,7 @@ async function renderDatasets() {
       </div>
       ${shown.length === 0 ? `<div class="empty">${datasets.length ? "当前筛选下没有数据集。" : "还没有数据集。"}<b>怎么做</b>：在判例库勾选判例 → 加入数据集 → 冻结 → 训练时选择它。</div>` : `
       <table><caption class="sr-only">数据集列表</caption>
-        <thead><tr><th scope="col">#</th><th scope="col">名称</th><th scope="col">族</th><th scope="col">模型</th>
+        <thead><tr><th scope="col">#</th><th scope="col">名称</th><th scope="col">零件</th><th scope="col">模型</th>
           <th scope="col">总数</th><th scope="col">OK</th><th scope="col">NG</th>
           <th scope="col">验证 OK</th><th scope="col">验证 NG</th>
           <th scope="col">状态</th><th scope="col">校验和</th><th scope="col">操作</th></tr></thead>
@@ -2760,7 +2760,7 @@ async function renderTraining() {
         <span style="margin-left:auto;display:flex;gap:8px">
           <input id="tr_q" value="${esc(trainingState.q)}" placeholder="搜索模型编码/名称，回车筛选" style="max-width:220px">
           <select id="tr_family" style="max-width:180px">
-            <option value="">全部族</option>
+            <option value="">全部零件</option>
             ${families.map(f => `<option value="${esc(f)}" ${trainingState.family === f ? "selected" : ""}>${esc(f)}</option>`).join("")}
           </select>
         </span></h2>
@@ -2795,7 +2795,7 @@ async function renderTraining() {
       : '<option value="">该模型没有已冻结数据集</option>';
     $("btnTrain").disabled = list.length === 0;
     $("trHint").textContent = list.length
-      ? `将使用数据集 #${list[0].id}（族 ${list[0].family || "-"}，${list[0].count} 条，验证 ${list[0].val_ok + list[0].val_ng} 条）`
+      ? `将使用数据集 #${list[0].id}（零件 ${list[0].family || "-"}，${list[0].count} 条，验证 ${list[0].val_ok + list[0].val_ng} 条）`
       : "先去「数据集」为该模型建一个数据集并冻结。";
   };
   $("tr_model").onchange = fillDatasets;

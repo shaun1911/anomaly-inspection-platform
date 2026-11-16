@@ -86,7 +86,7 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
 
 
 def _resolve_family_id(conn: sqlite3.Connection, name: str | None) -> int | None:
-    """族名 → id；不存在则建。族是实体，编码只能挂已有或新建的族。"""
+    """零件名 → id；不存在则建。零件是实体，编码只能挂已有或新建的零件。"""
     if not name or not str(name).strip():
         return None
     clean = str(name).strip()
@@ -173,7 +173,7 @@ class ActiveIn(BaseModel):
 def patch_code(
     code: str, body: CodePatch, conn: sqlite3.Connection = Depends(get_conn)
 ) -> dict:
-    """编码字符串不可改，只能改族/零件/序号这些描述字段。"""
+    """编码字符串不可改，只能改零件/型号/序号这些描述字段。"""
     with tx(conn):
         family_id = body.family_id
         if family_id is None and body.family is not None:

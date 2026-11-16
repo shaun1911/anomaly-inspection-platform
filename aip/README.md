@@ -10,7 +10,7 @@
 | `aip/store.py` | 连接（WAL、外键、busy_timeout）、`tx()` 事务、迁移升降级 |
 | `aip/db/migrations/` | `NNNN_name.sql` 与 `NNNN_down.sql`，成对存在 |
 | `aip/cases.py` | 判例：sha256/件号去重、冲突标记、来源回指、软删 |
-| `aip/datasets.py` | 数据集：族推导、加入判例、冻结与校验和 |
+| `aip/datasets.py` | 数据集：零件推导、加入判例、冻结与校验和 |
 | `aip/dataset_audit.py` | 冻结快照与事后核对（改判/换图/归档/删除） |
 | `aip/backfill.py` | 存量批次回填（daily/shift/csv，留 `batch_source`） |
 | `aip/retention.py` | 证据保留：判例与待复核永不删，其余按保留期 |
@@ -24,7 +24,7 @@
 | 前缀 | 内容 |
 |---|---|
 | `/api/codes` `/api/models` `/api/bindings` | 编码、模型、版本、绑定、ROI、阈值 |
-| `/api/families` | 族与"族 → 模型"一致性 |
+| `/api/families` | 零件与"零件 → 模型"一致性 |
 | `/infer` `/results` `/review` | 推理、结果、复核队列（按件聚合/领取/暂缓） |
 | `/api/cases` | 判例（分页、冲突、上传、导出） |
 | `/api/datasets` | 数据集（加入/冻结/核对/导出） |
@@ -60,7 +60,7 @@
 | 文件 | 守护什么 |
 |---|---|
 | `test_migrations_drill.py` | 迁移可回滚 |
-| `test_data_logic_invariants.py` | 四层不变量 + 全链追溯（件号 → 族 → 版本 → 判例 → 数据集 → 训练） |
+| `test_data_logic_invariants.py` | 四层不变量 + 全链追溯（件号 → 零件 → 版本 → 判例 → 数据集 → 训练） |
 | `test_api_review_queue.py` | 按件聚合、领取冲突、暂缓回收 |
 | `test_api_datasets.py` / `test_api_dataset_audit.py` | 冻结不可变、校验和、事后核对 |
 | `test_api_blind.py` | 盲判不泄底、签字门槛、指标口径 |

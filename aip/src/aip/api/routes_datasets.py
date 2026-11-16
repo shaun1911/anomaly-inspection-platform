@@ -49,7 +49,7 @@ def create_dataset(body: DatasetIn, conn: sqlite3.Connection = Depends(get_conn)
     try:
         dataset_id = ds_mod.create_dataset(conn, model_id=body.model_id, name=body.name, note=body.note)
     except ds_mod.DatasetError as exc:
-        raise ApiError(exc.code, str(exc), "检查模型与族", exc.status) from exc
+        raise ApiError(exc.code, str(exc), "检查模型与零件", exc.status) from exc
     return {"id": dataset_id}
 
 

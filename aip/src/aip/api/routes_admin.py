@@ -594,7 +594,7 @@ def export_dataset(
     verdict: str | None = None,
     conn: sqlite3.Connection = Depends(get_conn),
 ) -> Response:
-    """按族导出训练集清单（不含图片本体，只给路径与标签）。"""
+    """按零件导出训练集清单（不含图片本体，只给路径与标签）。"""
     rows = cases_mod.list_cases(conn, family=family, verdict=verdict, limit=500)
     buf = io.StringIO()
     writer = csv.writer(buf)
@@ -603,7 +603,7 @@ def export_dataset(
         writer.writerow([c.id, c.code, c.part_no or "", c.verdict, c.reason or "",
                          c.source, c.adjudicator, c.crop_path, c.created_at])
     name = f"dataset-{family or 'all'}.csv"
-    # HTTP 头只能是 latin-1，中文族名按 RFC 5987 编码
+    # HTTP 头只能是 latin-1，中文零件名按 RFC 5987 编码
     quoted = quote(name, safe="")
     return Response(
         content="\ufeff" + buf.getvalue(),

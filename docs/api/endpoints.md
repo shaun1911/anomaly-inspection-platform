@@ -48,6 +48,7 @@
 |---|---|---|
 | DELETE | `/api/codes/{code}` | 删除 编码 |
 | GET | `/api/codes` | 查询 编码 |
+| GET | `/api/codes/page` | 查询 编码 / page |
 | GET | `/api/codes/{code}/detail` | 查询 编码 / detail |
 | GET | `/api/codes/{code}/timeline` | 查询 编码 / timeline |
 | POST | `/api/codes` | 提交 编码 |
@@ -178,13 +179,13 @@
 | DELETE | `/api/bindings/{binding_id}` | 删除 绑定 |
 | GET | `/api/bindings` | 查询 绑定 |
 | GET | `/api/export/dataset` | 查询 导出 / dataset |
-| GET | `/api/families` | 查询 产品族 |
-| GET | `/api/families/{family_id}/models` | 查询 产品族 / 模型 |
+| GET | `/api/families` | 列出零件（检测对象） |
+| GET | `/api/families/{family_id}/models` | 查询零件下的模型一致性 |
 | GET | `/api/model-cache` | 查询 model-cache |
 | GET | `/api/overview` | 查询 overview |
 | GET | `/api/stations` | 查询 站位 |
 | POST | `/api/bindings` | 提交 绑定 |
 | POST | `/api/configs` | 提交 ROI 配置 |
-| POST | `/api/families` | 提交 产品族 |
+| POST | `/api/families` | 新建零件 |
 | POST | `/api/model-cache/{key}/unload` | 提交 model-cache / unload |
 | POST | `/api/thresholds` | 提交 阈值 |

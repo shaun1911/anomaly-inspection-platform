@@ -79,6 +79,9 @@ OVERRIDES = {
     ("GET", "/api/search"): "全局搜索（编码/件号/模型）",
     ("POST", "/api/train"): "用冻结数据集启动训练",
     ("GET", "/health"): "健康检查（服务/数据库/队列）",
+    ("GET", "/api/families"): "列出零件（检测对象）",
+    ("POST", "/api/families"): "新建零件",
+    ("GET", "/api/families/{family_id}/models"): "查询零件下的模型一致性",
 }
 
 

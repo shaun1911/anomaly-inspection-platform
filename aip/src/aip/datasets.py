@@ -1,6 +1,6 @@
 """数据集（L3 快照层）。
 
-一个数据集 = 一个族 + 一个模型 + 一组判例。冻结后成员不可变，
+一个数据集 = 一个零件 + 一个模型 + 一组判例。冻结后成员不可变，
 checksum 让"这版模型用了哪些数据"可复现。
 """
 
@@ -21,7 +21,7 @@ class DatasetError(Exception):
 
 
 def _family_for_model(conn: sqlite3.Connection, model_id: int) -> int | None:
-    """模型被哪些编码绑定 → 这些编码的族；多于一个族就报错。"""
+    """模型被哪些编码绑定 → 这些编码的零件；多于一个零件就报错。"""
     rows = conn.execute(
         "SELECT DISTINCT p.family_id FROM binding b"
         " JOIN product_code p ON p.id = b.product_code_id"
@@ -32,7 +32,7 @@ def _family_for_model(conn: sqlite3.Connection, model_id: int) -> int | None:
     if len(families) > 1:
         raise DatasetError(
             "model_multi_family",
-            "该模型同时服务多个族，无法自动确定数据集所属族",
+            "该模型同时服务多个零件，无法自动确定数据集所属零件",
             status=409,
         )
     return next(iter(families), None)

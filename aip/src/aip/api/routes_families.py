@@ -1,7 +1,7 @@
-"""产品族（P3·族建模）。
+"""零件（P3·零件建模）。
 
-族是"设计族"：结构相似、可共用模型的一组编码。
-件号不挂族——件属于编码，编码属于族，族决定用哪个模型。
+零件是检测对象：结构相似、可共用模型的一组编码。
+件号不挂零件——件属于编码，编码属于零件，零件决定用哪个模型。
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def list_families(conn: sqlite3.Connection = Depends(get_conn)) -> list[dict]:
 def create_family(body: FamilyIn, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     name = body.name.strip()
     if not name:
-        raise ApiError("bad_name", "族名不能为空", "补一个名字", 400)
+        raise ApiError("bad_name", "零件名不能为空", "补一个名字", 400)
     try:
         with tx(conn):
             cur = conn.execute(
@@ -49,16 +49,16 @@ def create_family(body: FamilyIn, conn: sqlite3.Connection = Depends(get_conn)) 
             record(conn, actor="web", action="family.create", entity="family", entity_id=fid,
                    payload={"name": name})
     except sqlite3.IntegrityError as exc:
-        raise ApiError("family_exists", f"族 {name} 已存在", "选已有的族", 409) from exc
+        raise ApiError("family_exists", f"零件 {name} 已存在", "选已有的零件", 409) from exc
     return {"id": fid, "name": name}
 
 
 @router.get("/families/{family_id}/models")
 def family_models(family_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
-    """族 → 模型：同族编码应共用同一个模型；不一致就报冲突。"""
+    """零件 → 模型：同零件编码应共用同一个模型；不一致就报冲突。"""
     fam = conn.execute("SELECT id, name FROM family WHERE id = ?", (family_id,)).fetchone()
     if fam is None:
-        raise ApiError("family_not_found", f"族 {family_id} 不存在", "刷新", 404)
+        raise ApiError("family_not_found", f"零件 {family_id} 不存在", "刷新", 404)
 
     codes = conn.execute(
         "SELECT id, code FROM product_code WHERE family_id = ? ORDER BY code", (family_id,)
@@ -88,5 +88,5 @@ def family_models(family_id: int, conn: sqlite3.Connection = Depends(get_conn)) 
         "codes": out_codes,
         "model_ids": sorted(model_ids),
         "conflict": len(model_ids) > 1,
-        "note": "" if len(model_ids) <= 1 else "同族编码绑定了不同模型，抽样与发布口径会分裂",
+        "note": "" if len(model_ids) <= 1 else "同零件编码绑定了不同模型，抽样与发布口径会分裂",
     }
