@@ -14,7 +14,8 @@
       <tr><td><kbd>J</kbd> <kbd>K</kbd></td><td>下一件 / 上一件</td></tr>
       <tr><td><kbd>O</kbd> / <kbd>N</kbd></td><td>判为 OK / 判为 NG（相反结论需先选理由）</td></tr>
       <tr><td><kbd>Enter</kbd></td><td>接受系统结论（灰区会提示先明确判定）</td></tr>
-      <tr><td><kbd>1</kbd>~<kbd>5</kbd></td><td>选择理由：划痕/脏污/压伤/误报/其他</td></tr>
+      <tr><td><kbd>1</kbd>~<kbd>5</kbd></td><td>选择理由：划痕/脏污/压伤/误报/其他（仅判 NG 必选）</td></tr>
+      <tr><td><kbd>L</kbd></td><td>标记领取 / 释放领取（交接占位，不影响结论）</td></tr>
       <tr><td><kbd>?</kbd></td><td>打开本说明</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>关闭弹窗</td></tr>
     </tbody></table>
@@ -1450,15 +1451,16 @@ async function renderQuality() {
               <button class="ghost" id="rOk">判为 OK</button>
               <button class="ghost" id="rNg">判为 NG</button>
               <button class="ghost" id="rSkip" disabled>暂缓</button>
-              <button class="ghost" id="rClaim" title="标记为已领取，便于交接；不影响结论">领取</button>
+              <button class="ghost" id="rClaim" title="标记此件由你处理，避免交接重复；15 分钟自动释放，不改变结论">标记领取</button>
             </div>
-            <div class="muted review-tip">与系统结论一致时可直接判；判为相反结论或处理灰区前，先在上方选一个理由。</div>
+            <div class="muted review-tip">判为 OK 可直接确认；判为 NG 需先选理由（用于判例归档）。<br>「标记领取」只是占位交接：标完这件算你在处理，15 分钟后自动释放，不影响判定。</div>
           </div>
         </div>`}
     </section>`;
 
 
     const groupIds = (it) => it.kind === "part" ? it.result_ids : [it.id];
+    const claimedIds = new Set();
 
     function paint() {
       $("rlist").innerHTML = items.map((it, i) => {
@@ -1541,6 +1543,8 @@ async function renderQuality() {
       const sysLabel = cur.kind === "part" ? null : cur.label;
       $("rOk").className = sysLabel === "ok" ? "act" : "ghost";
       $("rNg").className = sysLabel === "ng" ? "act" : "ghost";
+      const idsNow = groupIds(cur);
+      $("rClaim").textContent = idsNow.some(id => claimedIds.has(id)) ? "释放领取" : "标记领取";
     }
 
     async function each(ids, fn) {
@@ -1550,8 +1554,8 @@ async function renderQuality() {
     async function judge(verdict) {
       const cur = items[idx];
       const sysLabel = cur.kind === "part" ? null : cur.label;
-      if (sysLabel !== verdict && !reason) {
-        toast(`判为 ${verdict.toUpperCase()} 前先选一个理由`, true);
+      if (verdict === "ng" && !reason) {
+        toast("判为 NG 前先选一个理由（用于判例归档）", true);
         return;
       }
       await each(groupIds(cur), (id) => post(`/review/${id}/confirm`, {
@@ -1637,8 +1641,18 @@ async function renderQuality() {
     }
 
     $("rClaim").onclick = async () => {
-      await each(groupIds(items[idx]), (id) => post(`/review/${id}/claim`, {actor}));
-      toast("已领取");
+      const ids = groupIds(items[idx]);
+      const held = ids.some(id => claimedIds.has(id));
+      if (held) {
+        await each(ids, (id) => post(`/review/${id}/release`, {actor}));
+        ids.forEach(id => claimedIds.delete(id));
+        toast("已释放领取");
+      } else {
+        await each(ids, (id) => post(`/review/${id}/claim`, {actor}));
+        ids.forEach(id => claimedIds.add(id));
+        toast("已标记领取（15 分钟内有效，不影响结论）");
+      }
+      paint();
     };
     $("rSkip").onclick = async () => {
       if (!reason) { toast("暂缓前先选一个理由", true); return; }
@@ -1662,6 +1676,7 @@ async function renderQuality() {
         else if (sys === "ng") $("rNg").click();
         else toast("灰区或分组：请明确判为 OK 或 NG", true);
       }
+      else if (ev.key === "l" || ev.key === "L") { $("rClaim").click(); }
       else if (ev.key === "o" || ev.key === "O") { $("rOk").click(); }
       else if (ev.key === "n" || ev.key === "N") { $("rNg").click(); }
       else if (/^[1-5]$/.test(ev.key)) { reason = REASONS[Number(ev.key) - 1]; paint(); }
