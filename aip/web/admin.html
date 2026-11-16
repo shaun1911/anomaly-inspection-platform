@@ -983,6 +983,7 @@ async function renderCode(code) {
     api(`/api/codes/${encodeURIComponent(code)}/timeline?limit=20`),
     api("/api/models")
   ]);
+  const cfgVer = d.version || d.draft_version;
   $("view").innerHTML = `
     <section>
       <h2>${esc(d.code)} ${d.active ? "" : '<span class="tag disabled">停用</span>'}
@@ -1009,7 +1010,8 @@ async function renderCode(code) {
         </div>
         <div><button class="act" id="btnBind">绑定</button></div>
       </div>
-      ${d.version ? `
+      ${cfgVer ? `
+      ${d.draft_version ? '<p class="muted">当前配置作用于候选版本 v' + d.draft_version.version_no + '，发布后生效。</p>' : ''}
       <div class="form">
         <div><label for="roi_box">改 ROI（x1,y1,x2,y2）</label><input id="roi_box" value="${d.config ? esc(d.config.roi_rect.join(",")) : "0,0,512,512"}"></div>
         <div><button class="ghost" id="btnRoi">保存 ROI</button></div>
@@ -1067,18 +1069,18 @@ async function renderCode(code) {
       toast("已绑定"); renderCode(code);
     } catch (e) { toast(e.message, true); }
   };
-  if (d.version) {
+  if (cfgVer) {
     $("btnRoi").onclick = async () => {
       try {
         const roi = $("roi_box").value.split(",").map(Number);
-        await post("/api/configs", {model_version_id: d.version.id, rev: (d.config ? d.config.rev : 0) + 1, roi_rect: roi});
+        await post("/api/configs", {model_version_id: cfgVer.id, rev: (d.config ? d.config.rev : 0) + 1, roi_rect: roi});
         toast("ROI 已保存"); renderCode(code);
       } catch (e) { toast(e.message, true); }
     };
     $("btnTh").onclick = async () => {
       try {
         const [lo, hi] = $("th_box").value.split(",").map(Number);
-        await post("/api/thresholds", {model_version_id: d.version.id, roi_rev: d.config ? d.config.rev : 1, th_lo: lo, th_hi: hi});
+        await post("/api/thresholds", {model_version_id: cfgVer.id, roi_rev: d.config ? d.config.rev : 1, th_lo: lo, th_hi: hi});
         toast("阈值已保存"); renderCode(code);
       } catch (e) { toast(e.message, true); }
     };

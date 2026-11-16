@@ -341,19 +341,28 @@ def code_detail(code: str, conn: sqlite3.Connection = Depends(get_conn)) -> dict
 
     binding = _active_binding(conn, row["id"])
     version = _active_version(conn, binding["model_id"]) if binding else None
+    draft = None
+    if binding and version is None:
+        draft = conn.execute(
+            "SELECT id, version_no, status FROM model_version"
+            " WHERE model_id = ? AND status = 'candidate'"
+            " ORDER BY version_no DESC LIMIT 1",
+            (binding["model_id"],),
+        ).fetchone()
 
+    target = version or draft
     config = threshold = None
-    if version:
+    if target:
         config = conn.execute(
             "SELECT rev, roi_rect FROM config_rev WHERE model_version_id = ?"
             " ORDER BY rev DESC LIMIT 1",
-            (version["id"],),
+            (target["id"],),
         ).fetchone()
         if config:
             threshold = conn.execute(
                 "SELECT th_lo, th_hi, mode FROM threshold_rev"
                 " WHERE model_version_id = ? AND roi_rev = ? ORDER BY rev DESC LIMIT 1",
-                (version["id"], config["rev"]),
+                (target["id"], config["rev"]),
             ).fetchone()
 
     results = conn.execute(
@@ -388,6 +397,13 @@ def code_detail(code: str, conn: sqlite3.Connection = Depends(get_conn)) -> dict
             "status": version["status"],
         }
         if version
+        else None,
+        "draft_version": {
+            "id": draft["id"],
+            "version_no": draft["version_no"],
+            "status": draft["status"],
+        }
+        if draft
         else None,
         "config": {
             "rev": config["rev"],
