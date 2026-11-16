@@ -194,6 +194,50 @@ def queue(
     return {"summary": summary, "group_by": group_by, "items": items, "limit": limit, "offset": offset}
 
 
+@router.get("/history")
+def history(
+    code: str | None = None,
+    verdict: str | None = None,
+    actor: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    limit: int = 25,
+    offset: int = 0,
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> dict:
+    """复判记录：已确认的结果，含结论、理由、复核人与时间。"""
+    where = ["r.review_status = 'done'"]
+    params: list[object] = []
+    if code:
+        where.append("j.code = ?")
+        params.append(code)
+    if verdict:
+        where.append("r.label = ?")
+        params.append(verdict)
+    if actor:
+        where.append("r.confirmed_by = ?")
+        params.append(actor)
+    if since:
+        where.append("r.confirmed_at >= ?")
+        params.append(since)
+    if until:
+        where.append("r.confirmed_at <= ?")
+        params.append(until)
+    where_sql = " WHERE " + " AND ".join(where)
+    total = conn.execute(
+        "SELECT count(*) c FROM inference_result r JOIN inference_job j ON j.id = r.job_id" + where_sql,
+        params,
+    ).fetchone()["c"]
+    rows = conn.execute(
+        "SELECT r.id, r.score, r.label, r.confirmed_by, r.confirmed_at, r.confirm_note,"
+        " r.created_at, j.code, j.part_no, j.batch_no, j.station_id AS station"
+        " FROM inference_result r JOIN inference_job j ON j.id = r.job_id" + where_sql +
+        " ORDER BY r.confirmed_at DESC LIMIT ? OFFSET ?",
+        params + [max(1, min(limit, 200)), max(0, offset)],
+    ).fetchall()
+    return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+
+
 @router.get("/skipped")
 def skipped(
     code: str | None = None,

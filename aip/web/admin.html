@@ -1153,7 +1153,7 @@ async function renderCode(code) {
       <table><caption class="sr-only">最近判定</caption>
         <thead><tr><th scope="col">#</th><th scope="col">分数</th><th scope="col">结论</th><th scope="col">确认</th><th scope="col">时间</th></tr></thead>
         <tbody>${d.recent_results.map(r => `<tr data-shot="${r.id}" style="cursor:pointer">
-          <td>${r.id}</td><td>${r.score.toFixed(3)}</td><td>${tag(r.label)}</td>
+          <td>${r.id}</td><td>${r.score.toFixed(3)}</td><td>${r.label === "ng" ? `<span class="tag ng">NG</span>` : r.label === "ok" ? `<span class="tag ok">OK</span>` : `<span class="tag gray">灰区</span>`}</td>
           <td>${r.confirmed_by ? esc(r.confirmed_by) : (r.label === 'ok' ? '<span class="muted">—</span>' : '<span class="muted">待复核</span>')}</td>
           <td class="muted">${fmtTime(r.created_at)}</td></tr>`).join("")}
         </tbody></table>`}
@@ -1357,6 +1357,85 @@ function ageText(iso) {
   return Math.floor(hours / 24) + " 天";
 }
 
+let rhState = { code: "", verdict: "", actor: "", since: "", until: "", page: 0 };
+
+async function renderReviewHistory() {
+  const pageSize = 25;
+  const params = new URLSearchParams({
+    limit: String(pageSize),
+    offset: String(rhState.page * pageSize),
+  });
+  if (rhState.code.trim()) params.set("code", rhState.code.trim());
+  if (rhState.verdict) params.set("verdict", rhState.verdict);
+  if (rhState.actor.trim()) params.set("actor", rhState.actor.trim());
+  if (rhState.since) params.set("since", rhState.since + "T00:00:00Z");
+  if (rhState.until) params.set("until", rhState.until + "T23:59:59Z");
+  const data = await api("/review/history?" + params);
+  const pages = Math.max(1, Math.ceil(data.total / pageSize));
+  if (rhState.page >= pages) { rhState.page = pages - 1; return renderReviewHistory(); }
+
+  $("view").innerHTML = `
+    <section>
+      <h2>复判记录 <span class="pill">${data.total} 条</span>
+        <span style="margin-left:auto"><a class="ghost" href="#/quality">返回复核队列 →</a></span></h2>
+      <div class="filterbar">
+        <input id="rh_code" value="${esc(rhState.code)}" placeholder="编码" aria-label="按编码筛选" style="width:180px">
+        <select id="rh_verdict" aria-label="按结论筛选" style="width:130px">
+          <option value="">全部结论</option>
+          <option value="ok" ${rhState.verdict === "ok" ? "selected" : ""}>OK</option>
+          <option value="ng" ${rhState.verdict === "ng" ? "selected" : ""}>NG</option>
+        </select>
+        <input id="rh_actor" value="${esc(rhState.actor)}" placeholder="复核人" aria-label="按复核人筛选" style="width:130px">
+        <input id="rh_since" type="date" value="${esc(rhState.since)}" aria-label="起始日期" style="width:150px">
+        <input id="rh_until" type="date" value="${esc(rhState.until)}" aria-label="结束日期" style="width:150px">
+        <button class="act" id="rh_query">查询</button>
+        <button class="ghost" id="rh_reset">重置</button>
+      </div>
+      ${data.items.length === 0 ? `<div class="empty">没有符合条件的复判记录。</div>` : `
+      <table><caption class="sr-only">复判记录</caption>
+        <thead><tr><th scope="col">复判时间</th><th scope="col">#</th><th scope="col">编码</th><th scope="col">件号</th><th scope="col">批次 / 工位</th><th scope="col">分数</th><th scope="col">结论</th><th scope="col">理由</th><th scope="col">复核人</th></tr></thead>
+        <tbody>${data.items.map(r => `<tr data-rid="${r.id}" style="cursor:pointer" title="点击查看裁片">
+          <td class="muted">${fmtTime(r.confirmed_at)}</td>
+          <td>${r.id}</td>
+          <td>${esc(r.code)}</td>
+          <td>${esc(r.part_no || "-")}</td>
+          <td class="muted">${esc(r.batch_no || "-")} / ${esc(r.station || "-")}</td>
+          <td>${Number(r.score).toFixed(3)}</td>
+          <td>${r.label === "ng" ? `<span class="tag ng">NG</span>` : r.label === "ok" ? `<span class="tag ok">OK</span>` : `<span class="tag gray">灰区</span>`}</td>
+          <td>${esc(r.confirm_note || "-")}</td>
+          <td>${esc(r.confirmed_by || "-")}</td>
+        </tr>`).join("")}</tbody></table>
+      <div class="row" style="margin-top:10px;align-items:center">
+        <button class="ghost" id="rhPrev" ${rhState.page === 0 ? "disabled" : ""}>上一页</button>
+        <span class="muted" style="flex:1;text-align:center">第 ${rhState.page + 1} / ${pages} 页 · 共 ${data.total} 条</span>
+        <button class="ghost" id="rhNext" ${rhState.page + 1 >= pages ? "disabled" : ""}>下一页</button>
+      </div>`}
+    </section>`;
+
+  const apply = () => {
+    rhState.code = $("rh_code").value;
+    rhState.verdict = $("rh_verdict").value;
+    rhState.actor = $("rh_actor").value;
+    rhState.since = $("rh_since").value;
+    rhState.until = $("rh_until").value;
+    rhState.page = 0;
+    renderReviewHistory();
+  };
+  $("rh_query").onclick = apply;
+  $("rh_code").addEventListener("keydown", (e) => { if (e.key === "Enter") apply(); });
+  $("rh_actor").addEventListener("keydown", (e) => { if (e.key === "Enter") apply(); });
+  $("rh_reset").onclick = () => { rhState = { code: "", verdict: "", actor: "", since: "", until: "", page: 0 }; renderReviewHistory(); };
+  if ($("rhPrev")) $("rhPrev").onclick = () => { rhState.page = Math.max(0, rhState.page - 1); renderReviewHistory(); };
+  if ($("rhNext")) $("rhNext").onclick = () => { rhState.page += 1; renderReviewHistory(); };
+  document.querySelectorAll("[data-rid]").forEach(tr => {
+    tr.onclick = () => {
+      $("shotDlgImg").src = `/results/${tr.dataset.rid}/image`;
+      $("shotDlgTitle").textContent = `结果 #${tr.dataset.rid}`;
+      $("shotDlg").showModal();
+    };
+  });
+}
+
 async function renderQuality() {
   // 深链：/#/quality?group=batch|family|code|part 直接进入分组视图
   const deep = new URLSearchParams(location.hash.split("?")[1] || "");
@@ -1413,6 +1492,7 @@ async function renderQuality() {
       <h2>复核队列 <span class="pill">${q.summary.total} 条待复核</span>
         <span class="pill">最旧 ${ageText(q.summary.oldest_at)}</span>
         <span style="margin-left:auto;display:flex;gap:8px">
+          <button class="ghost" id="btnHistory" title="查询已完成的复判">复判记录</button>
           <button class="ghost" id="btnKeys" title="键盘快捷键">快捷键 ?</button>
           ${q.summary.skipped_count > 0
             ? `<button class="ghost" id="btnSkipped">暂缓件 ${q.summary.skipped_count}</button>`
@@ -1661,6 +1741,7 @@ async function renderQuality() {
       toast("已暂缓");
       removeCurrent();
     };
+    $("btnHistory").onclick = () => { location.hash = "#/review-history"; };
     $("btnKeys").onclick = () => $("keysDlg").showModal();
     $("rOk").onclick = () => judge("ok");
     $("rNg").onclick = () => judge("ng");
@@ -2907,6 +2988,7 @@ async function renderTraining() {
 
 const TITLES = {
   workbench: "工作台", wizard: "新建向导", catalog: "编码与模型", quality: "复核队列",
+  "review-history": "复判记录",
   cases: "判例库", datasets: "数据集", blind: "抽检",
   training: "训练与发布", system: "系统", settings: "设置"
 };
@@ -2960,6 +3042,7 @@ async function route() {
     if (name === "wizard") return await renderWizard();
     if (name === "catalog") return await renderCatalog();
     if (name === "quality") return await renderQuality();
+    if (name === "review-history") return await renderReviewHistory();
     if (name === "cases") return await renderCases();
     if (name === "datasets") return await renderDatasets();
     if (name === "blind" && arg) return await renderBlindBatch(Number(arg));

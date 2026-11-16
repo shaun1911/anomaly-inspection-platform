@@ -31,6 +31,7 @@
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
+| GET | `/review/history` | 查询 复核 / history |
 | GET | `/review/pending` | 工位待复核列表 |
 | GET | `/review/queue` | 复核队列（可按编码/结果/编码族/批次分组） |
 | GET | `/review/skipped` | 查询 复核 / skipped |
