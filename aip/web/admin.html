@@ -492,10 +492,10 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const PAGE_SIZE_KEY = "aip-page-size";
-const PAGE_SIZE_OPTIONS = [20, 25, 50, 100];
+const PAGE_SIZE_OPTIONS = [10, 20, 25, 50, 100];
 function listPageSize() {
   const n = Number(localStorage.getItem(PAGE_SIZE_KEY));
-  return PAGE_SIZE_OPTIONS.includes(n) ? n : 25;
+  return PAGE_SIZE_OPTIONS.includes(n) ? n : 20;
 }
 function setListPageSize(n) { localStorage.setItem(PAGE_SIZE_KEY, String(n)); }
 function pageSizeSelect(id) {
@@ -2380,12 +2380,17 @@ async function renderCases() {
     <section>
       <h2>判例库 <span class="pill">共 ${total} 条</span>
         ${conflicts.length ? `<span class="pill" style="background:color-mix(in oklab,var(--bad) 18%,transparent);color:var(--bad)">冲突 ${conflicts.length}</span>` : ""}
-        <span style="margin-left:auto">
+        <span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <button class="ghost" id="btnAddDataset" disabled>加入数据集（0）</button>
           ${pageSizeSelect("cq_ps")}
           <button class="ghost" id="btnExport">导出 CSV</button>
           <button class="act" id="newCase">录入判例</button>
         </span></h2>
+
+      <p class="muted" style="margin:0 0 10px">
+        判例库是训练与复核的证据库：一张图一条结论（OK/NG），不是生产流水。
+        勾选判例 → 「加入数据集」用于训练；「导出 CSV」用于离线核对；带「冲突」标记的同件不同判需要人工裁决。
+      </p>
 
       <div class="form" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         <div><label for="cq_code">编码</label>
@@ -2414,6 +2419,12 @@ async function renderCases() {
           </select></div>
       </div>
 
+      <div class="row" style="margin:10px 0;align-items:center">
+        <button class="ghost" id="casePrevTop" ${caseState.page === 0 ? "disabled" : ""}>上一页</button>
+        <span class="muted" style="flex:1;text-align:center">第 ${caseState.page + 1} / ${pages} 页 · 共 ${total} 条</span>
+        <button class="ghost" id="caseNextTop" ${caseState.page + 1 >= pages ? "disabled" : ""}>下一页</button>
+      </div>
+
       ${conflicts.length ? `<div class="empty" style="padding:10px 0;color:var(--bad)">
         有 ${conflicts.length} 条冲突：同图被判过不同结论，需人工裁决。
       </div>` : ""}
@@ -2422,9 +2433,8 @@ async function renderCases() {
       <table><caption class="sr-only">判例列表</caption>
         <thead><tr>
           <th scope="col"><input type="checkbox" id="chkAll" aria-label="全选当前页"></th>
-          <th scope="col">图</th><th scope="col">#</th><th scope="col">编码</th><th scope="col">件号</th><th scope="col">批次</th><th scope="col">结论</th>
-          <th scope="col">理由</th><th scope="col">来源</th><th scope="col">裁决人</th>
-          <th scope="col">时间</th><th scope="col">操作</th>
+          <th scope="col">图</th><th scope="col">#</th><th scope="col">编码</th><th scope="col">件号</th><th scope="col">批次 / 来源</th><th scope="col">结论</th>
+          <th scope="col">理由</th><th scope="col">时间</th><th scope="col">操作</th>
         </tr></thead>
         <tbody>${rows.map(c => `<tr>
           <td><input type="checkbox" class="case-chk" value="${c.id}" ${selectedCases.has(c.id) ? "checked" : ""}></td>
@@ -2432,12 +2442,10 @@ async function renderCases() {
                 onerror="this.style.visibility='hidden'"></td>
           <td>${c.id}</td>
           <td>${esc(c.code)}</td>
-          <td>${esc(c.part_no || "-")}</td>
-          <td>${esc(c.batch_no || "-")}</td>
+          <td title="${esc(c.part_no || "")}">${esc((c.part_no || "-").slice(0, 26))}${(c.part_no || "").length > 26 ? "…" : ""}</td>
+          <td class="muted">${esc(c.batch_no || "-")}<div style="font-size:11px">${esc(c.source || "manual")}</div></td>
           <td>${tag(c.verdict)}${c.conflict ? ' <span class="tag ng">冲突</span>' : ""}</td>
           <td>${esc(c.reason || "-")}</td>
-          <td class="muted">${esc(c.source || "manual")}</td>
-          <td>${esc(c.adjudicator)}</td>
           <td class="muted">${fmtTime(c.created_at)}</td>
           <td>${c.archived_at
             ? `<button class="ghost" data-restore-case="${c.id}">取消归档</button>`
@@ -2513,8 +2521,14 @@ async function renderCases() {
     caseState.page = 0;
     renderCases();
   });
-  if ($("casePrev")) $("casePrev").onclick = () => { caseState.page = Math.max(0, caseState.page - 1); renderCases(); };
-  if ($("caseNext")) $("caseNext").onclick = () => { caseState.page += 1; renderCases(); };
+  const goCasePage = (delta) => {
+    caseState.page = Math.max(0, Math.min(caseState.page + delta, pages - 1));
+    renderCases();
+  };
+  if ($("casePrev")) $("casePrev").onclick = () => goCasePage(-1);
+  if ($("caseNext")) $("caseNext").onclick = () => goCasePage(1);
+  if ($("casePrevTop")) $("casePrevTop").onclick = () => goCasePage(-1);
+  if ($("caseNextTop")) $("caseNextTop").onclick = () => goCasePage(1);
 }
 
 const STATUS_LABEL = {
