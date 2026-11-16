@@ -14,7 +14,7 @@
       <tr><td><kbd>J</kbd> <kbd>K</kbd></td><td>下一件 / 上一件</td></tr>
       <tr><td><kbd>O</kbd> / <kbd>N</kbd></td><td>判为 OK / 判为 NG（相反结论需先选理由）</td></tr>
       <tr><td><kbd>Enter</kbd></td><td>接受系统结论（灰区会提示先明确判定）</td></tr>
-      <tr><td><kbd>1</kbd>~<kbd>5</kbd></td><td>选择理由：划痕/脏污/压伤/误报/其他（仅判 NG 必选）</td></tr>
+      <tr><td><kbd>1</kbd>~<kbd>9</kbd></td><td>选择理由（按「设置 → 理由预设」的顺序；仅判 NG 必选）</td></tr>
       <tr><td><kbd>L</kbd></td><td>标记领取 / 释放领取（交接占位，不影响结论）</td></tr>
       <tr><td><kbd>?</kbd></td><td>打开本说明</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>关闭弹窗</td></tr>
@@ -280,6 +280,14 @@
   .shot.blind-shot{height:clamp(200px,34vh,380px);min-height:200px;flex:0 0 auto}
   .blind-refs{flex-direction:row;flex-wrap:wrap;gap:14px;align-items:flex-start}
   .blind-refs .ref-group{max-width:100%}
+  .chips{display:flex;flex-direction:column;gap:6px}
+  .chip-list{display:flex;flex-wrap:wrap;gap:6px;min-height:26px;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:4px;background:var(--g2);border:1px solid var(--g3);
+    border-radius:999px;padding:2px 4px 2px 9px;font-size:12px}
+  .chip-del{border:0;background:transparent;color:var(--t3);cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
+  .chip-del:hover{color:var(--bad)}
+  .chip-new{display:flex;gap:6px}
+  .chip-new .chip-input{flex:1;min-width:120px}
   .next-step{margin-top:12px;background:var(--g2);border:1px solid var(--g3);border-radius:6px;padding:10px 12px;font-size:13px}
   .next-step b{color:var(--t1)}
   .storage-tree summary{cursor:pointer;font-size:13px;color:var(--t2);margin-top:4px}
@@ -1505,7 +1513,10 @@ async function renderQuality() {
   const isGroup = ["code", "family", "batch"].includes(reviewState.groupBy);
   let idx = 0;
   let reason = null;
-  const REASONS = ["划痕", "脏污", "压伤", "误报", "其他"];
+  const reasonSetting = settings.find(s => s.key === "reasons.list");
+  const REASONS = Array.isArray(reasonSetting?.value) && reasonSetting.value.length
+    ? reasonSetting.value
+    : ["划痕", "脏污", "压伤", "误报", "其他"];
   const actor = "admin";
 
   const toolbar = `
@@ -1811,7 +1822,10 @@ async function renderQuality() {
       else if (ev.key === "l" || ev.key === "L") { $("rClaim").click(); }
       else if (ev.key === "o" || ev.key === "O") { $("rOk").click(); }
       else if (ev.key === "n" || ev.key === "N") { $("rNg").click(); }
-      else if (/^[1-5]$/.test(ev.key)) { reason = REASONS[Number(ev.key) - 1]; paint(); }
+      else if (/^[1-9]$/.test(ev.key)) {
+        const idx = Number(ev.key) - 1;
+        if (idx < REASONS.length) { reason = REASONS[idx]; paint(); }
+      }
       else if (ev.key === "?" || (ev.key === "/" && ev.shiftKey)) { $("btnKeys").click(); }
     };
 
@@ -1989,7 +2003,16 @@ async function renderSettings() {
              <option value="queue" ${val === "queue" ? "selected" : ""}>进待复核，提示人工</option>
              <option value="stop" ${val === "stop" ? "selected" : ""}>直接拦停，等人工放行</option>
            </select>`
-        : `<input data-k="${esc(r.key)}" data-kind="${r.kind}" value="${esc(val)}" aria-label="${esc(r.label)}">`}
+        : r.kind === "list"
+          ? `<div class="chips" data-chips="${esc(r.key)}">
+               <input type="hidden" data-k="${esc(r.key)}" data-kind="list" value="${esc(val)}" aria-label="${esc(r.label)}">
+               <div class="chip-list"></div>
+               <div class="chip-new">
+                 <input class="chip-input" placeholder="输入理由，回车或点添加" aria-label="新增${esc(r.label)}">
+                 <button type="button" class="ghost chip-add">添加</button>
+               </div>
+             </div>`
+          : `<input data-k="${esc(r.key)}" data-kind="${r.kind}" value="${esc(val)}" aria-label="${esc(r.label)}">`}
                       ${r.key === "station.token" ? `
                         <button class="ghost" data-gen-token title="生成随机令牌">生成</button>
                         <button class="ghost" data-copy-token title="复制到剪贴板">复制</button>
@@ -2038,6 +2061,49 @@ async function renderSettings() {
     });
   }
 
+  function paintChips(key) {
+    const box = document.querySelector(`[data-chips="${key}"]`);
+    if (!box) return;
+    const hidden = box.querySelector("input[data-k]");
+    const list = hidden.value ? hidden.value.split(",").filter(Boolean) : [];
+    box.querySelector(".chip-list").innerHTML = list.length
+      ? list.map((r, i) => `<span class="chip">${esc(r)}<button type="button" class="chip-del" data-chip-del="${i}" aria-label="删除 ${esc(r)}">×</button></span>`).join("")
+      : '<span class="muted">还没有理由</span>';
+  }
+  function setChips(box, list) {
+    const hidden = box.querySelector("input[data-k]");
+    hidden.value = list.join(",");
+    hidden.dispatchEvent(new Event("input", {bubbles: true}));
+    paintChips(box.dataset.chips);
+  }
+  document.querySelectorAll("[data-chips]").forEach(box => {
+    paintChips(box.dataset.chips);
+    const add = () => {
+      const field = box.querySelector(".chip-input");
+      const v = field.value.trim().replace(/,/g, "");
+      if (!v) return;
+      const hidden = box.querySelector("input[data-k]");
+      const list = hidden.value ? hidden.value.split(",").filter(Boolean) : [];
+      if (list.includes(v)) { toast("该理由已存在", true); field.value = ""; return; }
+      if (list.length >= 10) { toast("最多 10 条理由", true); return; }
+      setChips(box, [...list, v]);
+      field.value = "";
+      field.focus();
+    };
+    box.querySelector(".chip-add").onclick = add;
+    box.querySelector(".chip-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); add(); }
+    });
+    box.addEventListener("click", (e) => {
+      const del = e.target.closest("[data-chip-del]");
+      if (!del) return;
+      const hidden = box.querySelector("input[data-k]");
+      const list = hidden.value ? hidden.value.split(",").filter(Boolean) : [];
+      list.splice(Number(del.dataset.chipDel), 1);
+      setChips(box, list);
+    });
+  });
+
   document.querySelectorAll("[data-k]").forEach(inp => {
     ["input", "change"].forEach(evt => inp.addEventListener(evt, () => {
       const row = rows.find(r => r.key === inp.dataset.k);
@@ -2063,6 +2129,7 @@ async function renderSettings() {
       const defVal = Array.isArray(row.default) ? row.default.join(",") : row.default;
       inp.value = String(defVal);
       inp.dispatchEvent(new Event("input", {bubbles: true}));
+      if (row.kind === "list") paintChips(row.key);
       toast(`已恢复默认：${row.label}`);
     };
   });
