@@ -115,14 +115,18 @@ def get_batch(batch_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> di
         raise ApiError("batch_not_found", f"批次 {batch_id} 不存在", "刷新", 404)
     closed = b["status"] == "closed"
     rows = conn.execute(
-        "SELECT i.id, i.part_no, i.human_label, i.judged_by, i.system_label, i.result_id"
-        " FROM blind_item i WHERE i.batch_id = ? ORDER BY i.id",
+        "SELECT i.id, i.part_no, i.human_label, i.judged_by, i.system_label, i.result_id, j.code"
+        " FROM blind_item i"
+        " JOIN inference_result r ON r.id = i.result_id"
+        " JOIN inference_job j ON j.id = r.job_id"
+        " WHERE i.batch_id = ? ORDER BY i.id",
         (batch_id,),
     ).fetchall()
     items = []
     for r in rows:
         item = {"id": r["id"], "part_no": r["part_no"], "human_label": r["human_label"],
-                "judged_by": r["judged_by"], "image_url": f"/api/blind/items/{r['id']}/image"}
+                "judged_by": r["judged_by"], "code": r["code"],
+                "image_url": f"/api/blind/items/{r['id']}/image"}
         if closed:  # 关批后才揭盲
             item["system_label"] = r["system_label"]
         items.append(item)

@@ -277,6 +277,9 @@
   .cases-table{max-height:calc(100vh - 430px);min-height:240px;border:1px solid var(--g3);border-radius:8px}
   .cases-table table{margin:0}
   .cases-table thead th{position:sticky;top:0;z-index:1;background:var(--g1)}
+  .shot.blind-shot{height:clamp(200px,34vh,380px);min-height:200px;flex:0 0 auto}
+  .blind-refs{flex-direction:row;flex-wrap:wrap;gap:14px;align-items:flex-start}
+  .blind-refs .ref-group{max-width:100%}
   .next-step{margin-top:12px;background:var(--g2);border:1px solid var(--g3);border-radius:6px;padding:10px 12px;font-size:13px}
   .next-step b{color:var(--t1)}
   .storage-tree summary{cursor:pointer;font-size:13px;color:var(--t2);margin-top:4px}
@@ -580,6 +583,14 @@ let trainingState = { q: "", family: "", jobModel: "" };
 let blindState = { q: "", status: "" };
 let systemState = { auditAction: "", auditActor: "", auditSince: "", auditUntil: "", auditPage: 0, auditPageSize: 20 };
 
+function isoWeek(d = new Date()) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const year = t.getUTCFullYear();
+  const week = Math.ceil((((t - Date.UTC(year, 0, 1)) / 86400000) + 1) / 7);
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
 const fmtBytes = (n) => {
   if (n == null) return "—";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -2770,8 +2781,9 @@ async function renderBlind() {
     <section>
       <h2>新建抽检批次</h2>
       <div class="form form-grid">
-        <div><label for="bl_week">周次<span class="req"> *</span></label><input id="bl_week" placeholder="2026-W46"></div>
+        <div><label for="bl_week">周次（默认本周）<span class="req"> *</span></label><input id="bl_week" value="${isoWeek()}" placeholder="2026-W46"></div>
         <div><label for="bl_size">抽样数</label><input id="bl_size" value="300" inputmode="numeric"></div>
+        <p class="muted" style="grid-column:1/-1;margin:0">默认取本周 ISO 周次，直接点「建批次」即可；补录历史才需要改。</p>
         <div><label for="bl_code">编码（可选）</label>
           <select id="bl_code"><option value="">全部</option>
             ${codes.map(c => `<option value="${esc(c.code)}">${esc(c.code)}</option>`).join("")}
@@ -2835,7 +2847,7 @@ async function renderBlindBatch(id) {
       </div>
       <div class="review-detail">
         ${cur ? `
-          <div class="shot"><img id="blindShot" src="${cur.image_url}" alt="抽样 ${cur.id}"></div>
+          <div class="shot blind-shot"><img id="blindShot" src="${cur.image_url}" alt="抽样 ${cur.id}"></div>
           <div class="kv">
             <div>件号</div><div>${esc(cur.part_no || "-")}</div>
             <div>进度</div><div>${b.judged} / ${b.total}</div>
@@ -2845,7 +2857,12 @@ async function renderBlindBatch(id) {
             <button class="ghost" id="jGray">灰区</button>
             <button class="ghost" id="jNg">NG</button>
           </div>
-          <div class="kbd-hint review-tip"><kbd>O</kbd> 判 OK · <kbd>G</kbd> 灰区 · <kbd>N</kbd> 判 NG</div>` : `
+          <div class="kbd-hint review-tip"><kbd>O</kbd> 判 OK · <kbd>G</kbd> 灰区 · <kbd>N</kbd> 判 NG</div>
+          <div class="row" style="align-items:center;margin:8px 0 6px">
+            <button class="ghost" id="blindRefBtn" style="flex:0 0 auto">参考样例</button>
+            <span class="muted" id="blindRefHint" style="font-size:12px">OK/NG 判例对照，不含本件系统结论</span>
+          </div>
+          <div id="blindRefs" class="ref-strip blind-refs" hidden></div>` : `
           <div class="empty">全部判完，可以关批（需三方签字）。</div>
           <div class="form" style="grid-template-columns:1fr 1fr 1fr;margin-top:12px">
             <div><label for="signQ">质量签字</label><input id="signQ" placeholder="姓名"></div>
@@ -2874,6 +2891,30 @@ async function renderBlindBatch(id) {
     renderBlindBatch(id);
   }
   if (cur) {
+    async function loadBlindRefs() {
+      try {
+        const [refOk, refNg] = await Promise.all([
+          api(`/api/cases?code=${encodeURIComponent(cur.code)}&verdict=ok&limit=2`),
+          api(`/api/cases?code=${encodeURIComponent(cur.code)}&verdict=ng&limit=2`),
+        ]);
+        const group = (rows, kind) => rows.length ? `<div class="ref-group">
+          <span class="tag ${kind}">${kind === "ok" ? "OK" : "NG"} 参考</span>
+          <div class="ref-thumbs">${rows.map(c => `<figure><img src="/api/cases/${c.id}/image" alt="${kind} 参考 ${c.id}" loading="lazy"></figure>`).join("")}</div>
+        </div>` : "";
+        const html = group(refOk, "ok") + group(refNg, "ng");
+        $("blindRefs").innerHTML = html || '<span class="muted">该编码还没有 OK/NG 判例可对照</span>';
+      } catch (e) {
+        $("blindRefs").innerHTML = '<span class="muted">参考样例加载失败</span>';
+      }
+    }
+    $("blindRefBtn").onclick = () => {
+      $("blindRefs").hidden = !$("blindRefs").hidden;
+      $("blindRefBtn").textContent = $("blindRefs").hidden ? "参考样例" : "收起参考";
+      if (!$("blindRefs").hidden && !$("blindRefs").dataset.loaded) {
+        $("blindRefs").dataset.loaded = "1";
+        loadBlindRefs();
+      }
+    };
     $("jOk").onclick = () => judge("ok");
     $("jGray").onclick = () => judge("gray");
     $("jNg").onclick = () => judge("ng");
