@@ -274,6 +274,9 @@
     padding:7px 12px;font-size:13px;cursor:pointer}
   .page-tab:hover{border-color:var(--brand)}
   .page-tab.on{background:var(--t1);color:var(--g1);border-color:var(--t1);font-weight:600}
+  .cases-table{max-height:calc(100vh - 430px);min-height:240px;border:1px solid var(--g3);border-radius:8px}
+  .cases-table table{margin:0}
+  .cases-table thead th{position:sticky;top:0;z-index:1;background:var(--g1)}
   .next-step{margin-top:12px;background:var(--g2);border:1px solid var(--g3);border-radius:6px;padding:10px 12px;font-size:13px}
   .next-step b{color:var(--t1)}
   .storage-tree summary{cursor:pointer;font-size:13px;color:var(--t2);margin-top:4px}
@@ -2430,7 +2433,7 @@ async function renderCases() {
       </div>` : ""}
 
       ${rows.length === 0 ? `<div class="empty">还没有判例。<b>为什么要有</b>：判例是训练数据来源，也是"这张为什么这么判"的证据。</div>` : `
-      <table><caption class="sr-only">判例列表</caption>
+      <div class="table-wrap cases-table"><table><caption class="sr-only">判例列表</caption>
         <thead><tr>
           <th scope="col"><input type="checkbox" id="chkAll" aria-label="全选当前页"></th>
           <th scope="col">图</th><th scope="col">#</th><th scope="col">编码</th><th scope="col">件号</th><th scope="col">批次 / 来源</th><th scope="col">结论</th>
@@ -2450,7 +2453,7 @@ async function renderCases() {
           <td>${c.archived_at
             ? `<button class="ghost" data-restore-case="${c.id}">取消归档</button>`
             : `<button class="ghost" data-archive-case="${c.id}">归档</button>`}</td>
-        </tr>`).join("")}</tbody></table>
+        </tr>`).join("")}</tbody></table></div>
       <div class="row" style="margin-top:12px;align-items:center">
         <button class="ghost" id="casePrev" ${caseState.page === 0 ? "disabled" : ""}>上一页</button>
         <span class="muted" style="flex:1;text-align:center">第 ${caseState.page + 1} / ${pages} 页 · 共 ${total} 条</span>
