@@ -860,6 +860,9 @@ async function renderCatalog() {
   );
   const byCode = {};
   bindings.filter(b => !b.active_to).forEach(b => byCode[b.code] = b);
+  const modelCodeById = Object.fromEntries(models.map(m => [m.id, m.code]));
+  const stageName = {candidate: "候选", assist: "生效", shadow: "影子", disabled: "停用"};
+  const stageTag = (s) => `<span class="tag ${esc(s)}">${esc(stageName[s] || s)}</span>`;
 
   $("view").innerHTML = `
     <section>
@@ -876,8 +879,8 @@ async function renderCatalog() {
             <td>${esc(c.code)}</td>
             <td>${esc(c.family || "-")} / ${esc(c.part || "-")}</td>
             <td>${c.active ? "启用" : '<span class="tag disabled">停用</span>'}</td>
-            <td>${b ? "M" + esc(b.model_id) : '<span class="muted">未绑定</span>'}</td>
-            <td>${b ? tag(b.stage) : "-"}</td>
+            <td>${b ? esc(modelCodeById[b.model_id] || ("#" + b.model_id)) : '<span class="muted">未绑定</span>'}</td>
+            <td>${b ? stageTag(b.stage) : "-"}</td>
             <td>${c.archived_at
               ? `<button class="ghost" data-restore="${esc(c.code)}">取消归档</button>`
               : `<button class="ghost" data-archive="${esc(c.code)}" ${b ? "disabled title=\"先解绑再归档\"" : ""}>归档</button>`}
@@ -913,7 +916,7 @@ async function renderCatalog() {
         <thead><tr><th scope="col">族</th><th scope="col">编码数</th><th scope="col">模型</th><th scope="col">一致性</th></tr></thead>
         <tbody>${families.map((f, i) => {
           const fm = famModels[i];
-          const modelsText = fm && fm.model_ids.length ? fm.model_ids.map(id => "M" + id).join(", ") : '<span class="muted">未绑定</span>';
+          const modelsText = fm && fm.model_ids.length ? fm.model_ids.map(id => modelCodeById[id] || ("#" + id)).join(", ") : '<span class="muted">未绑定</span>';
           return `<tr>
             <td>${esc(f.name)}</td><td>${f.code_count}</td><td>${modelsText}</td>
             <td>${!fm || fm.model_ids.length <= 1 ? '<span class="tag ok">一致</span>'
