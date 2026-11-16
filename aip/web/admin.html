@@ -2452,7 +2452,7 @@ async function renderCases() {
           <td class="muted">${fmtTime(c.created_at)}</td>
           <td>${c.archived_at
             ? `<button class="ghost" data-restore-case="${c.id}">取消归档</button>`
-            : `<button class="ghost" data-archive-case="${c.id}">归档</button>`}</td>
+            : `<button class="ghost" data-archive-case="${c.id}" title="停止使用，不删除；已加入的数据集不会自动移除">归档</button>`}</td>
         </tr>`).join("")}</tbody></table></div>
       <div class="row" style="margin-top:12px;align-items:center">
         <button class="ghost" id="casePrev" ${caseState.page === 0 ? "disabled" : ""}>上一页</button>
@@ -2495,7 +2495,7 @@ async function renderCases() {
   };
   document.querySelectorAll("[data-archive-case]").forEach(btn => {
     btn.onclick = async () => {
-      if (!confirm("归档后该判例不参与训练，可随时恢复。")) return;
+      if (!confirm("归档 = 停止使用，不是删除：\n· 从默认列表消失，也不能加入新数据集；\n· 已加入的草稿/冻结数据集不会自动移除，训练仍可能用到；\n· 图片与历史记录保留，可随时恢复。")) return;
       try { await post(`/api/cases/${btn.dataset.archiveCase}/archive`, {}); toast("已归档"); renderCases(); }
       catch (e) { toast(e.message, true); }
     };
