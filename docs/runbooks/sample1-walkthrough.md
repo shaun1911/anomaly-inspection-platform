@@ -48,7 +48,7 @@ powershell -ExecutionPolicy Bypass -File scripts\start.ps1
 1. 「改 ROI」填 `0,0,280,400` → 保存 ROI（必须与 BMP 裁片 280×400 一致，否则推图报 `crop_roi_mismatch`）；
 2. 「改阈值」填 `0.4,0.7` → 保存阈值（灰区演示用）。
 
-> 之前只有在 assist/shadow 版本下才显示这两个输入；已改为候选版本也能配置。
+> 之前只有在 assist/shadow 版本下才显示这两个输入；已改为候选版本也能配置。\n>\n> 页面「配置历史管理」按钮打开弹窗：ROI / 阈值两个页签、当前值标记、相对上一版差异、变更原因，以及「回滚」按钮。
 
 ### 4. 导出 ONNX 与冒烟
 

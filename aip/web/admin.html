@@ -21,6 +21,19 @@
   <div class="row" style="margin-top:14px"><button class="ghost" onclick="this.closest('dialog').close()">关闭</button></div>
 </dialog>
 
+<dialog id="cfgDlg" style="width:min(960px,94vw)">
+  <h2 style="margin-bottom:10px">配置历史 <span class="pill" id="cfgDlgSub"></span></h2>
+  <div class="filterbar" style="margin-bottom:10px">
+    <button class="ghost on" id="cfgTabRoi" data-cfg-tab="roi">ROI</button>
+    <button class="ghost" id="cfgTabTh" data-cfg-tab="th">阈值</button>
+    <input id="cfgQ" placeholder="筛选 rev / 原因，回车" aria-label="筛选配置历史" style="max-width:280px">
+  </div>
+  <div id="cfgBody" style="max-height:60vh;overflow:auto"></div>
+  <div class="row" style="margin-top:12px">
+    <button class="ghost" onclick="this.closest('dialog').close()">关闭</button>
+  </div>
+</dialog>
+
 <dialog id="refDlg" style="width:min(920px,94vw)">
   <h2 style="margin-bottom:12px">参考样例 <span class="muted">（历史判例，可能影响判断）</span></h2>
   <div id="refDlgBody"></div>
@@ -1022,24 +1035,9 @@ async function renderCode(code) {
         <div><button class="ghost" id="btnTh">保存阈值</button></div>
       </div>
       <p class="muted">改 ROI 与阈值会产生新的 rev，旧值保留可追溯；不影响已在跑的结果。</p>
-      ${(d.config_history && d.config_history.length) ? `
-      <table style="margin-top:10px"><caption class="sr-only">ROI 历史</caption>
-        <thead><tr><th scope="col">ROI rev</th><th scope="col">矩形 x1,y1,x2,y2</th><th scope="col">时间</th></tr></thead>
-        <tbody>${d.config_history.map(c => `<tr>
-          <td>${c.rev}${d.config && c.rev === d.config.rev ? ' <span class="tag ok">当前</span>' : ""}</td>
-          <td>${esc(c.roi_rect.join(","))}</td>
-          <td class="muted">${fmtTime(c.created_at)}</td>
-        </tr>`).join("")}</tbody></table>` : ""}
-      ${(d.threshold_history && d.threshold_history.length) ? `
-      <table style="margin-top:10px"><caption class="sr-only">阈值历史</caption>
-        <thead><tr><th scope="col">阈值 rev</th><th scope="col">对应 ROI rev</th><th scope="col">th_lo / th_hi</th><th scope="col">理由</th><th scope="col">时间</th></tr></thead>
-        <tbody>${d.threshold_history.map(c => `<tr>
-          <td>${c.rev}</td><td>${c.roi_rev}</td>
-          <td>${c.th_lo.toFixed(2)} / ${c.th_hi.toFixed(2)}</td>
-          <td class="muted">${esc(c.reason || "-")}</td>
-          <td class="muted">${fmtTime(c.created_at)}</td>
-        </tr>`).join("")}</tbody></table>` : ""}` :
-      `<div class="empty">这个编码还没有可用版本。<b>下一步</b>：先绑定模型，并让该模型有一个 assist/shadow 版本。</div>`}
+      <div class="row" style="margin-top:8px">
+        <button class="ghost" id="btnCfgHistory">配置历史管理（ROI ${(d.config_history || []).length} · 阈值 ${(d.threshold_history || []).length}）</button>
+      </div>` : `<div class="empty">这个编码还没有可用版本。<b>下一步</b>：先绑定模型，并让该模型有一个 assist/shadow 版本。</div>`}
     </section>
 
     <section>
@@ -1087,6 +1085,99 @@ async function renderCode(code) {
       toast("已绑定"); renderCode(code);
     } catch (e) { toast(e.message, true); }
   };
+  function openCfgHistory(d, ver) {
+    $("cfgDlgSub").textContent = `候选 v${ver.version_no}`;
+    const cfg = d.config_history || [];
+    const ths = d.threshold_history || [];
+    const roiSize = (r) => `${r[2] - r[0]}×${r[3] - r[1]}`;
+    const roiRows = cfg.map((c, i) => {
+      const older = cfg[i + 1];
+      const changed = older && JSON.stringify(older.roi_rect) !== JSON.stringify(c.roi_rect)
+        ? `<div class="muted" style="font-size:11px">上一版 ${roiSize(older.roi_rect)}</div>` : "";
+      const current = d.config && c.rev === d.config.rev;
+      return `<tr data-row="${c.rev} ${c.roi_rect.join(",")}">
+        <td>${c.rev}${current ? ' <span class="tag ok">当前</span>' : ""}</td>
+        <td>${esc(c.roi_rect.join(","))}<div class="muted" style="font-size:11px">${roiSize(c.roi_rect)}</div>${changed}</td>
+        <td class="muted">${fmtTime(c.created_at)}</td>
+        <td><button class="ghost" data-roll-roi="${c.rev}" ${current ? "disabled" : ""}>回滚</button></td>
+      </tr>`;
+    }).join("");
+    const thRows = ths.map((t, i) => {
+      const older = ths.slice(i + 1).find(x => x.roi_rev === t.roi_rev);
+      const delta = older
+        ? `<div class="muted" style="font-size:11px">上一版 ${older.th_lo.toFixed(2)} / ${older.th_hi.toFixed(2)}</div>` : "";
+      const current = d.threshold && t.rev === d.threshold.rev && t.roi_rev === (d.config ? d.config.rev : 0);
+      return `<tr data-row="${t.rev} ${t.roi_rev} ${t.reason || ""}">
+        <td>${t.rev}${current ? ' <span class="tag ok">当前</span>' : ""}</td>
+        <td>${t.roi_rev}</td>
+        <td>${t.th_lo.toFixed(2)} / ${t.th_hi.toFixed(2)}${delta}</td>
+        <td class="muted">${esc(t.reason || "-")}</td>
+        <td class="muted">${fmtTime(t.created_at)}</td>
+        <td><button class="ghost" data-roll-th="${t.rev}:${t.roi_rev}">回滚</button></td>
+      </tr>`;
+    }).join("");
+
+    $("cfgTabRoi").textContent = `ROI（${cfg.length}）`;
+    $("cfgTabTh").textContent = `阈值（${ths.length}）`;
+    $("cfgBody").innerHTML = `
+      <div id="cfgRoi">${cfg.length ? `<table><caption class="sr-only">ROI 历史</caption>
+        <thead><tr><th scope="col">ROI rev</th><th scope="col">矩形</th><th scope="col">时间</th><th scope="col">操作</th></tr></thead>
+        <tbody>${roiRows}</tbody></table>` : '<div class="empty">还没有 ROI 记录</div>'}</div>
+      <div id="cfgTh" hidden>${ths.length ? `<table><caption class="sr-only">阈值历史</caption>
+        <thead><tr><th scope="col">阈值 rev</th><th scope="col">ROI rev</th><th scope="col">th_lo / th_hi</th><th scope="col">原因</th><th scope="col">时间</th><th scope="col">操作</th></tr></thead>
+        <tbody>${thRows}</tbody></table>` : '<div class="empty">还没有阈值记录</div>'}</div>`;
+    const showTab = (tab) => {
+      $("cfgRoi").hidden = tab !== "roi";
+      $("cfgTh").hidden = tab !== "th";
+      $("cfgTabRoi").classList.toggle("on", tab === "roi");
+      $("cfgTabTh").classList.toggle("on", tab === "th");
+    };
+    $("cfgTabRoi").onclick = () => showTab("roi");
+    $("cfgTabTh").onclick = () => showTab("th");
+
+    $("cfgQ").value = "";
+    $("cfgQ").oninput = (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      document.querySelectorAll("#cfgBody tbody tr").forEach(tr => {
+        tr.hidden = q !== "" && !tr.dataset.row.toLowerCase().includes(q);
+      });
+    };
+
+    document.querySelectorAll("[data-roll-roi]").forEach(btn => {
+      btn.onclick = async () => {
+        const target = cfg.find(x => String(x.rev) === btn.dataset.rollRoi);
+        if (!target) return;
+        if (!confirm(`把 ROI 回滚为 rev ${target.rev}（${target.roi_rect.join(",")}）？`)) return;
+        const nextRev = Math.max(...cfg.map(x => x.rev)) + 1;
+        try {
+          await post("/api/configs", {model_version_id: ver.id, rev: nextRev, roi_rect: target.roi_rect});
+          toast(`已回滚 ROI 到 rev ${target.rev}`);
+          $("cfgDlg").close();
+          renderCode(code);
+        } catch (e) { toast(e.message, true); }
+      };
+    });
+    document.querySelectorAll("[data-roll-th]").forEach(btn => {
+      btn.onclick = async () => {
+        const [rev, roiRev] = btn.dataset.rollTh.split(":").map(Number);
+        const target = ths.find(x => x.rev === rev && x.roi_rev === roiRev);
+        if (!target) return;
+        if (!confirm(`把阈值回滚为 rev ${rev}（${target.th_lo.toFixed(2)} / ${target.th_hi.toFixed(2)}）？`)) return;
+        try {
+          await post("/api/thresholds", {
+            model_version_id: ver.id, roi_rev: target.roi_rev,
+            th_lo: target.th_lo, th_hi: target.th_hi, mode: target.mode,
+            reason: `回滚自 rev ${rev}`,
+          });
+          toast(`已回滚阈值到 rev ${rev}`);
+          $("cfgDlg").close();
+          renderCode(code);
+        } catch (e) { toast(e.message, true); }
+      };
+    });
+    $("cfgDlg").showModal();
+  }
+
   if (cfgVer) {
     $("btnRoi").onclick = async () => {
       try {
@@ -1097,6 +1188,7 @@ async function renderCode(code) {
         renderCode(code);
       } catch (e) { toast(e.message, true); }
     };
+    $("btnCfgHistory").onclick = () => openCfgHistory(d, cfgVer);
     $("btnTh").onclick = async () => {
       try {
         const [lo, hi] = $("th_box").value.split(",").map(Number);
