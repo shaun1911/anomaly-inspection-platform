@@ -597,7 +597,7 @@ def case_image(case_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> Fi
         raise ApiError("image_outside_root", "裁片路径不在数据目录内", "检查存储配置", 403)
     if not path.exists():
         raise ApiError("image_missing", "裁片文件已不存在", "可能已被清理", 404)
-    media = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
+    media = {".png": "image/png", ".bmp": "image/bmp", ".webp": "image/webp"}.get(path.suffix.lower(), "image/jpeg")
     return FileResponse(path, media_type=media)
 
 

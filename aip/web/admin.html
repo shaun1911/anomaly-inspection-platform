@@ -410,7 +410,7 @@
   <form method="dialog" id="caseForm">
     <h2 style="margin-bottom:12px">录入判例</h2>
     <label for="f_code">编码<span class="req"> *</span></label><input id="f_code" required placeholder="AB-1234-01">
-    <label for="f_file">上传裁片（或填路径，二者必填其一）<span class="req"> *</span></label><input id="f_file" type="file" accept="image/png,image/jpeg">
+    <label for="f_file">上传裁片（或填路径，二者必填其一）<span class="req"> *</span></label><input id="f_file" type="file" accept="image/png,image/jpeg,image/bmp">
     <label for="f_path">或手填已有路径</label><input id="f_path" placeholder="data/crops/xxx.png">
     <label for="f_part">件号（同件只录一条）</label><input id="f_part" placeholder="P-20261114-001">
     <label for="f_verdict">结论</label>
@@ -716,7 +716,7 @@ async function renderWizard() {
         </div></div>` : ""}`)}
 
       ${step(2, `<div class="form">
-          <div><label for="wz_file">裁片</label><input id="wz_file" type="file" accept="image/png,image/jpeg"></div>
+          <div><label for="wz_file">裁片</label><input id="wz_file" type="file" accept="image/png,image/jpeg,image/bmp"></div>
           <div><label for="wz_verdict">结论</label><select id="wz_verdict"><option value="ok">可接受 ok</option><option value="ng">缺陷 ng</option></select></div>
           <div><button class="act" id="wzAddCase">录入判例</button></div>
         </div>
@@ -728,7 +728,7 @@ async function renderWizard() {
         <p class="muted">数据集会自动包含该编码的全部判例，并冻结校验和。</p>`)}
 
       ${step(4, `<div class="form">
-          <div><label for="wz_smoke">冒烟图</label><input id="wz_smoke" type="file" accept="image/png,image/jpeg"></div>
+          <div><label for="wz_smoke">冒烟图</label><input id="wz_smoke" type="file" accept="image/png,image/jpeg,image/bmp"></div>
           <div><button class="act" id="wzSmoke">用候选版本试判</button></div>
         </div>
         <div id="wzSmokeOut" class="muted"></div>

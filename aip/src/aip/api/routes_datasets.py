@@ -147,7 +147,14 @@ def upload_case_image(file: UploadFile = File(...), conn: sqlite3.Connection = D
     target_dir = db_file.parent / "cases"
     target_dir.mkdir(parents=True, exist_ok=True)
     digest = hashlib.sha256(payload).hexdigest()
-    suffix = ".png" if payload[:8] == b"\x89PNG\r\n\x1a\n" else ".jpg"
+    if payload[:8] == b"\x89PNG\r\n\x1a\n":
+        suffix = ".png"
+    elif payload[:2] == b"\xff\xd8":
+        suffix = ".jpg"
+    elif payload[:2] == b"BM":
+        suffix = ".bmp"
+    else:
+        suffix = ".bin"
     target = target_dir / f"{digest}{suffix}"
     if not target.exists():
         target.write_bytes(payload)
