@@ -528,7 +528,7 @@ function listPageSize() {
 }
 function setListPageSize(n) { localStorage.setItem(PAGE_SIZE_KEY, String(n)); }
 function pageSizeSelect(id) {
-  return `<label class="muted" style="display:flex;align-items:center;gap:6px">每页 <select id="${id}" aria-label="每页条数" style="width:82px">`
+  return `<label class="muted" style="display:flex;align-items:center;gap:6px;white-space:nowrap;flex:0 0 auto">每页 <select id="${id}" aria-label="每页条数" style="width:82px">`
     + PAGE_SIZE_OPTIONS.map(n => `<option value="${n}" ${listPageSize() === n ? "selected" : ""}>${n}</option>`).join("")
     + `</select></label>`;
 }
@@ -579,7 +579,6 @@ const actionLabel = (a) => ACTIONS[a] || a;
 
 // 页面级状态（各页筛选与向导进度）
 let wiz = { code: "", modelId: null };
-let trainingState = { q: "", family: "", jobModel: "" };
 let blindState = { q: "", status: "" };
 let systemState = { auditAction: "", auditActor: "", auditSince: "", auditUntil: "", auditPage: 0, auditPageSize: 20 };
 
@@ -2954,6 +2953,8 @@ async function renderBlindBatch(id) {
   }
 }
 
+let trainingState = { q: "", family: "", jobModel: "", tab: "train", jobPage: 0, modelPage: 0 };
+
 async function renderTraining() {
   const [jobs, models, datasets] = await Promise.all([
     api("/api/train"), api("/api/models"), api("/api/datasets")
@@ -2970,9 +2971,19 @@ async function renderTraining() {
     ? jobs.filter(j => j.model_code === trainingState.jobModel)
     : jobs;
 
-  const modelOptions = models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("");
+  const jobPageSize = listPageSize();
+  const jobPages = Math.max(1, Math.ceil(shownJobs.length / jobPageSize));
+  if (trainingState.jobPage >= jobPages) trainingState.jobPage = jobPages - 1;
+  const jobRows = shownJobs.slice(trainingState.jobPage * jobPageSize, (trainingState.jobPage + 1) * jobPageSize);
 
+  const modelPageSize = 6;
+  const modelPages = Math.max(1, Math.ceil(shownModels.length / modelPageSize));
+  if (trainingState.modelPage >= modelPages) trainingState.modelPage = modelPages - 1;
+  const modelRows = shownModels.slice(trainingState.modelPage * modelPageSize, (trainingState.modelPage + 1) * modelPageSize);
+
+  const modelOptions = models.map(m => `<option value="${m.id}">${esc(m.code)} ${esc(m.name || "")}</option>`).join("");
   const datasetsFor = (modelId) => frozen.filter(d => d.model_id === modelId);
+  const tab = trainingState.tab;
 
   const versionRows = (m) => m.versions.map(v => {
     const ds = v.dataset_id ? `#${v.dataset_id}` : "-";
@@ -3000,7 +3011,7 @@ async function renderTraining() {
     </tr>`;
   }).join("");
 
-  $("view").innerHTML = `
+  const trainSection = `
     <section>
       <h2>训练新版本</h2>
       <div class="form-tight">
@@ -3012,18 +3023,22 @@ async function renderTraining() {
       </div>
       <p class="muted" id="trHint"></p>
       <p class="muted">当前是假训练器：只验证状态机与发布链路，指标为模拟值，不代表模型能力。</p>
-    </section>
+    </section>`;
 
+  const jobsSection = `
     <section>
       <h2>训练任务 <span class="pill">${shownJobs.length}${shownJobs.length !== jobs.length ? " / " + jobs.length : ""}</span>
-        <span style="margin-left:auto"><select id="tr_job_model" style="max-width:220px">
-          <option value="">全部模型</option>
-          ${models.map(m => `<option value="${esc(m.code)}" ${trainingState.jobModel === m.code ? "selected" : ""}>${esc(m.code)}</option>`).join("")}
-        </select></span></h2>
+        <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          ${pageSizeSelect("tr_ps")}
+          <select id="tr_job_model" style="max-width:200px">
+            <option value="">全部模型</option>
+            ${models.map(m => `<option value="${esc(m.code)}" ${trainingState.jobModel === m.code ? "selected" : ""}>${esc(m.code)}</option>`).join("")}
+          </select>
+        </span></h2>
       ${shownJobs.length === 0 ? `<div class="empty">${jobs.length ? "当前筛选下没有训练任务。" : "还没有训练任务。"}<b>下一步</b>：在上方选一个模型开始第一次训练。</div>` : `
       <table><caption class="sr-only">训练任务</caption>
         <thead><tr><th scope="col">#</th><th scope="col">模型</th><th scope="col">数据集</th><th scope="col">状态</th><th scope="col">召回</th><th scope="col">过杀</th><th scope="col">样本</th><th scope="col">完成时间</th></tr></thead>
-        <tbody>${shownJobs.map(j => `<tr>
+        <tbody>${jobRows.map(j => `<tr>
           <td>${j.id}</td><td>${esc(j.model_code)}</td>
           <td class="muted">${j.dataset_id ? "#" + j.dataset_id + " " + esc(j.dataset_name || "") : "-"}</td>
           <td><span class="tag ${j.status === "succeeded" ? "ok" : j.status === "failed" ? "ng" : "gray"}">${esc(stLabel(j.status))}</span></td>
@@ -3031,19 +3046,25 @@ async function renderTraining() {
           <td>${j.metrics ? (j.metrics.overkill * 100).toFixed(1) + "%" : "-"}</td>
           <td>${j.metrics ? j.metrics.train_samples : "-"}</td>
           <td class="muted">${fmtTime(j.finished_at)}</td>
-        </tr>`).join("")}</tbody></table>`}
-    </section>
+        </tr>`).join("")}</tbody></table>
+      <div class="row" style="margin-top:10px;align-items:center">
+        <button class="ghost" id="trJobPrev" ${trainingState.jobPage === 0 ? "disabled" : ""}>上一页</button>
+        <span class="muted" style="flex:1;text-align:center">第 ${trainingState.jobPage + 1} / ${jobPages} 页 · 共 ${shownJobs.length} 条</span>
+        <button class="ghost" id="trJobNext" ${trainingState.jobPage + 1 >= jobPages ? "disabled" : ""}>下一页</button>
+      </div>`}
+    </section>`;
 
+  const modelsSection = `
     <section>
       <h2>模型与版本 <span class="pill">${shownModels.length} / ${models.length} 个模型</span>
-        <span style="margin-left:auto;display:flex;gap:8px">
-          <input id="tr_q" value="${esc(trainingState.q)}" placeholder="搜索模型编码/名称，回车筛选" style="max-width:220px">
-          <select id="tr_family" style="max-width:180px">
+        <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+          <input id="tr_q" value="${esc(trainingState.q)}" placeholder="搜索模型编码/名称，回车" style="max-width:200px">
+          <select id="tr_family" style="max-width:160px">
             <option value="">全部零件</option>
             ${families.map(f => `<option value="${esc(f)}" ${trainingState.family === f ? "selected" : ""}>${esc(f)}</option>`).join("")}
           </select>
         </span></h2>
-      ${models.length === 0 ? `<div class="empty">还没有模型。</div>` : (shownModels.length === 0 ? `<div class="empty">没有匹配的模型。</div>` : shownModels.map(m => {
+      ${models.length === 0 ? `<div class="empty">还没有模型。</div>` : (shownModels.length === 0 ? `<div class="empty">没有匹配的模型。</div>` : modelRows.map(m => {
         const assist = m.versions.find(v => v.status === "assist");
         const candidate = m.versions.find(v => v.status === "candidate");
         return `
@@ -3058,13 +3079,35 @@ async function renderTraining() {
             </span>
           </div>
           ${m.versions.length === 0 ? '<div class="muted">还没有版本</div>' : `
-          <table><caption class="sr-only">${esc(m.code)} 的版本</caption>
+          <div class="table-wrap"><table><caption class="sr-only">${esc(m.code)} 的版本</caption>
             <thead><tr><th scope="col">版本</th><th scope="col">数据集</th><th scope="col">ONNX</th><th scope="col">召回</th>
               <th scope="col">过杀</th><th scope="col">创建时间</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
-            <tbody>${versionRows(m)}</tbody></table>`}
+            <tbody>${versionRows(m)}</tbody></table></div>`}
         </div>`;
-      }).join(""))}
+      }).join("") + `<div class="row" style="margin-top:10px;align-items:center">
+        <button class="ghost" id="trModelPrev" ${trainingState.modelPage === 0 ? "disabled" : ""}>上一页</button>
+        <span class="muted" style="flex:1;text-align:center">第 ${trainingState.modelPage + 1} / ${modelPages} 页 · 共 ${shownModels.length} 个模型</span>
+        <button class="ghost" id="trModelNext" ${trainingState.modelPage + 1 >= modelPages ? "disabled" : ""}>下一页</button>
+      </div>`)}
     </section>`;
+
+  $("view").innerHTML = `
+    <section>
+      <h2>训练与发布 <span class="pill">${jobs.length} 任务 · ${models.length} 模型</span></h2>
+      <p class="muted" style="margin:0 0 10px">
+        流程：数据集冻结 → 训练出候选版本 → 导出/挂 ONNX → 发布生效 → 工位推图。
+        当前为假训练器，指标是模拟值，只验证状态机与发布链路。
+      </p>
+      <div class="page-tabs">
+        <button class="page-tab ${tab === "train" ? "on" : ""}" data-ttab="train">训练任务 ${jobs.length}</button>
+        <button class="page-tab ${tab === "models" ? "on" : ""}" data-ttab="models">模型与版本 ${models.length}</button>
+      </div>
+    </section>
+    ${tab === "train" ? trainSection + jobsSection : modelsSection}`;
+
+  document.querySelectorAll("[data-ttab]").forEach(btn => {
+    btn.onclick = () => { trainingState.tab = btn.dataset.ttab; renderTraining(); };
+  });
 
   const fillDatasets = () => {
     const mid = Number($("tr_model").value);
@@ -3077,27 +3120,35 @@ async function renderTraining() {
       ? `将使用数据集 #${list[0].id}（零件 ${list[0].family || "-"}，${list[0].count} 条，验证 ${list[0].val_ok + list[0].val_ng} 条）`
       : "先去「数据集」为该模型建一个数据集并冻结。";
   };
-  $("tr_model").onchange = fillDatasets;
-  fillDatasets();
 
-  $("tr_q").addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    trainingState.q = e.target.value;
-    renderTraining();
-  });
-  $("tr_family").onchange = (e) => { trainingState.family = e.target.value; renderTraining(); };
-  $("tr_job_model").onchange = (e) => { trainingState.jobModel = e.target.value; renderTraining(); };
+  if (tab === "train") {
+    $("tr_model").onchange = fillDatasets;
+    fillDatasets();
+    $("tr_job_model").onchange = (e) => { trainingState.jobModel = e.target.value; trainingState.jobPage = 0; renderTraining(); };
+    $("tr_ps").onchange = (e) => { setListPageSize(e.target.value); trainingState.jobPage = 0; renderTraining(); };
+    $("btnTrain").onclick = async () => {
+      const mid = Number($("tr_model").value);
+      const dsId = Number($("tr_dataset").value);
+      if (!dsId) { toast("该模型没有可用的已冻结数据集", true); return; }
+      try {
+        const r = await post("/api/train", {model_id: mid, dataset_id: dsId});
+        toast(`已训练出 v${r.version_no}，去「模型与版本」查看`);
+        renderTraining();
+      } catch (e) { toast(e.message, true); }
+    };
+    if ($("trJobPrev")) $("trJobPrev").onclick = () => { trainingState.jobPage = Math.max(0, trainingState.jobPage - 1); renderTraining(); };
+    if ($("trJobNext")) $("trJobNext").onclick = () => { trainingState.jobPage += 1; renderTraining(); };
+  }
 
-  $("btnTrain").onclick = async () => {
-    const mid = Number($("tr_model").value);
-    const dsId = Number($("tr_dataset").value);
-    if (!dsId) { toast("该模型没有可用的已冻结数据集", true); return; }
-    try {
-      const r = await post("/api/train", {model_id: mid, dataset_id: dsId});
-      toast(`已训练出 v${r.version_no}，指标见下方版本表`);
-      renderTraining();
-    } catch (e) { toast(e.message, true); }
-  };
+  if (tab === "models") {
+    $("tr_q").addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      trainingState.q = e.target.value; trainingState.modelPage = 0; renderTraining();
+    });
+    $("tr_family").onchange = (e) => { trainingState.family = e.target.value; trainingState.modelPage = 0; renderTraining(); };
+    if ($("trModelPrev")) $("trModelPrev").onclick = () => { trainingState.modelPage = Math.max(0, trainingState.modelPage - 1); renderTraining(); };
+    if ($("trModelNext")) $("trModelNext").onclick = () => { trainingState.modelPage += 1; renderTraining(); };
+  }
 
   document.querySelectorAll("[data-onnx]").forEach(btn => {
     btn.onclick = async () => {
