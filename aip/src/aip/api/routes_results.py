@@ -90,6 +90,7 @@ def get_result(result_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> 
         "confirmed_by": row["confirmed_by"],
         "confirmed_at": row["confirmed_at"],
         "confirm_note": row["confirm_note"],
+        "review_status": row["review_status"],
     }
 
 

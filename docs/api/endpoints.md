@@ -17,6 +17,7 @@
 |---|---|---|
 | GET | `/station/config` | 换型：取编码对应的模型版本/ROI/阈值 |
 | POST | `/station/heartbeat` | 站位心跳 |
+| POST | `/station/misjudge` | 提交 站位 / misjudge |
 
 ## 结果与复核确认
 
@@ -182,11 +183,13 @@
 | GET | `/api/export/dataset` | 查询 导出 / dataset |
 | GET | `/api/families` | 列出零件（检测对象） |
 | GET | `/api/families/{family_id}/models` | 查询零件下的模型一致性 |
+| GET | `/api/feedback` | 查询 反馈 |
 | GET | `/api/model-cache` | 查询 model-cache |
 | GET | `/api/overview` | 查询 overview |
 | GET | `/api/stations` | 查询 站位 |
 | POST | `/api/bindings` | 提交 绑定 |
 | POST | `/api/configs` | 提交 ROI 配置 |
 | POST | `/api/families` | 新建零件 |
+| POST | `/api/feedback/{feedback_id}/handle` | 提交 反馈 / handle |
 | POST | `/api/model-cache/{key}/unload` | 提交 model-cache / unload |
 | POST | `/api/thresholds` | 提交 阈值 |

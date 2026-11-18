@@ -65,6 +65,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         routes_families,
         routes_datasets,
         routes_blind,
+        routes_feedback,
         routes_station,
         routes_web,
     )
@@ -80,5 +81,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
     app.include_router(routes_families.router)
     app.include_router(routes_datasets.router)
     app.include_router(routes_blind.router)
+    app.include_router(routes_feedback.router)
+    app.include_router(routes_feedback.admin_router)
     app.include_router(routes_web.router)
     return app

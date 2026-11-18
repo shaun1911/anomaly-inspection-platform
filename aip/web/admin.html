@@ -402,6 +402,7 @@
       <a href="#/catalog" data-nav="catalog"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>编码与模型</a>
       <div class="group">质量</div>
       <a href="#/quality" data-nav="quality"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2.5" width="8" height="4" rx="1"/><path d="M16 4.5h2a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>复核队列</a>
+      <a href="#/feedback" data-nav="feedback"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 3 20h18z"/><path d="M12 9v5M12 17h.01"/></svg>误判上报</a>
       <a href="#/cases" data-nav="cases"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M3 11h18"/></svg>判例库</a>
       <a href="#/datasets" data-nav="datasets"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>数据集</a>
       <a href="#/blind" data-nav="blind"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></svg>抽检</a>
@@ -1418,6 +1419,111 @@ function ageText(iso) {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return hours + " 小时 " + (mins % 60) + " 分";
   return Math.floor(hours / 24) + " 天";
+}
+
+let feedbackState = { status: "open", code: "", page: 0 };
+
+async function renderFeedback() {
+  const pageSize = listPageSize();
+  const params = new URLSearchParams({
+    status: feedbackState.status,
+    limit: String(pageSize),
+    offset: String(feedbackState.page * pageSize),
+  });
+  if (feedbackState.code.trim()) params.set("code", feedbackState.code.trim());
+  const data = await api("/api/feedback?" + params);
+  const pages = Math.max(1, Math.ceil(data.total / pageSize));
+  if (feedbackState.page >= pages) { feedbackState.page = pages - 1; return renderFeedback(); }
+  const s = data.summary || {};
+  const badge = (st, text) => `<span class="tag ${st === "open" ? "candidate" : st === "accepted" ? "ok" : "ng"}">${text}</span>`;
+
+  $("view").innerHTML = `
+    <section>
+      <h2>误判上报 <span class="pill">待处理 ${s.open || 0}</span>
+        <span class="pill">已接受 ${s.accepted || 0}</span>
+        <span class="pill">已驳回 ${s.rejected || 0}</span>
+        <span style="margin-left:auto"><a class="ghost" href="#/quality">复核队列 →</a></span></h2>
+      <p class="muted" style="margin:0 0 10px">
+        工位认为服务端判错时在这里处理。接受会改判并写审计；「接受+建判例」同时把这张图收进判例库，供后续训练。
+      </p>
+      <div class="filterbar">
+        <select id="fb_status" style="width:130px" aria-label="状态筛选">
+          <option value="open" ${feedbackState.status === "open" ? "selected" : ""}>待处理</option>
+          <option value="accepted" ${feedbackState.status === "accepted" ? "selected" : ""}>已接受</option>
+          <option value="rejected" ${feedbackState.status === "rejected" ? "selected" : ""}>已驳回</option>
+          <option value="all" ${feedbackState.status === "all" ? "selected" : ""}>全部</option>
+        </select>
+        <input id="fb_code" value="${esc(feedbackState.code)}" placeholder="编码，回车筛选" style="width:190px">
+        ${pageSizeSelect("fb_ps")}
+      </div>
+      ${data.items.length === 0 ? `<div class="empty">${feedbackState.status === "open" ? "没有待处理的误判上报。" : "没有符合条件的记录。"}</div>` : `
+      <div class="table-wrap">
+      <table><caption class="sr-only">误判上报</caption>
+        <thead><tr><th scope="col">上报时间</th><th scope="col">#</th><th scope="col">结果</th><th scope="col">编码</th>
+          <th scope="col">件号 / 批次</th><th scope="col">系统</th><th scope="col">现场结论</th><th scope="col">理由 / 备注</th>
+          <th scope="col">站点 / 上报人</th><th scope="col">状态</th><th scope="col">操作</th></tr></thead>
+        <tbody>${data.items.map(f => `<tr>
+          <td class="muted">${fmtTime(f.created_at)}</td>
+          <td>${f.id}</td>
+          <td><a href="#" data-fbshot="${f.result_id}">#${f.result_id}</a></td>
+          <td>${esc(f.code)}</td>
+          <td class="muted">${esc(f.part_no || "-")}<div style="font-size:11px">${esc(f.batch_no || "-")}</div></td>
+          <td>${tag(f.system_label)} <span class="muted">${Number(f.score).toFixed(3)}</span></td>
+          <td>${tag(f.expected_verdict)}</td>
+          <td>${esc(f.reason_code || "-")}${f.note ? '<div class="muted" style="font-size:11px">' + esc(f.note) + '</div>' : ""}</td>
+          <td class="muted">${esc(f.station || "-")} / ${esc(f.reported_by || "-")}</td>
+          <td>${badge(f.status, f.status === "open" ? "待处理" : f.status === "accepted" ? "已接受" : "已驳回")}
+            ${f.handled_by ? `<div class="muted" style="font-size:11px">${esc(f.handled_by)}</div>` : ""}</td>
+          <td>${f.status === "open" ? `
+            <button class="ghost" data-fb="accept" data-id="${f.id}" data-verdict="${esc(f.expected_verdict)}">接受改判</button>
+            <button class="ghost" data-fb="accept-case" data-id="${f.id}" data-verdict="${esc(f.expected_verdict)}">接受+建判例</button>
+            <button class="ghost" data-fb="reject" data-id="${f.id}">驳回</button>` : `<span class="muted">${esc(f.resolution || "-")}</span>`}</td>
+        </tr>`).join("")}</tbody></table></div>
+      <div class="row" style="margin-top:10px;align-items:center">
+        <button class="ghost" id="fbPrev" ${feedbackState.page === 0 ? "disabled" : ""}>上一页</button>
+        <span class="muted" style="flex:1;text-align:center">第 ${feedbackState.page + 1} / ${pages} 页 · 共 ${data.total} 条</span>
+        <button class="ghost" id="fbNext" ${feedbackState.page + 1 >= pages ? "disabled" : ""}>下一页</button>
+      </div>`}
+    </section>`;
+
+  $("fb_status").onchange = (e) => { feedbackState.status = e.target.value; feedbackState.page = 0; renderFeedback(); };
+  $("fb_code").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    feedbackState.code = e.target.value; feedbackState.page = 0; renderFeedback();
+  });
+  $("fb_ps").onchange = (e) => { setListPageSize(e.target.value); feedbackState.page = 0; renderFeedback(); };
+  if ($("fbPrev")) $("fbPrev").onclick = () => { feedbackState.page = Math.max(0, feedbackState.page - 1); renderFeedback(); };
+  if ($("fbNext")) $("fbNext").onclick = () => { feedbackState.page += 1; renderFeedback(); };
+
+  document.querySelectorAll("[data-fb]").forEach(btn => {
+    btn.onclick = async () => {
+      const action = btn.dataset.fb;
+      const accept = action.startsWith("accept");
+      const withCase = action === "accept-case";
+      if (withCase && !confirm(`接受并把结果改为 ${btn.dataset.verdict.toUpperCase()}，同时生成判例？`)) return;
+      if (accept && !withCase && !confirm(`接受并把结果改为 ${btn.dataset.verdict.toUpperCase()}？`)) return;
+      if (!accept && !confirm("驳回这条误判上报？原结论保持不变。")) return;
+      try {
+        const r = await post(`/api/feedback/${btn.dataset.id}/handle`, {
+          action: accept ? "accept" : "reject",
+          handled_by: "admin",
+          create_case: withCase,
+          verdict: accept ? btn.dataset.verdict : null,
+          note: accept ? "工位误判上报，后台接受" : "后台驳回",
+        });
+        toast(accept ? `已改判为 ${r.verdict.toUpperCase()}${r.case_id ? "，判例 #" + r.case_id : ""}${r.case_error ? "（判例已存在）" : ""}` : "已驳回");
+        renderFeedback();
+      } catch (e) { toast(e.message, true); }
+    };
+  });
+  document.querySelectorAll("[data-fbshot]").forEach(a => {
+    a.onclick = (e) => {
+      e.preventDefault();
+      $("shotDlgImg").src = `/results/${a.dataset.fbshot}/image`;
+      $("shotDlgTitle").textContent = `结果 #${a.dataset.fbshot}`;
+      $("shotDlg").showModal();
+    };
+  });
 }
 
 let rhState = { code: "", verdict: "", actor: "", since: "", until: "", page: 0 };
@@ -3404,7 +3510,7 @@ async function renderTraining() {
 
 const TITLES = {
   workbench: "工作台", wizard: "新建向导", catalog: "编码与模型", quality: "复核队列",
-  "review-history": "复判记录",
+  "review-history": "复判记录", feedback: "误判上报",
   cases: "判例库", datasets: "数据集", blind: "抽检",
   training: "训练与发布", system: "系统", settings: "设置"
 };
@@ -3459,6 +3565,7 @@ async function route() {
     if (name === "catalog") return await renderCatalog();
     if (name === "quality") return await renderQuality();
     if (name === "review-history") return await renderReviewHistory();
+    if (name === "feedback") return await renderFeedback();
     if (name === "cases") return await renderCases();
     if (name === "datasets") return await renderDatasets();
     if (name === "blind" && arg) return await renderBlindBatch(Number(arg));

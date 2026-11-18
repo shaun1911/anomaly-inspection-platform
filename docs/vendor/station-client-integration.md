@@ -251,3 +251,55 @@
 - 服务端接口向后兼容；新增字段不破坏客户端；
 - 删除/改名字段会提前一个版本通知，并在 `/docs` 标注 deprecated；
 - 客户端应在启动时拉取 `GET /health` 与 `/docs` 做连通性与版本确认。
+
+---
+
+## 9. 误判上报与改判
+
+工位发现服务端结论错误（例如放行了实际 NG、或拦下了实际 OK）时，除直接复核外，可以上报误判。
+
+### 9.1 上报（客户端）
+
+```
+POST /station/misjudge
+X-Station-Token: <令牌>
+Content-Type: application/json
+
+{
+  "result_id": 123,
+  "expected_verdict": "ng",      // 现场认为应该是 ok / ng
+  "reason_code": "漏检",          // 可选：漏检/误报/划伤/其他
+  "note": "现场看到端子划伤",
+  "station": "S1",
+  "reported_by": "张三"
+}
+```
+
+响应 `201 {"id":1,"status":"open"}`。
+
+约束：
+
+- 同一个结果只能有一条待处理上报，重复上报返回 `409 feedback_open`；
+- 已处理（接受/驳回）后可以再次上报，会重新进入待处理；
+- 上报不直接改判，必须由后台处理。
+
+### 9.2 后台处理（甲方）
+
+- `GET /api/feedback?status=open`：待处理列表；
+- `POST /api/feedback/{id}/handle`：
+
+```json
+{"action":"accept","handled_by":"admin","create_case":true,"note":"确认漏检"}
+```
+
+- `accept`：把结果改成上报结论，写 `review.confirm` 审计；`create_case=true` 时同时生成判例；
+- `reject`：保留原结论，写上驳回原因。
+
+### 9.3 客户端建议
+
+- 在结果页放「误判上报」按钮，只在 `ok`/`ng` 且未复核时显示；
+- 理由下拉建议复用平台「设置 → 理由预设」；
+- 上报成功提示"已提交，等待后台处理"，不要本地改判；
+- 若客户端已实现直接复核，仍保留上报入口，二者语义不同：
+  - **复核**：处理 pending/gray 件；
+  - **误判上报**：对已判定结果提出异议，由后台决定是否改判并沉淀判例。
