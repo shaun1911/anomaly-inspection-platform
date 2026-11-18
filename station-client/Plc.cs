@@ -32,6 +32,11 @@ namespace AipStation
         public string Done = "3";
         public string Error = "4";
         public string Result = "100";
+        public string Ack = "5";
+        public string Reset = "6";
+        public string Recipe = "110";
+        public string RecipeAck = "7";
+        public string Recipes = "";   // 1=CODE;2=CODE
 
         public int CameraTimeoutMs = 3000;
 
@@ -343,20 +348,38 @@ namespace AipStation
         private readonly IPlcAdapter _plc;
         private readonly Func<Task<string>> _capture;
         private readonly Func<string, Task<int>> _process;
+        private readonly Func<string, Task> _changeCode;
         private readonly Action<string> _log;
+        private string _currentCode;
         private readonly System.Threading.Timer _timer;
         private int _busy;
         private bool _lastTrigger;
         private volatile bool _running = true;
 
-        public PlcController(PlcConfig cfg, IPlcAdapter plc,
-                             Func<Task<string>> capture, Func<string, Task<int>> process, Action<string> log)
+        public PlcController(PlcConfig cfg, IPlcAdapter plc, string currentCode,
+                             Func<Task<string>> capture, Func<string, Task<int>> process,
+                             Func<string, Task> changeCode, Action<string> log)
         {
-            _cfg = cfg; _plc = plc; _capture = capture; _process = process; _log = log;
+            _cfg = cfg; _plc = plc; _currentCode = currentCode;
+            _capture = capture; _process = process; _changeCode = changeCode; _log = log;
             _timer = new System.Threading.Timer(Tick, null, 200, 120);
             _plc.WriteBool(cfg.Ready, true);
             _plc.WriteBool(cfg.Busy, false);
             _plc.WriteBool(cfg.Done, false);
+        }
+
+        private string RecipeCode()
+        {
+            if (string.IsNullOrEmpty(_cfg.Recipe) || string.IsNullOrEmpty(_cfg.Recipes)) return null;
+            int no;
+            try { no = _plc.ReadInt(_cfg.Recipe); } catch { return null; }
+            foreach (var pair in _cfg.Recipes.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var kv = pair.Split('=');
+                if (kv.Length == 2 && kv[0].Trim() == no.ToString())
+                    return kv[1].Trim();
+            }
+            return null;
         }
 
         private async void Tick(object state)
@@ -364,6 +387,23 @@ namespace AipStation
             if (!_running || Interlocked.CompareExchange(ref _busy, 1, 0) != 0) return;
             try
             {
+                if (!string.IsNullOrEmpty(_cfg.Reset) && _plc.ReadBool(_cfg.Reset))
+                {
+                    try { _plc.WriteBool(_cfg.Error, false); } catch { }
+                    _log("PLC 复位报警");
+                }
+
+                string recipeCode = RecipeCode();
+                if (recipeCode != null && recipeCode != _currentCode)
+                {
+                    _log("PLC 换型：" + recipeCode);
+                    await _changeCode(recipeCode);
+                    _currentCode = recipeCode;
+                    if (!string.IsNullOrEmpty(_cfg.RecipeAck)) _plc.WriteBool(_cfg.RecipeAck, true);
+                    await Task.Delay(200);
+                    if (!string.IsNullOrEmpty(_cfg.RecipeAck)) _plc.WriteBool(_cfg.RecipeAck, false);
+                }
+
                 bool trigger = _plc.ReadBool(_cfg.Trigger);
                 if (trigger && !_lastTrigger)
                 {
@@ -380,7 +420,17 @@ namespace AipStation
                     }
                     _plc.WriteInt(_cfg.Result, code);
                     _plc.WriteBool(_cfg.Done, true);
-                    await Task.Delay(300);
+                    if (!string.IsNullOrEmpty(_cfg.Ack))
+                    {
+                        var deadline = DateTime.UtcNow.AddMilliseconds(2000);
+                        while (DateTime.UtcNow < deadline && !_plc.ReadBool(_cfg.Ack))
+                            await Task.Delay(50);
+                        if (!_plc.ReadBool(_cfg.Ack)) throw new PlcException("等待 PLC Ack 超时");
+                    }
+                    else
+                    {
+                        await Task.Delay(300);
+                    }
                     _plc.WriteBool(_cfg.Done, false);
                     _plc.WriteBool(_cfg.Busy, false);
                     _plc.WriteBool(_cfg.Ready, true);

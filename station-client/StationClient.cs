@@ -678,7 +678,7 @@ namespace AipStation
                     ? (IPlcAdapter)new SiemensS7Adapter(_plcCfg)
                     : new ModbusRtuAdapter(_plcCfg);
                 adapter.Connect();
-                _plcController = new PlcController(_plcCfg, adapter, CaptureForPlc, ProcessImageAsync, PlcLog);
+                _plcController = new PlcController(_plcCfg, adapter, _cfg.Code, CaptureForPlc, ProcessImageAsync, ChangeCodeFromPlc, PlcLog);
                 _btnPlc.Text = "PLC 断开";
                 _lblStatus.Text = "PLC 已连接：" + _plcCfg.Protocol + " · 等待 Trigger";
             }
@@ -687,6 +687,12 @@ namespace AipStation
                 _lblStatus.Text = "PLC 连接失败：" + ex.Message;
                 MessageBox.Show(this, ex.Message, "PLC 连接失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private async Task ChangeCodeFromPlc(string code)
+        {
+            _txtCode.Text = code;
+            await ConnectAsync(false);
         }
 
         private async Task<string> CaptureForPlc()

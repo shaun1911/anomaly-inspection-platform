@@ -36,6 +36,10 @@
 | Done | 客户端→PLC | 线圈 3 / `DB1.DBX0.3` |
 | Error | 客户端→PLC | 线圈 4 / `DB1.DBX0.4` |
 | Result | 客户端→PLC | 保持寄存器 100 / `DB1.DBW2` |
+| Ack | PLC→客户端 | 线圈 5 / `DB1.DBX0.6`（写完结果等确认） |
+| Reset | PLC→客户端 | 线圈 6 / `DB1.DBX0.7`（清报警） |
+| Recipe | PLC→客户端 | 保持寄存器 110（当前配方号） |
+| RecipeAck | 客户端→PLC | 线圈 7（换型完成） |
 
 结果码：`0=OK`、`1=NG`、`2=灰区`、`3=错误`。
 
@@ -47,8 +51,13 @@ PLC Trigger 上升沿
   → 等待相机把新图写入监听目录（超时 CameraTimeoutMs）
   → 裁 ROI、推图判定
   → 写 Result 结果码
-  → Done 脉冲 300ms
-  → Busy=false, Ready=true
+  → Done=true，等待 PLC Ack（2s 超时；Ack 地址留空则只脉冲 300ms）
+  → Done=false, Busy=false, Ready=true
+
+PLC 换型：
+  Recipe 号变化 → 按「配方映射」找编码 → 调 /station/config 换型
+  → RecipeAck 脉冲
+
 ```
 
 相机触发由 PLC/相机硬件完成；客户端负责“触发后取图 + 判定 + 回写结果”。
@@ -60,7 +69,7 @@ PLC Trigger 上升沿
 
 ### 限制
 
-- 未做 Ack 确认信号、配方号下发、报警复位；需要时在信号表上加；
+- Ack/Reset/Recipe 已接入；配方映射用 `1=CODE;2=CODE` 配置；
 - 未在真实 PLC 上联调（开发环境无串口/PLC），上线前必须做信号级测试；
 - 共享令牌、配置文件明文保存。
 

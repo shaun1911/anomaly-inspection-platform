@@ -10,6 +10,7 @@ namespace AipStation
         private readonly TextBox _port, _baud, _parity, _dataBits, _stopBits, _slave;
         private readonly TextBox _ip, _rack, _slot, _timeout;
         private readonly TextBox _ready, _trigger, _busy, _done, _error, _result;
+        private readonly TextBox _ack, _reset, _recipe, _recipeAck, _recipes;
         public PlcConfig Config { get; private set; }
 
         public PlcConfigDialog(PlcConfig cfg)
@@ -19,7 +20,7 @@ namespace AipStation
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false; MinimizeBox = false;
-            ClientSize = new Size(620, 620);
+            ClientSize = new Size(620, 760);
             Font = new Font("Microsoft YaHei UI", 9f);
 
             int y = 16;
@@ -55,9 +56,20 @@ namespace AipStation
             y += 36;
             AddLabel("Error", 20, y); _error = AddText(cfg.Error, 110, y);
             AddLabel("Result", 330, y); _result = AddText(cfg.Result, 410, y);
+            y += 36;
+            AddLabel("Ack", 20, y); _ack = AddText(cfg.Ack, 110, y);
+            AddLabel("Reset", 330, y); _reset = AddText(cfg.Reset, 410, y);
+            y += 36;
+            AddLabel("Recipe", 20, y); _recipe = AddText(cfg.Recipe, 110, y);
+            AddLabel("RecipeAck", 330, y); _recipeAck = AddText(cfg.RecipeAck, 430, y);
+            y += 36;
+            AddLabel("配方映射", 20, y); _recipes = AddText(cfg.Recipes, 110, y);
+            _recipes.Width = 480;
+            _recipes.Text = cfg.Recipes ?? "";
+            y += 44;
 
-            var ok = new Button { Text = "保存", Left = 360, Top = 560, Width = 100, Height = 34, DialogResult = DialogResult.OK };
-            var cancel = new Button { Text = "取消", Left = 470, Top = 560, Width = 100, Height = 34, DialogResult = DialogResult.Cancel };
+            var ok = new Button { Text = "保存", Left = 360, Top = 690, Width = 100, Height = 34, DialogResult = DialogResult.OK };
+            var cancel = new Button { Text = "取消", Left = 470, Top = 690, Width = 100, Height = 34, DialogResult = DialogResult.Cancel };
             Controls.Add(ok); Controls.Add(cancel);
             AcceptButton = ok; CancelButton = cancel;
         }
@@ -97,6 +109,11 @@ namespace AipStation
                     Config.Done = _done.Text.Trim();
                     Config.Error = _error.Text.Trim();
                     Config.Result = _result.Text.Trim();
+                    Config.Ack = _ack.Text.Trim();
+                    Config.Reset = _reset.Text.Trim();
+                    Config.Recipe = _recipe.Text.Trim();
+                    Config.RecipeAck = _recipeAck.Text.Trim();
+                    Config.Recipes = _recipes.Text.Trim();
                     Config.Save();
                 }
                 catch (Exception ex)
