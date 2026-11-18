@@ -232,6 +232,9 @@ namespace AipStation
         private readonly Button _btnReviewNg;
         private readonly Button _btnWatch;
         private readonly Button _btnOpen;
+        private readonly Button _btnPlc;
+        private PlcConfig _plcCfg;
+        private PlcController _plcController;
         private readonly Timer _heartbeat;
         private readonly Timer _pendingTimer;
         private FileSystemWatcher _watcher;
@@ -277,6 +280,9 @@ namespace AipStation
             var btnConnect = MakeButton("连接 / 换型", 1025, 8, 110);
             btnConnect.Click += async (s, e) => await ConnectAsync(true);
             top.Controls.Add(btnConnect);
+            var btnPlcCfg = MakeButton("PLC 设置", 1145, 8, 80);
+            btnPlcCfg.Click += (s, e) => OpenPlcSettings();
+            top.Controls.Add(btnPlcCfg);
 
             _lblStatus = new Label { Left = 12, Top = 52, Width = 700, Height = 24, Text = "未连接", ForeColor = Color.FromArgb(90, 96, 104) };
             top.Controls.Add(_lblStatus);
@@ -285,18 +291,21 @@ namespace AipStation
             _lblPending = new Label { Left = 12, Top = 104, Width = 400, Height = 24, Text = "待复核：-", ForeColor = Color.FromArgb(90, 96, 104) };
             top.Controls.Add(_lblPending);
 
-            _btnOpen = MakeButton("打开图片", 800, 100, 100);
+            _btnOpen = MakeButton("打开图片", 430, 100, 100);
             _btnOpen.Click += (s, e) => OpenImage();
             top.Controls.Add(_btnOpen);
-            _btnWatch = MakeButton("监听目录", 910, 100, 100);
+            _btnWatch = MakeButton("监听目录", 540, 100, 100);
             _btnWatch.Click += (s, e) => ToggleWatch();
             top.Controls.Add(_btnWatch);
-            var btnChooseDir = MakeButton("选择监听目录", 1020, 100, 120);
+            var btnChooseDir = MakeButton("选择监听目录", 650, 100, 120);
             btnChooseDir.Click += (s, e) => ChooseWatchDir();
             top.Controls.Add(btnChooseDir);
-            var btnAdmin = MakeButton("后台", 1150, 100, 80);
+            var btnAdmin = MakeButton("后台", 780, 100, 70);
             btnAdmin.Click += (s, e) => OpenAdmin();
             top.Controls.Add(btnAdmin);
+            _btnPlc = MakeButton("PLC 连接", 860, 100, 100);
+            _btnPlc.Click += (s, e) => TogglePlc();
+            top.Controls.Add(_btnPlc);
 
             var split = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 700 };
             var imagePanel = split.Panel1;
@@ -512,11 +521,11 @@ namespace AipStation
             }
         }
 
-        private async Task ProcessImageAsync(string path)
+        private async Task<int> ProcessImageAsync(string path)
         {
-            if (_processing) return;
-            if (_api == null) { MessageBox.Show(this, "先点「连接 / 换型」", "AIP"); return; }
-            if (_stationCfg == null) { MessageBox.Show(this, "先换型", "AIP"); return; }
+            if (_processing) return 3;
+            if (_api == null) { MessageBox.Show(this, "先点「连接 / 换型」", "AIP"); return 3; }
+            if (_stationCfg == null) { MessageBox.Show(this, "先换型", "AIP"); return 3; }
             _processing = true;
             _btnReport.Enabled = false;
             _btnReviewOk.Enabled = false;
@@ -568,11 +577,13 @@ namespace AipStation
                 _btnReviewNg.Enabled = true;
                 _history.Rows.Insert(0, DateTime.Now.ToString("HH:mm:ss"), part, _resultLabel, _resultScore.ToString("0.000"), action);
                 await RefreshPendingAsync();
+                return _resultLabel == "ok" ? 0 : _resultLabel == "ng" ? 1 : 2;
             }
             catch (Exception ex)
             {
                 SetResult("判定失败", Color.FromArgb(252, 228, 228), Color.FromArgb(198, 40, 40));
                 _lblDetail.Text = ex.Message;
+                return 3;
             }
             finally
             {
@@ -631,6 +642,62 @@ namespace AipStation
                 }
                 catch (Exception ex) { MessageBox.Show(this, ex.Message, "上报失败", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             }
+        }
+
+        private void OpenPlcSettings()
+        {
+            _plcCfg = PlcConfig.Load();
+            using (var dlg = new PlcConfigDialog(_plcCfg))
+            {
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    _plcCfg = dlg.Config;
+                    _lblStatus.Text = "PLC 配置已保存：" + _plcCfg.Protocol;
+                }
+            }
+        }
+
+        private void TogglePlc()
+        {
+            if (_plcController != null)
+            {
+                try { _plcController.Dispose(); } catch { }
+                _plcController = null;
+                _btnPlc.Text = "PLC 连接";
+                _lblStatus.Text = "PLC 已断开";
+                return;
+            }
+            try
+            {
+                if (string.IsNullOrEmpty(_cfg.WatchDir))
+                    _cfg.WatchDir = Path.Combine(Application.StartupPath, "watch");
+                Directory.CreateDirectory(_cfg.WatchDir);
+                if (_watcher != null) ToggleWatch();
+                _plcCfg = PlcConfig.Load();
+                IPlcAdapter adapter = _plcCfg.Protocol == "S7"
+                    ? (IPlcAdapter)new SiemensS7Adapter(_plcCfg)
+                    : new ModbusRtuAdapter(_plcCfg);
+                adapter.Connect();
+                _plcController = new PlcController(_plcCfg, adapter, CaptureForPlc, ProcessImageAsync, PlcLog);
+                _btnPlc.Text = "PLC 断开";
+                _lblStatus.Text = "PLC 已连接：" + _plcCfg.Protocol + " · 等待 Trigger";
+            }
+            catch (Exception ex)
+            {
+                _lblStatus.Text = "PLC 连接失败：" + ex.Message;
+                MessageBox.Show(this, ex.Message, "PLC 连接失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async Task<string> CaptureForPlc()
+        {
+            return await CameraWait.WaitForNewImage(_cfg.WatchDir, DateTime.UtcNow.AddMilliseconds(-200), _plcCfg.CameraTimeoutMs);
+        }
+
+        private void PlcLog(string msg)
+        {
+            if (IsDisposed) return;
+            try { BeginInvoke(new Action(() => { _lblStatus.Text = msg; })); } catch { }
         }
 
         private async Task HeartbeatAsync()
