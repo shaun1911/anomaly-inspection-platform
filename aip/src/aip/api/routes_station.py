@@ -129,6 +129,7 @@ def station_config(
     return {
         "code": code,
         "model_id": binding["model_id"],
+        "model_code": conn.execute("SELECT code FROM model WHERE id = ?", (binding["model_id"],)).fetchone()["code"],
         "model_version_id": version["id"],
         "version_no": version["version_no"],
         "roi_rev": config["rev"],

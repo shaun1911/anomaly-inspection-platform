@@ -44,3 +44,5 @@ docs/diagrams/*.html
 *.m4a
 docs/report/video/*
 !docs/report/video/*.md
+station-client/release/
+station-client/watch/
