@@ -52,12 +52,14 @@
 | GET | `/api/codes` | 查询 编码 |
 | GET | `/api/codes/page` | 查询 编码 / page |
 | GET | `/api/codes/{code}/detail` | 查询 编码 / detail |
+| GET | `/api/codes/{code}/roi-profiles` | 查询 编码 / roi-profiles |
 | GET | `/api/codes/{code}/timeline` | 查询 编码 / timeline |
 | POST | `/api/codes` | 提交 编码 |
 | POST | `/api/codes/{code}/active` | 提交 编码 / active |
 | POST | `/api/codes/{code}/archive` | 提交 编码 / 归档 |
 | POST | `/api/codes/{code}/restore` | 提交 编码 / 还原 |
 | PUT | `/api/codes/{code}` | 更新 编码 |
+| PUT | `/api/codes/{code}/roi-profiles` | 更新 编码 / roi-profiles |
 
 ## 模型版本与发布
 

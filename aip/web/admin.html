@@ -1151,10 +1151,11 @@ async function renderCatalog() {
 let codeState = { code: "", tab: "overview" };
 
 async function renderCode(code) {
-  const [d, tl, models] = await Promise.all([
+  const [d, tl, models, roiProfiles] = await Promise.all([
     api(`/api/codes/${encodeURIComponent(code)}/detail`),
     api(`/api/codes/${encodeURIComponent(code)}/timeline?limit=20`),
-    api("/api/models")
+    api("/api/models"),
+    api(`/api/codes/${encodeURIComponent(code)}/roi-profiles`)
   ]);
   if (codeState.code !== code) codeState = { code, tab: "overview" };
   const tab = codeState.tab;
@@ -1205,6 +1206,21 @@ async function renderCode(code) {
         <div><button class="ghost" id="btnTh">保存阈值</button></div>
       </div>
       <p class="muted">改 ROI 与阈值会产生新的 rev，旧值保留可追溯；不影响已在跑的结果。</p>
+
+      <h3 style="font-size:13px;margin:14px 0 6px">按站位 ROI（优先于版本 ROI）</h3>
+      <p class="muted" style="margin:0 0 8px">工位取 ROI 顺序：编码+站位 → 编码默认 → 模型版本。工装调整只改这里，不用重新训练。</p>
+      ${roiProfiles.length ? `<div class="table-wrap"><table><caption class="sr-only">按站位 ROI</caption>
+        <thead><tr><th scope="col">站位</th><th scope="col">ROI</th><th scope="col">rev</th><th scope="col">修改人</th><th scope="col">时间</th></tr></thead>
+        <tbody>${roiProfiles.map(r => `<tr>
+          <td>${esc(r.station)}</td><td>${esc(r.roi_rect.join(","))}</td><td>${r.rev}</td>
+          <td class="muted">${esc(r.updated_by || "-")}</td><td class="muted">${fmtTime(r.updated_at)}</td>
+        </tr>`).join("")}</tbody></table></div>` : '<div class="empty">还没有按站位 ROI，工位会回退到版本 ROI。</div>'}
+      <div class="form" style="margin-top:8px">
+        <div><label for="rp_station">站位（留空=编码默认）</label><input id="rp_station" placeholder="S1"></div>
+        <div><label for="rp_roi">ROI（x1,y1,x2,y2）</label><input id="rp_roi" value="${d.config ? esc(d.config.roi_rect.join(",")) : "0,0,512,512"}"></div>
+        <div><button class="ghost" id="btnRpSave">保存站位 ROI</button></div>
+      </div>
+
       <div class="row" style="margin-top:8px">
         <button class="ghost" id="btnCfgHistory">配置历史管理（ROI ${(d.config_history || []).length} · 阈值 ${(d.threshold_history || []).length}）</button>
       </div>` : `<div class="empty">这个编码还没有可用版本。<b>下一步</b>：先绑定模型，并让该模型有一个 assist/shadow 版本。</div>`}
@@ -1243,7 +1259,7 @@ async function renderCode(code) {
       <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         <div class="card"><span>模型</span><b style="font-size:15px">${d.binding ? esc(d.binding.model_code) : "未绑定"}</b></div>
         <div class="card"><span>版本</span><b style="font-size:15px">${d.version ? "v" + d.version.version_no + " " + (stageLabel[d.version.status] || d.version.status) : d.draft_version ? "v" + d.draft_version.version_no + " 候选（未发布）" : "还没有版本"}</b></div>
-        <div class="card"><span>ROI（rev ${d.config ? d.config.rev : "-"}）</span><b style="font-size:13px">${d.config ? esc(d.config.roi_rect.join(",")) : "未配置"}</b></div>
+        <div class="card"><span>版本 ROI（rev ${d.config ? d.config.rev : "-"}）</span><b style="font-size:13px">${d.config ? esc(d.config.roi_rect.join(",")) : "未配置"}</b></div>
         <div class="card"><span>阈值（rev ${d.threshold ? d.threshold.rev ?? "-" : "-"}）</span><b style="font-size:13px">${d.threshold ? d.threshold.th_lo.toFixed(2) + " / " + d.threshold.th_hi.toFixed(2) : "未配置"}</b></div>
         <div class="card"><span>判例</span><b style="font-size:15px">${d.case_count}</b></div>
       </div>
@@ -1396,6 +1412,21 @@ async function renderCode(code) {
       } catch (e) { toast(e.message, true); }
     };
     $("btnCfgHistory").onclick = () => openCfgHistory(d, cfgVer);
+    $("btnRpSave").onclick = async () => {
+      try {
+        const roi = $("rp_roi").value.split(",").map(Number);
+        if (roi.length !== 4 || roi.some(Number.isNaN) || roi[2] <= roi[0] || roi[3] <= roi[1]) {
+          toast("ROI 需为 4 个整数，且 x2>x1、y2>y1", true);
+          return;
+        }
+        await post(`/api/codes/${encodeURIComponent(code)}/roi-profiles`, {
+          station: $("rp_station").value.trim() || null,
+          roi_rect: roi, actor: "web"
+        });
+        toast("站位 ROI 已保存");
+        renderCode(code);
+      } catch (e) { toast(e.message, true); }
+    };
     $("btnTh").onclick = async () => {
       try {
         const [lo, hi] = $("th_box").value.split(",").map(Number);

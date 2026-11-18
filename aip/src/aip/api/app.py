@@ -67,12 +67,14 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         routes_blind,
         routes_feedback,
         routes_station,
+        routes_roi,
         routes_web,
     )
 
     app.include_router(routes_admin.router)
     app.include_router(routes_catalog.router)
     app.include_router(routes_station.router)
+    app.include_router(routes_roi.router)
     app.include_router(routes_infer.router)
     app.include_router(routes_results.router)
     app.include_router(routes_review.router)

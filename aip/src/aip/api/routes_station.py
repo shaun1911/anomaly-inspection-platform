@@ -11,7 +11,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel, ConfigDict, Field
 
-from .. import whitelist
+from .. import roi_profiles, whitelist
 from ..settings import get_value
 from ..serving.cache import cache
 from ..store import tx
@@ -51,6 +51,7 @@ def _latest_threshold(
 @router.get("/config")
 def station_config(
     code: str,
+    station: str | None = None,
     station_token: str | None = Header(None, alias="X-Station-Token"),
     conn: sqlite3.Connection = Depends(get_conn),
 ) -> dict:
@@ -126,14 +127,17 @@ def station_config(
         )
 
     threshold = _latest_threshold(conn, version["id"], config["rev"])
+    profile = roi_profiles.resolve_for_station(conn, code, station)
+    roi = profile["roi_rect"] if profile else json.loads(config["roi_rect"])
     return {
         "code": code,
         "model_id": binding["model_id"],
         "model_code": conn.execute("SELECT code FROM model WHERE id = ?", (binding["model_id"],)).fetchone()["code"],
         "model_version_id": version["id"],
         "version_no": version["version_no"],
-        "roi_rev": config["rev"],
-        "roi_rect": json.loads(config["roi_rect"]),
+        "roi_rev": profile["rev"] if profile else config["rev"],
+        "roi_rect": roi,
+        "roi_source": profile["source"] if profile else "version",
         "preprocessing": json.loads(config["preprocessing_json"])
         if config["preprocessing_json"]
         else None,

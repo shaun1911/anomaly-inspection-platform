@@ -303,3 +303,45 @@ Content-Type: application/json
 - 若客户端已实现直接复核，仍保留上报入口，二者语义不同：
   - **复核**：处理 pending/gray 件；
   - **误判上报**：对已判定结果提出异议，由后台决定是否改判并沉淀判例。
+
+---
+
+## 10. ROI 按“编码 + 站位”管理（2026-11-18）
+
+ROI 统一放服务端，客户端不本地维护。换型请求带上站位：
+
+```
+GET /station/config?code=<编码>&station=<站位>
+```
+
+响应新增：
+
+```json
+{
+  "roi_rect": [0, 0, 280, 400],
+  "roi_rev": 2,
+  "roi_source": "code+station"   // code+station | code | version
+}
+```
+
+优先级：
+
+1. 编码 + 具体站位；
+2. 编码默认（station 留空管理的那条）；
+3. 模型版本 ROI（旧数据兜底）。
+
+管理接口（管理端）：
+
+```
+GET  /api/codes/{code}/roi-profiles
+PUT  /api/codes/{code}/roi-profiles
+     {station:"S1", roi_rect:[0,0,280,400], note:"S1 工装基准"}
+```
+
+每次保存产生新 rev，旧值保留并写审计。工装调整不再需要重新训练/发布模型。
+
+客户端只需要：
+
+- 换型时传 `station`；
+- 按返回的 `roi_rect` 裁剪；
+- 在界面显示 `roi_source`，便于排障。

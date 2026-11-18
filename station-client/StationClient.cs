@@ -439,7 +439,7 @@ namespace AipStation
         private async Task SwitchCodeAsync()
         {
             _cfg.Code = _txtCode.Text.Trim();
-            _stationCfg = await _api.GetAsync("/station/config?code=" + Uri.EscapeDataString(_cfg.Code));
+            _stationCfg = await _api.GetAsync("/station/config?code=" + Uri.EscapeDataString(_cfg.Code) + "&station=" + Uri.EscapeDataString(_cfg.Station));
             _roi = null;
             var roiObj = JsonUtil.Get(_stationCfg, "roi_rect") as System.Collections.IEnumerable;
             if (roiObj != null)
@@ -454,6 +454,7 @@ namespace AipStation
                 _roi == null ? "-" : string.Join(",", _roi),
                 threshold == null ? "-" : JsonUtil.Num(threshold, "th_lo", 0).ToString("0.000"),
                 threshold == null ? "-" : JsonUtil.Num(threshold, "th_hi", 0).ToString("0.000"));
+            _lblConfig.Text += " · 来源 " + JsonUtil.Str(_stationCfg, "roi_source");
             SaveConfig();
         }
 
